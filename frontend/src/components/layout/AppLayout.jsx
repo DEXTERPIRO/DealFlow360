@@ -345,7 +345,7 @@ export default function AppLayout() {
                 </span>
               </div>
               <a
-                href="/portal/login"
+                href="/portal/demo-portal-token-acme"
                 target="_blank"
                 rel="noreferrer"
                 className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 font-medium transition-colors"
@@ -357,7 +357,7 @@ export default function AppLayout() {
           ) : (
             <div className="flex justify-center">
               <a
-                href="/portal/login"
+                href="/portal/demo-portal-token-acme"
                 target="_blank"
                 rel="noreferrer"
                 title="Customer Portal"
@@ -367,6 +367,22 @@ export default function AppLayout() {
               </a>
             </div>
           )}
+
+          {/* Sidebar Sign Out button */}
+          <button
+            onClick={() => {
+              logout();
+              toast.success('Logged out successfully');
+              navigate('/login');
+            }}
+            className={`w-full py-2 px-2.5 flex items-center gap-2 rounded-xl text-xs font-semibold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 hover:border-rose-500/40 transition-all cursor-pointer ${
+              collapsed ? 'justify-center' : ''
+            }`}
+            title="Sign Out"
+          >
+            <LogOut className="w-4 h-4 shrink-0" />
+            {!collapsed && <span>Sign Out</span>}
+          </button>
 
           {/* Desktop collapse toggle button */}
           <div className="hidden lg:flex justify-end pt-1">
@@ -502,6 +518,20 @@ export default function AppLayout() {
                 </div>
               )}
             </div>
+
+            {/* Quick Logout Button */}
+            <button
+              onClick={() => {
+                logout();
+                toast.success('Logged out successfully');
+                navigate('/login');
+              }}
+              className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-slate-800 hover:border-rose-500/20 transition-all flex items-center gap-1.5 text-xs font-semibold cursor-pointer"
+              title="Sign Out"
+            >
+              <LogOut className="w-4 h-4 text-rose-400" />
+              <span className="hidden sm:inline text-slate-300 hover:text-rose-300">Logout</span>
+            </button>
           </div>
         </header>
 

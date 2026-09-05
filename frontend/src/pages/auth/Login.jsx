@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Lock,
@@ -17,11 +17,18 @@ import {
 import { useAuthStore } from '../../store/authStore';
 import { authAPI } from '../../api';
 import { setToken } from '../../api/client';
+import { getRedirectPathForUser } from '../../utils/authRedirect';
 import toast from 'react-hot-toast';
 
 export default function Login() {
   const navigate = useNavigate();
-  const setAuth = useAuthStore((state) => state.setAuth);
+  const { user: currentUser, setAuth } = useAuthStore();
+
+  useEffect(() => {
+    if (currentUser) {
+      navigate(getRedirectPathForUser(currentUser), { replace: true });
+    }
+  }, [currentUser, navigate]);
 
   const [email, setEmail] = useState('admin@dealflow.com');
   const [password, setPassword] = useState('Admin@123');
@@ -79,17 +86,7 @@ export default function Login() {
       toast.success(`Welcome back, ${user.name || 'User'}!`);
 
       // Role based redirection
-      if (user.role === 'ADMIN' || user.role === 'SALES_MANAGER') {
-        navigate('/products');
-      } else if (user.role === 'SALES_REP') {
-        navigate('/quotations');
-      } else if (user.role === 'FINANCE') {
-        navigate('/approvals');
-      } else if (user.role === 'CUSTOMER') {
-        navigate('/portal/login');
-      } else {
-        navigate('/dashboard');
-      }
+      navigate(getRedirectPathForUser(user));
     } catch (err) {
       const msg = err.detail || err.error || err.message || 'Invalid email or password';
       setAuthError(msg);

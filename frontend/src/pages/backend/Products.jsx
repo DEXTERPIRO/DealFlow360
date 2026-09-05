@@ -17,10 +17,12 @@ import {
   Clock,
   Warehouse,
   ChevronDown,
-  X
+  X,
+  Database
 } from 'lucide-react';
 import { productsAPI } from '../../api';
 import toast from 'react-hot-toast';
+import Pagination from '../../components/ui/Pagination';
 
 export default function ProductsPage() {
   const [products, setProducts] = useState([]);
@@ -30,6 +32,10 @@ export default function ProductsPage() {
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [subscriptionFilter, setSubscriptionFilter] = useState('ALL'); // ALL, SUBSCRIPTION, ONE_TIME
   const [viewMode, setViewMode] = useState('table'); // table, grid
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -48,12 +54,19 @@ export default function ProductsPage() {
   });
   const [submitting, setSubmitting] = useState(false);
 
-  // Load Data
-  const fetchData = async () => {
+  // Load Data directly from PostgreSQL database via search & filter query params
+  const fetchData = async (q = search, cat = selectedCategory, sub = subscriptionFilter) => {
     try {
       setLoading(true);
+      const params = {};
+      if (q && q.trim()) params.search = q.trim();
+      if (cat && cat !== 'ALL') params.category = cat;
+      if (sub && sub !== 'ALL') {
+        params.isSubscription = sub === 'SUBSCRIPTION' ? 'true' : 'false';
+      }
+
       const [prodsRes, catsRes] = await Promise.all([
-        productsAPI.getAll(),
+        productsAPI.getAll(params),
         productsAPI.getCategories()
       ]);
       setProducts(prodsRes || []);
@@ -67,29 +80,25 @@ export default function ProductsPage() {
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    const timer = setTimeout(() => {
+      fetchData(search, selectedCategory, subscriptionFilter);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [search, selectedCategory, subscriptionFilter]);
 
-  // Filter products
+  // Products returned directly from PostgreSQL database query
   const filteredProducts = useMemo(() => {
-    return products.filter((p) => {
-      const matchesSearch =
-        search === '' ||
-        p.name?.toLowerCase().includes(search.toLowerCase()) ||
-        p.sku?.toLowerCase().includes(search.toLowerCase()) ||
-        p.description?.toLowerCase().includes(search.toLowerCase());
+    return products;
+  }, [products]);
 
-      const matchesCat =
-        selectedCategory === 'ALL' || p.categoryId === selectedCategory;
+  // Reset to page 1 when filters change
+  useEffect(() => { setCurrentPage(1); }, [search, selectedCategory, subscriptionFilter]);
 
-      const matchesSub =
-        subscriptionFilter === 'ALL' ||
-        (subscriptionFilter === 'SUBSCRIPTION' && p.isSubscription) ||
-        (subscriptionFilter === 'ONE_TIME' && !p.isSubscription);
-
-      return matchesSearch && matchesCat && matchesSub;
-    });
-  }, [products, search, selectedCategory, subscriptionFilter]);
+  // Paginated slice
+  const pagedProducts = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredProducts.slice(start, start + pageSize);
+  }, [filteredProducts, currentPage, pageSize]);
 
   // Aggregate stats
   const stats = useMemo(() => {
@@ -369,7 +378,7 @@ export default function ProductsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {filteredProducts.map((p) => {
+                {pagedProducts.map((p) => {
                   const base = Number(p.basePrice) || 0;
                   const cost = Number(p.costPrice) || 0;
                   const margin = base > 0 ? (((base - cost) / base) * 100).toFixed(1) : '0.0';
@@ -492,11 +501,20 @@ export default function ProductsPage() {
               </tbody>
             </table>
           </div>
+          <div className="p-4">
+            <Pagination
+              currentPage={currentPage}
+              totalItems={filteredProducts.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={(s) => { setPageSize(s); setCurrentPage(1); }}
+            />
+          </div>
         </div>
       ) : (
         /* ── GRID CARD VIEW ───────────────────────────────────────────────── */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredProducts.map((p) => {
+          {pagedProducts.map((p) => {
             const base = Number(p.basePrice) || 0;
             const cost = Number(p.costPrice) || 0;
             const margin = base > 0 ? (((base - cost) / base) * 100).toFixed(1) : '0.0';
@@ -589,6 +607,17 @@ export default function ProductsPage() {
             );
           })}
         </div>
+      )}
+
+      {/* Grid view pagination */}
+      {viewMode === 'grid' && filteredProducts.length > 0 && (
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filteredProducts.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={(s) => { setPageSize(s); setCurrentPage(1); }}
+        />
       )}
 
       {/* ── CREATE / EDIT PRODUCT MODAL ────────────────────────────────────── */}

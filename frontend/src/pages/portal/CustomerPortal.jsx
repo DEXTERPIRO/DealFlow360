@@ -22,11 +22,13 @@ import {
   AlertTriangle,
   Layers,
   FileCheck,
-  FileText
+  FileText,
+  LogOut
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { io } from 'socket.io-client';
 import { quotationsAPI, negotiationsAPI } from '../../api';
+import { useAuthStore } from '../../store/authStore';
 import toast from 'react-hot-toast';
 
 // ─── Formatting Helpers ───────────────────────────────────────────────────
@@ -226,6 +228,13 @@ function ConfirmModal({ quotation, onClose, onConfirm, loading }) {
 export default function CustomerPortal() {
   const { token } = useParams();
   const navigate = useNavigate();
+  const { user, logout } = useAuthStore();
+
+  const handleLogout = () => {
+    logout();
+    toast.success('Logged out successfully');
+    navigate('/login');
+  };
 
   // Quotation state
   const [quotation, setQuotation] = useState(null);
@@ -508,6 +517,16 @@ export default function CustomerPortal() {
             <span className={`w-2 h-2 rounded-full ${statusMeta.dotClass}`} />
             {statusMeta.label}
           </div>
+
+          {/* Logout / Exit button */}
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 border border-slate-700 hover:border-rose-500/40 text-xs font-semibold transition-all shadow-sm cursor-pointer ml-1"
+            title="Log out and return to sign in"
+          >
+            <LogOut size={13} />
+            <span>Logout</span>
+          </button>
         </div>
       </header>
 

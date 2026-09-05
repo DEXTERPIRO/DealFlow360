@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { productsAPI } from '../../api';
 import toast from 'react-hot-toast';
+import Pagination from '../../components/ui/Pagination';
 
 export default function UpsellRules() {
   const [rules, setRules] = useState([]);
@@ -150,6 +151,19 @@ export default function UpsellRules() {
       return srcName.includes(q) || tgtName.includes(q);
     });
   }, [rules, searchQuery]);
+
+  // Pagination
+  const [rulePage, setRulePage] = useState(1);
+  const rulePageSize = 6;
+
+  useEffect(() => {
+    setRulePage(1);
+  }, [searchQuery]);
+
+  const pagedRules = useMemo(() => {
+    const start = (rulePage - 1) * rulePageSize;
+    return filteredRules.slice(start, start + rulePageSize);
+  }, [filteredRules, rulePage, rulePageSize]);
 
   // Promoted products list from rules
   const promotedRules = useMemo(() => {
@@ -295,7 +309,7 @@ export default function UpsellRules() {
                     </td>
                   </tr>
                 ) : (
-                  filteredRules.map((rule) => {
+                  pagedRules.map((rule) => {
                     const src = rule.source_product;
                     const tgt = rule.target_product;
 
@@ -382,6 +396,16 @@ export default function UpsellRules() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Upsell Rules Pagination */}
+          <div className="p-4 border-t border-slate-800">
+            <Pagination
+              currentPage={rulePage}
+              totalItems={filteredRules.length}
+              pageSize={rulePageSize}
+              onPageChange={setRulePage}
+            />
           </div>
         </div>
       </div>

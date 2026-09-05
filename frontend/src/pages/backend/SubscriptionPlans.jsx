@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { subscriptionsAPI } from '../../api';
 import toast from 'react-hot-toast';
+import Pagination from '../../components/ui/Pagination';
 
 const CYCLE_BADGES = {
   MONTHLY: {
@@ -39,6 +40,11 @@ export default function SubscriptionPlans() {
   // Add/Edit Plan Modal state
   const [planModalData, setPlanModalData] = useState(null); // null = closed, {} = add, plan = edit
   const [savingPlan, setSavingPlan] = useState(false);
+
+  // Pagination
+  const [planPage, setPlanPage] = useState(1);
+  const pageSize = 6;
+  const pagedPlans = plans.slice((planPage - 1) * pageSize, planPage * pageSize);
 
   // ── 1. Load Subscription Plans ───────────────────────────────────────────
 
@@ -194,7 +200,7 @@ export default function SubscriptionPlans() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {plans.map((plan) => {
+          {pagedPlans.map((plan) => {
             const cycleKey = (plan.billing_cycle || plan.billingCycle || 'MONTHLY').toUpperCase();
             const cycleMeta = CYCLE_BADGES[cycleKey] || CYCLE_BADGES.MONTHLY;
 
@@ -256,7 +262,7 @@ export default function SubscriptionPlans() {
                     <div className="p-3 rounded-2xl bg-slate-800/40 border border-slate-800/60 flex items-center justify-between">
                       <div>
                         <p className="text-xs font-semibold text-white">Partial Refund</p>
-                        <p className="text-[11px] text-slate-400">Allow refunds on cancellation</p>
+                        <p className="text-[11px] text-slate-400">Issue pro-rated refunds on cancellation</p>
                       </div>
                       <button
                         onClick={() => handleQuickToggleRefund(plan)}
@@ -266,14 +272,14 @@ export default function SubscriptionPlans() {
                             : 'bg-slate-800 text-slate-500 border-slate-700'
                         }`}
                       >
-                        {plan.partial_refund ? '✓ Allowed' : 'Prohibited'}
+                        {plan.partial_refund ? '✓ Enabled' : 'Disabled'}
                       </button>
                     </div>
                   </div>
 
-                  {/* Cancel Policy */}
-                  <div className="pt-3 border-t border-slate-800/70">
-                    <p className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold mb-1">
+                  {/* Cancellation Policy Display */}
+                  <div className="p-3 rounded-2xl bg-slate-950/40 border border-slate-800/40">
+                    <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-1">
                       Cancellation Policy
                     </p>
                     <p className="text-xs text-slate-300 italic leading-relaxed">
@@ -284,6 +290,18 @@ export default function SubscriptionPlans() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Subscription Plans Pagination */}
+      {plans.length > 0 && (
+        <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
+          <Pagination
+            currentPage={planPage}
+            totalItems={plans.length}
+            pageSize={pageSize}
+            onPageChange={setPlanPage}
+          />
         </div>
       )}
 

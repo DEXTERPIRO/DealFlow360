@@ -2,7 +2,7 @@ from decimal import Decimal
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query, status
 from pydantic import BaseModel
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -419,12 +419,19 @@ async def get_products(
         .order_by(Product.name.asc())
     )
 
-    if category:
+    if category and category != "ALL":
         stmt = stmt.where(Product.category_id == category)
-    if isSubscription is not None:
+    if isSubscription is not None and isSubscription != "ALL":
         stmt = stmt.where(Product.is_subscription == (isSubscription.lower() == "true"))
-    if search:
-        stmt = stmt.where(Product.name.ilike(f"%{search}%"))
+    if search and search.strip():
+        pat = f"%{search.strip()}%"
+        stmt = stmt.where(
+            or_(
+                Product.name.ilike(pat),
+                Product.sku.ilike(pat),
+                Product.description.ilike(pat)
+            )
+        )
 
     result = await db.execute(stmt)
     products = result.scalars().all()

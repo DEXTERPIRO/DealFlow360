@@ -24,11 +24,13 @@ import {
   Sparkles,
   RefreshCw,
   XCircle,
-  MessageSquare
+  MessageSquare,
+  Database
 } from 'lucide-react';
 import { quotationsAPI, usersAPI } from '../../api';
 import { useAuthStore } from '../../store/authStore';
 import toast from 'react-hot-toast';
+import Pagination from '../../components/ui/Pagination';
 
 // Indian Rupee currency formatter
 const formatINR = (val) => {
@@ -59,6 +61,7 @@ export default function QuotationsList() {
   const { user } = useAuthStore();
 
   const [quotations, setQuotations] = useState([]);
+  const [allCountQuotes, setAllCountQuotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'grid'
   const [searchQuery, setSearchQuery] = useState(searchParams.get('search') || '');
@@ -66,6 +69,10 @@ export default function QuotationsList() {
   const [selectedRep, setSelectedRep] = useState('ALL');
   const [repsList, setRepsList] = useState([]);
   const [approvingId, setApprovingId] = useState(null);
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   const isManagerOrAdmin = ['ADMIN', 'SALES_MANAGER', 'FINANCE'].includes(user?.role);
 
@@ -77,12 +84,28 @@ export default function QuotationsList() {
     }
   }, [searchParams]);
 
-  // Fetch quotations and reps
-  const loadData = async () => {
+  // Fetch quotations and reps directly from database via PostgreSQL SQL queries
+  const loadData = async (query = searchQuery, status = statusFilter, rep = selectedRep) => {
     setLoading(true);
     try {
-      const data = await quotationsAPI.getAll();
+      const params = {};
+      if (query && query.trim()) params.search = query.trim();
+      if (status && status !== 'ALL') params.status = status;
+      if (rep && rep !== 'ALL') params.repId = rep;
+
+      const [data, countData] = await Promise.all([
+        quotationsAPI.getAll(params),
+        status !== 'ALL'
+          ? quotationsAPI.getAll({ search: query.trim() || undefined, repId: rep !== 'ALL' ? rep : undefined })
+          : Promise.resolve(null),
+      ]);
+
       setQuotations(Array.isArray(data) ? data : []);
+      if (countData && Array.isArray(countData)) {
+        setAllCountQuotes(countData);
+      } else if (Array.isArray(data)) {
+        setAllCountQuotes(data);
+      }
 
       // Extract reps list or fetch users
       try {
@@ -93,19 +116,17 @@ export default function QuotationsList() {
         }
       } catch {
         // Fallback: extract distinct reps from quotations
-        if (Array.isArray(data)) {
-          const distinctReps = [];
-          const seen = new Set();
-          data.forEach((q) => {
-            const repName = q.rep?.name || q.rep_name;
-            const repId = q.rep?.id || q.rep_id;
-            if (repId && !seen.has(repId)) {
-              seen.add(repId);
-              distinctReps.push({ id: repId, name: repName || 'Rep' });
-            }
-          });
-          setRepsList(distinctReps);
-        }
+        const distinctReps = [];
+        const seen = new Set();
+        (data || []).forEach((q) => {
+          const repName = q.rep?.name || q.rep_name;
+          const repId = q.rep?.id || q.rep_id;
+          if (repId && !seen.has(repId)) {
+            seen.add(repId);
+            distinctReps.push({ id: repId, name: repName || 'Rep' });
+          }
+        });
+        setRepsList(distinctReps);
       }
     } catch (err) {
       toast.error('Failed to load quotations');
@@ -115,8 +136,11 @@ export default function QuotationsList() {
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    const timer = setTimeout(() => {
+      loadData(searchQuery, statusFilter, selectedRep);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery, statusFilter, selectedRep]);
 
   // Quick Approve Handler for Managers/Finance
   const handleQuickApprove = async (e, q) => {
@@ -155,10 +179,11 @@ export default function QuotationsList() {
     return true;
   };
 
-  // Status counts
+  // Status counts from database dataset
   const tabCounts = useMemo(() => {
+    const list = allCountQuotes.length > 0 ? allCountQuotes : quotations;
     const counts = {
-      ALL: quotations.length,
+      ALL: list.length,
       DRAFT: 0,
       PENDING: 0,
       APPROVED: 0,
@@ -168,7 +193,7 @@ export default function QuotationsList() {
       REJECTED: 0,
       CANCELLED: 0,
     };
-    quotations.forEach((q) => {
+    list.forEach((q) => {
       const s = q.status;
       if (s === 'DRAFT') counts.DRAFT++;
       else if (['PENDING_MANAGER', 'PENDING_FINANCE'].includes(s)) counts.PENDING++;
@@ -180,39 +205,21 @@ export default function QuotationsList() {
       else if (s === 'CANCELLED') counts.CANCELLED++;
     });
     return counts;
+  }, [allCountQuotes, quotations]);
+
+  // Quotations returned directly from PostgreSQL database query
+  const filteredQuotations = useMemo(() => {
+    return quotations;
   }, [quotations]);
 
-  // Filtered quotations
-  const filteredQuotations = useMemo(() => {
-    return quotations.filter((q) => {
-      // Tab filter
-      if (!matchesStatusTab(q.status, statusFilter)) return false;
+  // Reset page when filters change
+  useEffect(() => { setCurrentPage(1); }, [statusFilter, selectedRep, searchQuery]);
 
-      // Rep filter
-      if (selectedRep !== 'ALL') {
-        const repId = q.rep?.id || q.rep_id;
-        if (repId !== selectedRep) return false;
-      }
-
-      // Search query
-      if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase().trim();
-        const qtNum = (q.quotation_number || q.id || '').toLowerCase();
-        const custName = (q.customer?.name || q.customer_name || '').toLowerCase();
-        const compName = (q.customer?.company_name || q.customer_company || '').toLowerCase();
-        const repName = (q.rep?.name || q.rep_name || '').toLowerCase();
-        if (
-          !qtNum.includes(query) &&
-          !custName.includes(query) &&
-          !compName.includes(query) &&
-          !repName.includes(query)
-        ) {
-          return false;
-        }
-      }
-      return true;
-    });
-  }, [quotations, statusFilter, selectedRep, searchQuery]);
+  // Paginated slice
+  const pagedQuotations = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredQuotations.slice(start, start + pageSize);
+  }, [filteredQuotations, currentPage, pageSize]);
 
   // Status Badge Colors
   const getStatusBadge = (status) => {
@@ -330,6 +337,12 @@ export default function QuotationsList() {
             <span className="text-xs font-mono font-normal px-2.5 py-1 rounded-lg bg-slate-800 text-slate-400 border border-slate-700">
               {filteredQuotations.length} records
             </span>
+            {(searchQuery || statusFilter !== 'ALL' || selectedRep !== 'ALL') && (
+              <span className="flex items-center gap-1 text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/25">
+                <Database className="w-3 h-3" />
+                <span>DB Filtered</span>
+              </span>
+            )}
           </h1>
           <p className="text-xs text-slate-400 mt-0.5">
             Create, track, govern, and manage real-time sales proposals
@@ -534,7 +547,7 @@ export default function QuotationsList() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {filteredQuotations.map((q) => {
+                {pagedQuotations.map((q) => {
                   const badge = getStatusBadge(q.status);
                   const custName = q.customer?.name || q.customer_name || 'Direct Customer';
                   const compName = q.customer?.companyName || q.customer?.company_name || q.customer_company || 'Independent';
@@ -683,11 +696,20 @@ export default function QuotationsList() {
               </tbody>
             </table>
           </div>
+          <div className="p-4 border-t border-slate-800">
+            <Pagination
+              currentPage={currentPage}
+              totalItems={filteredQuotations.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+              onPageSizeChange={(s) => { setPageSize(s); setCurrentPage(1); }}
+            />
+          </div>
         </div>
       ) : (
         /* ── GRID VIEW (CARDS: 3 COLUMNS DESKTOP, 1 MOBILE) ────────── */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredQuotations.map((q) => {
+          {pagedQuotations.map((q) => {
             const badge = getStatusBadge(q.status);
             const custName = q.customer?.name || q.customer_name || 'Direct Customer';
             const compName = q.customer?.companyName || q.customer?.company_name || q.customer_company || 'Independent';
@@ -815,6 +837,17 @@ export default function QuotationsList() {
             );
           })}
         </div>
+      )}
+
+      {/* Grid pagination */}
+      {viewMode === 'grid' && filteredQuotations.length > 0 && (
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filteredQuotations.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={(s) => { setPageSize(s); setCurrentPage(1); }}
+        />
       )}
     </div>
   );

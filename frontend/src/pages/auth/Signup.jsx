@@ -14,11 +14,18 @@ import {
 import { useAuthStore } from '../../store/authStore';
 import { authAPI } from '../../api';
 import { setToken } from '../../api/client';
+import { getRedirectPathForUser } from '../../utils/authRedirect';
 import toast from 'react-hot-toast';
 
 export default function Signup() {
   const navigate = useNavigate();
-  const setAuth = useAuthStore((state) => state.setAuth);
+  const { user: currentUser, setAuth } = useAuthStore();
+
+  React.useEffect(() => {
+    if (currentUser) {
+      navigate(getRedirectPathForUser(currentUser), { replace: true });
+    }
+  }, [currentUser, navigate]);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -101,15 +108,7 @@ export default function Signup() {
       toast.success('Account created successfully!');
 
       // Redirect based on role
-      if (user.role === 'ADMIN' || user.role === 'SALES_MANAGER') {
-        navigate('/products');
-      } else if (user.role === 'SALES_REP') {
-        navigate('/quotations');
-      } else if (user.role === 'FINANCE') {
-        navigate('/approvals');
-      } else {
-        navigate('/dashboard');
-      }
+      navigate(getRedirectPathForUser(user));
     } catch (err) {
       const msg = err.detail || err.error || err.message || 'Registration failed';
       toast.error(msg);

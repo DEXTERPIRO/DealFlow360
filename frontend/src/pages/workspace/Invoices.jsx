@@ -28,6 +28,7 @@ import {
 import { invoicesAPI, quotationsAPI } from '../../api';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../../store/authStore';
+import Pagination from '../../components/ui/Pagination';
 
 // ─── Formatters & Helpers ──────────────────────────────────────────────────
 
@@ -552,6 +553,10 @@ export default function Invoices() {
   const [receiptModalInvoice, setReceiptModalInvoice] = useState(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+
   // ── 1. Fetch Invoices ────────────────────────────────────────────────────
 
   const loadInvoices = useCallback(async () => {
@@ -656,6 +661,15 @@ export default function Invoices() {
       return matchesTab && matchesSearch;
     });
   }, [invoices, filterTab, searchQuery]);
+
+  // Reset page on filter change
+  useEffect(() => { setCurrentPage(1); }, [filterTab, searchQuery]);
+
+  // Paginated slice
+  const pagedInvoices = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredInvoices.slice(start, start + pageSize);
+  }, [filteredInvoices, currentPage, pageSize]);
 
   return (
     <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-6">
@@ -821,7 +835,7 @@ export default function Invoices() {
                   </td>
                 </tr>
               ) : (
-                filteredInvoices.map((inv) => {
+                pagedInvoices.map((inv) => {
                   const st = (inv.status || 'DRAFT').toUpperCase();
                   const overdue =
                     st !== 'PAID' && st !== 'CANCELLED' && isPastDue(inv.due_date);
@@ -978,6 +992,15 @@ export default function Invoices() {
               )}
             </tbody>
           </table>
+        </div>
+        <div className="p-4">
+          <Pagination
+            currentPage={currentPage}
+            totalItems={filteredInvoices.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(s) => { setPageSize(s); setCurrentPage(1); }}
+          />
         </div>
       </div>
 

@@ -199,6 +199,7 @@ async def seed():
             discount_amount=Decimal("14500.00"),
             total=Decimal("156600.00"),
             margin=31.2,
+            portal_token="portal-token-beta-002",
             expiry_date=datetime.utcnow() + timedelta(days=15),
             last_activity_at=datetime.utcnow() - timedelta(days=2)
         )
@@ -213,19 +214,21 @@ async def seed():
         )
         db.add(ql3)
 
-        # Q3: Draft
+        # Q3: Draft / Active Proposal
         q3 = Quotation(
             quotation_number="QT-2024-003",
             rep_id=rep_arjun.id,
             customer_id=cust_gamma.id,
             customer_tier=CustomerTier.BRONZE,
-            status=QuotationStatus.DRAFT,
+            status=QuotationStatus.SENT_TO_CUSTOMER,
             blended_risk_score=0.0,
             subtotal=Decimal("56000.00"),
             tax_amount=Decimal("10080.00"),
             discount_amount=Decimal("0.00"),
             total=Decimal("66080.00"),
             margin=38.5,
+            portal_token="portal-token-gamma-003",
+            expiry_date=datetime.utcnow() + timedelta(days=20),
             last_activity_at=datetime.utcnow() - timedelta(days=5)
         )
         db.add(q3)

@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { fulfillmentAPI, productsAPI } from '../../api';
 import toast from 'react-hot-toast';
+import Pagination from '../../components/ui/Pagination';
 
 export default function Warehouses() {
   const [warehouses, setWarehouses] = useState([]);
@@ -179,6 +180,19 @@ export default function Warehouses() {
       return matchesWh && matchesProd;
     });
   }, [flattenedStock, warehouseFilter, searchProduct]);
+
+  // Stock Pagination
+  const [stockPage, setStockPage] = useState(1);
+  const stockPageSize = 8;
+
+  useEffect(() => {
+    setStockPage(1);
+  }, [warehouseFilter, searchProduct]);
+
+  const pagedStock = useMemo(() => {
+    const start = (stockPage - 1) * stockPageSize;
+    return filteredStock.slice(start, start + stockPageSize);
+  }, [filteredStock, stockPage, stockPageSize]);
 
   const getStockColorClass = (avail) => {
     if (avail > 20) return 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30';
@@ -413,7 +427,7 @@ export default function Warehouses() {
                     </td>
                   </tr>
                 ) : (
-                  filteredStock.map((row, idx) => {
+                  pagedStock.map((row, idx) => {
                     const badgeClass = getStockColorClass(row.available);
 
                     return (
@@ -457,6 +471,16 @@ export default function Warehouses() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Stock Table Pagination */}
+          <div className="p-4 border-t border-slate-800">
+            <Pagination
+              currentPage={stockPage}
+              totalItems={filteredStock.length}
+              pageSize={stockPageSize}
+              onPageChange={setStockPage}
+            />
           </div>
         </div>
       </div>

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 from typing import List, Optional
 import uuid
@@ -6,7 +6,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import select, func, or_
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, aliased
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -140,11 +140,18 @@ async def get_quotations(
     repId: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     stage: Optional[str] = Query(None),
+    dateRange: Optional[str] = Query(None),
+    tier: Optional[str] = Query(None),
     user: dict = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
+    CustomerUser = aliased(User, name="cust_user")
+    RepUser = aliased(User, name="rep_user")
+
     stmt = (
         select(Quotation)
+        .outerjoin(CustomerUser, Quotation.customer_id == CustomerUser.id)
+        .outerjoin(RepUser, Quotation.rep_id == RepUser.id)
         .options(
             selectinload(Quotation.rep),
             selectinload(Quotation.customer),
@@ -157,25 +164,60 @@ async def get_quotations(
     # Sales reps only see their own quotations
     if user.get("role") == "SALES_REP":
         stmt = stmt.where(Quotation.rep_id == user["id"])
-    elif repId:
+    elif repId and repId != "ALL":
         stmt = stmt.where(Quotation.rep_id == repId)
 
-    if status:
-        try:
-            status_enum = QuotationStatus(status)
-            stmt = stmt.where(Quotation.status == status_enum)
-        except ValueError:
-            pass
+    # Status / Stage database filter
+    target_status = status or stage
+    if target_status and target_status != "ALL":
+        s_upper = target_status.upper().strip()
+        if s_upper == "PENDING":
+            stmt = stmt.where(Quotation.status.in_([QuotationStatus.PENDING_MANAGER, QuotationStatus.PENDING_FINANCE]))
+        elif s_upper in ("SENT", "SENT_TO_CUSTOMER"):
+            stmt = stmt.where(Quotation.status == QuotationStatus.SENT_TO_CUSTOMER)
+        elif s_upper in ("NEGOTIATING", "UNDER_NEGOTIATION"):
+            stmt = stmt.where(Quotation.status == QuotationStatus.UNDER_NEGOTIATION)
+        elif s_upper in ("CANCELLED", "REJECTED"):
+            stmt = stmt.where(Quotation.status.in_([QuotationStatus.CANCELLED, QuotationStatus.REJECTED]))
+        else:
+            try:
+                status_enum = QuotationStatus(s_upper)
+                stmt = stmt.where(Quotation.status == status_enum)
+            except ValueError:
+                pass
 
-    if search:
-        search_pattern = f"%{search}%"
-        stmt = stmt.outerjoin(Quotation.customer).where(
+    # Search filter in database: QT number, customer name, company, email, or rep name
+    if search and search.strip():
+        search_pattern = f"%{search.strip()}%"
+        stmt = stmt.where(
             or_(
                 Quotation.quotation_number.ilike(search_pattern),
-                User.name.ilike(search_pattern),
-                User.company_name.ilike(search_pattern)
+                CustomerUser.name.ilike(search_pattern),
+                CustomerUser.company_name.ilike(search_pattern),
+                CustomerUser.email.ilike(search_pattern),
+                RepUser.name.ilike(search_pattern),
+                RepUser.email.ilike(search_pattern)
             )
         )
+
+    # Date range database filter: 7D, 30D
+    if dateRange and dateRange != "ALL":
+        d_upper = dateRange.upper().strip()
+        now = datetime.utcnow()
+        if d_upper == "7D":
+            cutoff = now - timedelta(days=7)
+            stmt = stmt.where(Quotation.created_at >= cutoff)
+        elif d_upper == "30D":
+            cutoff = now - timedelta(days=30)
+            stmt = stmt.where(Quotation.created_at >= cutoff)
+
+    # Customer tier database filter
+    if tier and tier != "ALL":
+        try:
+            tier_enum = CustomerTier(tier.upper().strip())
+            stmt = stmt.where(Quotation.customer_tier == tier_enum)
+        except ValueError:
+            pass
 
     result = await db.execute(stmt)
     quotations = result.scalars().all()
@@ -665,7 +707,10 @@ async def send_quotation(
     user: dict = Depends(require_roles("SALES_REP", "SALES_MANAGER", "ADMIN")),
     db: AsyncSession = Depends(get_db)
 ):
-    stmt = select(Quotation).where(Quotation.id == id)
+    stmt = select(Quotation).where(Quotation.id == id).options(
+        selectinload(Quotation.customer),
+        selectinload(Quotation.rep)
+    )
     result = await db.execute(stmt)
     quotation = result.scalar_one_or_none()
     if not quotation:
@@ -673,6 +718,9 @@ async def send_quotation(
 
     if quotation.status != QuotationStatus.APPROVED:
         raise HTTPException(status_code=400, detail="Only approved quotations can be sent")
+
+    if not quotation.portal_token:
+        quotation.portal_token = f"portal-token-{secrets.token_hex(6)}"
 
     quotation.status = QuotationStatus.SENT_TO_CUSTOMER
     quotation.last_activity_at = datetime.now(timezone.utc)
@@ -687,8 +735,26 @@ async def send_quotation(
     await db.commit()
 
     portal_url = f"{settings.FRONTEND_URL}/portal/{quotation.portal_token}"
+
+    # Dispatch real email via Gmail SMTP
+    if quotation.customer and quotation.customer.email:
+        try:
+            from app.utils.mailer import send_quotation_email
+            rep_name = quotation.rep.name if quotation.rep else "Sales Operations"
+            cust_name = quotation.customer.name or quotation.customer.company_name or "Valued Client"
+            send_quotation_email(
+                to_email=quotation.customer.email,
+                customer_name=cust_name,
+                quotation_number=quotation.quotation_number,
+                total_amount=float(quotation.total),
+                portal_token=quotation.portal_token,
+                rep_name=rep_name
+            )
+        except Exception as mail_err:
+            print(f"[Mailer Error] {mail_err}")
+
     return {
-        "message": "Sent to customer",
+        "message": "Sent to customer with email notification",
         "portalUrl": portal_url,
         "portalToken": quotation.portal_token
     }

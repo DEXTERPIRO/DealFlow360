@@ -89,7 +89,7 @@ export const notificationsAPI = {
 };
 
 export const usersAPI = {
-  getAll: () => api.get('/auth/users'),
+  getAll: (params) => api.get('/auth/users', { params }),
   create: (d) => api.post('/auth/users', d),
   toggleStatus: (id) => api.put(`/auth/users/${id}/status`),
   resetPassword: (id, d) => api.put(`/auth/users/${id}/reset-password`, d),

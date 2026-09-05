@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   ShieldCheck,
@@ -14,20 +14,33 @@ import {
 } from 'lucide-react';
 import { authAPI } from '../../api';
 import { useAuthStore } from '../../store/authStore';
+import { getRedirectPathForUser } from '../../utils/authRedirect';
 import toast from 'react-hot-toast';
 
 export default function PortalLogin() {
   const navigate = useNavigate();
-  const { setAuth } = useAuthStore();
+  const { user: currentUser, setAuth } = useAuthStore();
+
+  useEffect(() => {
+    if (currentUser) {
+      if (currentUser.role === 'CUSTOMER') {
+        navigate(`/portal/${currentUser.portalToken || 'demo-portal-token-acme'}`, { replace: true });
+      } else {
+        navigate(getRedirectPathForUser(currentUser), { replace: true });
+      }
+    }
+  }, [currentUser, navigate]);
 
   // Mode: 'magic' | 'password'
   const [authMode, setAuthMode] = useState('magic');
 
   // Magic Link state
   const [magicEmail, setMagicEmail] = useState('');
-  const [magicLoading, setMagicLoading] = useState(false);
   const [magicSent, setMagicSent] = useState(false);
-  const [demoToken, setDemoToken] = useState(null);
+  const [magicLoading, setMagicLoading] = useState(false);
+  const [demoToken, setDemoToken] = useState('');
+  const [customerCompany, setCustomerCompany] = useState('');
+  const [customerName, setCustomerName] = useState('');
   const [copiedToken, setCopiedToken] = useState(false);
 
   // Password state
@@ -35,7 +48,7 @@ export default function PortalLogin() {
   const [password, setPassword] = useState('');
   const [passwordLoading, setPasswordLoading] = useState(false);
 
-  // ── Handle Magic Link ────────────────────────────────────────────────────
+  // ── Handle Magic Link Request ────────────────────────────────────────────
 
   const handleMagicLink = async (e) => {
     e.preventDefault();
@@ -48,9 +61,11 @@ export default function PortalLogin() {
       setMagicLoading(true);
       const res = await authAPI.magicLink(magicEmail.trim());
       setMagicSent(true);
-      // For demo: capture token from response if provided or generate demo portal token
-      const token = res?.token || res?.portalToken || 'demo-portal-token-acme';
+      // Capture actual portal token and customer metadata from response
+      const token = res?.portalToken || res?.token || 'demo-portal-token-acme';
       setDemoToken(token);
+      if (res?.companyName) setCustomerCompany(res.companyName);
+      if (res?.customerName) setCustomerName(res.customerName);
       toast.success('Magic link generated!');
     } catch (err) {
       console.error(err);
@@ -79,8 +94,10 @@ export default function PortalLogin() {
         // If customer has an active portal token redirect there, otherwise dashboard
         if (res.user.portalToken) {
           navigate(`/portal/${res.user.portalToken}`);
+        } else if (res.user.role === 'CUSTOMER') {
+          navigate('/portal/demo-portal-token-acme');
         } else {
-          navigate('/dashboard');
+          navigate(getRedirectPathForUser(res.user));
         }
       }
     } catch (err) {
@@ -91,15 +108,17 @@ export default function PortalLogin() {
     }
   };
 
-  const handlePrefillDemo = () => {
-    setEmail('customer@acme.com');
-    setPassword('Customer@123');
-    toast.success('Customer credentials filled!');
-  };
+  const demoClients = [
+    { name: 'Acme Corporation', email: 'buyer@acme.com', tier: 'Gold' },
+    { name: 'Beta Industries', email: 'contact@beta.com', tier: 'Silver' },
+    { name: 'Gamma Retail', email: 'purchase@gamma.com', tier: 'Bronze' },
+  ];
 
-  const handlePrefillMagic = () => {
-    setMagicEmail('customer@acme.com');
-    toast.success('Customer email filled!');
+  const handleSelectClient = (clientEmail) => {
+    setMagicEmail(clientEmail);
+    setEmail(clientEmail);
+    setPassword('Customer@123');
+    toast.success(`Selected ${clientEmail}`);
   };
 
   const handleCopyToken = () => {
@@ -176,6 +195,11 @@ export default function PortalLogin() {
                     <p className="font-mono text-xs font-semibold text-blue-400 mt-0.5">
                       {magicEmail}
                     </p>
+                    {customerCompany && (
+                      <p className="text-xs text-slate-300 mt-1.5 inline-block px-2.5 py-1 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-300">
+                        Proposal Account: <strong className="text-white">{customerCompany}</strong>
+                      </p>
+                    )}
                   </div>
 
                   {/* Demo Helper Token Display */}
@@ -183,11 +207,11 @@ export default function PortalLogin() {
                     <div className="mt-4 p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 text-left space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">
-                          Demo Live Token
+                          Portal Token
                         </span>
                         <button
                           onClick={handleCopyToken}
-                          className="text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                          className="text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1 cursor-pointer"
                         >
                           {copiedToken ? <Check size={12} /> : <Copy size={12} />}
                           {copiedToken ? 'Copied' : 'Copy'}
@@ -199,7 +223,7 @@ export default function PortalLogin() {
 
                       <Link
                         to={`/portal/${demoToken}`}
-                        className="w-full py-2 px-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 mt-2"
+                        className="w-full py-2 px-3 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 mt-2 cursor-pointer shadow-md shadow-blue-600/20"
                       >
                         Launch Portal Directly
                         <ExternalLink size={13} />
@@ -209,7 +233,7 @@ export default function PortalLogin() {
 
                   <button
                     onClick={() => setMagicSent(false)}
-                    className="text-xs text-slate-400 hover:text-white underline pt-2 block mx-auto"
+                    className="text-xs text-slate-400 hover:text-white underline pt-2 block mx-auto cursor-pointer"
                   >
                     Enter a different email
                   </button>
@@ -230,7 +254,7 @@ export default function PortalLogin() {
                         required
                         value={magicEmail}
                         onChange={(e) => setMagicEmail(e.target.value)}
-                        placeholder="procurement@acme.com"
+                        placeholder="buyer@acme.com"
                         className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
                       />
                     </div>
@@ -245,16 +269,31 @@ export default function PortalLogin() {
                     <ArrowRight size={14} />
                   </button>
 
-                  {/* Magic Link Demo Hint */}
-                  <div
-                    onClick={handlePrefillMagic}
-                    className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 hover:border-blue-500/50 hover:bg-slate-900/60 transition-all cursor-pointer text-[11px] text-slate-400 group"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-slate-300">Demo Customer Email:</span>
-                      <span className="text-[10px] text-blue-400 group-hover:underline font-medium">Click to fill</span>
+                  {/* Multi-Client Demo Picker */}
+                  <div className="pt-1">
+                    <p className="text-[11px] font-semibold text-slate-400 mb-2">Quick Demo Client Accounts:</p>
+                    <div className="grid grid-cols-1 gap-1.5">
+                      {demoClients.map((client) => (
+                        <button
+                          key={client.email}
+                          type="button"
+                          onClick={() => handleSelectClient(client.email)}
+                          className={`flex items-center justify-between p-2.5 rounded-xl border transition-all text-left text-xs cursor-pointer ${
+                            magicEmail === client.email
+                              ? 'bg-blue-500/15 border-blue-500/50 text-white shadow-sm'
+                              : 'bg-slate-900/60 border-slate-800/80 text-slate-300 hover:border-slate-700 hover:bg-slate-900'
+                          }`}
+                        >
+                          <div className="min-w-0">
+                            <span className="font-bold block truncate">{client.name}</span>
+                            <span className="text-[10px] text-slate-400 font-mono">{client.email}</span>
+                          </div>
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded border border-slate-700 bg-slate-800 uppercase font-mono text-slate-300">
+                            {client.tier}
+                          </span>
+                        </button>
+                      ))}
                     </div>
-                    <p className="mt-1 font-mono text-slate-300">customer@acme.com</p>
                   </div>
                 </form>
               )}

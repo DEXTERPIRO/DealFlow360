@@ -20,11 +20,13 @@ import {
   ToggleRight,
   Send,
   AlertCircle,
-  FileText
+  FileText,
+  Database
 } from 'lucide-react';
 import { usersAPI } from '../../api';
 import { useAuthStore } from '../../store/authStore';
 import toast from 'react-hot-toast';
+import Pagination from '../../components/ui/Pagination';
 
 export default function UsersPage() {
   const navigate = useNavigate();
@@ -34,6 +36,11 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('ALL');
+
+  // Pagination
+  const [internalPage, setInternalPage] = useState(1);
+  const [customerPage, setCustomerPage] = useState(1);
+  const [pageSize] = useState(20);
 
   // Add User State
   const [showAddModal, setShowAddModal] = useState(false);
@@ -53,11 +60,14 @@ export default function UsersPage() {
   const [newPassword, setNewPassword] = useState('');
   const [submittingReset, setSubmittingReset] = useState(false);
 
-  // Fetch all users
-  const loadUsers = async () => {
+  // Fetch users directly from PostgreSQL database with search and role filtering
+  const loadUsers = async (q = searchQuery, role = roleFilter) => {
     setLoading(true);
     try {
-      const res = await usersAPI.getAll();
+      const params = {};
+      if (q && q.trim()) params.search = q.trim();
+      if (role && role !== 'ALL') params.role = role;
+      const res = await usersAPI.getAll(params);
       setUsers(Array.isArray(res) ? res : []);
     } catch (err) {
       toast.error('Failed to load users');
@@ -67,8 +77,11 @@ export default function UsersPage() {
   };
 
   useEffect(() => {
-    loadUsers();
-  }, []);
+    const timer = setTimeout(() => {
+      loadUsers(searchQuery, roleFilter);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery, roleFilter]);
 
   // Role Badge Styling
   const getRoleBadge = (role) => {
@@ -215,19 +228,24 @@ export default function UsersPage() {
     return users.filter((u) => u.role === 'CUSTOMER');
   }, [users]);
 
-  // Filtered internal users
+  // Filtered internal users from PostgreSQL database
   const filteredInternalUsers = useMemo(() => {
-    return internalUsers.filter((u) => {
-      if (roleFilter !== 'ALL' && u.role !== roleFilter) return false;
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const nameMatch = u.name?.toLowerCase().includes(q);
-        const emailMatch = u.email?.toLowerCase().includes(q);
-        return nameMatch || emailMatch;
-      }
-      return true;
-    });
-  }, [internalUsers, roleFilter, searchQuery]);
+    return internalUsers;
+  }, [internalUsers]);
+
+  // Reset page on filter change
+  useEffect(() => { setInternalPage(1); }, [roleFilter, searchQuery]);
+
+  // Paged slices
+  const pagedInternalUsers = useMemo(() => {
+    const start = (internalPage - 1) * pageSize;
+    return filteredInternalUsers.slice(start, start + pageSize);
+  }, [filteredInternalUsers, internalPage, pageSize]);
+
+  const pagedCustomerUsers = useMemo(() => {
+    const start = (customerPage - 1) * pageSize;
+    return customerUsers.slice(start, start + pageSize);
+  }, [customerUsers, customerPage, pageSize]);
 
   return (
     <div className="space-y-8 pb-12">
@@ -323,7 +341,7 @@ export default function UsersPage() {
                     </td>
                   </tr>
                 ) : (
-                  filteredInternalUsers.map((u) => {
+                  pagedInternalUsers.map((u) => {
                     const roleBadge = getRoleBadge(u.role);
                     const isSelf = u.id === currentUser?.id;
 
@@ -451,6 +469,14 @@ export default function UsersPage() {
               </tbody>
             </table>
           </div>
+          <div className="p-4">
+            <Pagination
+              currentPage={internalPage}
+              totalItems={filteredInternalUsers.length}
+              pageSize={pageSize}
+              onPageChange={setInternalPage}
+            />
+          </div>
         </div>
       </div>
 
@@ -486,7 +512,7 @@ export default function UsersPage() {
                     </td>
                   </tr>
                 ) : (
-                  customerUsers.map((c) => {
+                  pagedCustomerUsers.map((c) => {
                     const tier = c.customer_tier || 'BRONZE';
                     const compName = c.company_name || c.name || 'Enterprise Client';
                     const token = c.magic_link_token || c.id;
@@ -561,6 +587,14 @@ export default function UsersPage() {
                 )}
               </tbody>
             </table>
+          </div>
+          <div className="p-4">
+            <Pagination
+              currentPage={customerPage}
+              totalItems={customerUsers.length}
+              pageSize={pageSize}
+              onPageChange={setCustomerPage}
+            />
           </div>
         </div>
       </div>

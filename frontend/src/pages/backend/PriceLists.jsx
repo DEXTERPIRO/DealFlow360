@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { productsAPI } from '../../api';
 import toast from 'react-hot-toast';
+import Pagination from '../../components/ui/Pagination';
 
 export default function PriceListsPage() {
   const [priceLists, setPriceLists] = useState([]);
@@ -65,6 +66,16 @@ export default function PriceListsPage() {
       pl.tier?.toLowerCase().includes(search.toLowerCase());
     return matchesTier && matchesSearch;
   });
+
+  // Pagination
+  const [page, setPage] = useState(1);
+  const pageSize = 2;
+
+  useEffect(() => {
+    setPage(1);
+  }, [selectedTier, search]);
+
+  const pagedLists = filteredLists.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <div className="space-y-6 pb-12 antialiased">
@@ -175,7 +186,7 @@ export default function PriceListsPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {filteredLists.map((pl) => (
+          {pagedLists.map((pl) => (
             <div
               key={pl.id}
               className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm"
@@ -257,6 +268,15 @@ export default function PriceListsPage() {
               </div>
             </div>
           ))}
+
+          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
+            <Pagination
+              currentPage={page}
+              totalItems={filteredLists.length}
+              pageSize={pageSize}
+              onPageChange={setPage}
+            />
+          </div>
         </div>
       )}
     </div>

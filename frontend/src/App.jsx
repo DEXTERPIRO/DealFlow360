@@ -32,12 +32,23 @@ import InvoicesPage from './pages/workspace/Invoices';
 // Customer Portal
 import CustomerPortal from './pages/portal/CustomerPortal';
 import PortalLogin from './pages/portal/PortalLogin';
+import { getRedirectPathForUser } from './utils/authRedirect';
 
 function Guard({ children, roles }) {
   const { user } = useAuthStore();
   if (!user) return <Navigate to="/login" replace />;
+  if (user.role === 'CUSTOMER')
+    return <Navigate to={getRedirectPathForUser(user)} replace />;
   if (roles && !roles.includes(user.role))
     return <Navigate to="/dashboard" replace />;
+  return children;
+}
+
+function GuestGuard({ children }) {
+  const { user } = useAuthStore();
+  if (user) {
+    return <Navigate to={getRedirectPathForUser(user)} replace />;
+  }
   return children;
 }
 
@@ -48,13 +59,13 @@ export default function App() {
         <Toaster position="top-right"
           toastOptions={{ duration: 4000 }} />
         <Routes>
-          {/* Auth */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
+          {/* Auth (Redirect to workspace if already logged in) */}
+          <Route path="/login" element={<GuestGuard><Login /></GuestGuard>} />
+          <Route path="/signup" element={<GuestGuard><Signup /></GuestGuard>} />
 
-          {/* Customer Portal - NO AUTH GUARD */}
+          {/* Customer Portal */}
           <Route path="/portal/:token" element={<CustomerPortal />} />
-          <Route path="/portal/login" element={<PortalLogin />} />
+          <Route path="/portal/login" element={<GuestGuard><PortalLogin /></GuestGuard>} />
 
           {/* Main App */}
           <Route path="/" element={<Guard><AppLayout /></Guard>}>

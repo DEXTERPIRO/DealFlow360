@@ -1,10 +1,11 @@
 import secrets
 from datetime import datetime, timedelta
-from fastapi import APIRouter, Depends, HTTPException, Response, Request
+from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Response, Request, Query
 from pydantic import BaseModel, EmailStr
 import bcrypt
 from jose import jwt
-from sqlalchemy import select
+from sqlalchemy import select, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -58,7 +59,8 @@ def generate_tokens(user: User) -> tuple[str, str]:
 def set_refresh_cookie(response: Response, token: str):
     response.set_cookie(
         "refreshToken", token, httponly=True, samesite="lax",
-        max_age=7 * 24 * 60 * 60
+        max_age=7 * 24 * 60 * 60,
+        path="/"
     )
 
 @router.post("/login")
@@ -89,11 +91,18 @@ async def login(request: Request, body: LoginBody, response: Response,
     if role_val == "CUSTOMER":
         from app.models.models import Quotation
         q_res = await db.execute(
-            select(Quotation.portal_token)
-            .where(Quotation.customer_id == user.id, Quotation.portal_token.isnot(None))
+            select(Quotation)
+            .where(Quotation.customer_id == user.id)
             .order_by(Quotation.created_at.desc())
         )
-        portal_token = q_res.scalars().first() or "portal-token-acme-004"
+        cust_q = q_res.scalars().first()
+        if cust_q:
+            if not cust_q.portal_token:
+                cust_q.portal_token = f"portal-token-{secrets.token_hex(6)}"
+                await db.commit()
+            portal_token = cust_q.portal_token
+        else:
+            portal_token = "demo-portal-token-acme"
 
     access, refresh = generate_tokens(user)
     set_refresh_cookie(response, refresh)
@@ -133,13 +142,28 @@ async def signup(body: SignupBody, response: Response, db: AsyncSession = Depend
 @router.post("/refresh")
 async def refresh_token(request: Request, response: Response, db: AsyncSession = Depends(get_db)):
     token = request.cookies.get("refreshToken")
-    if not token:
-        raise HTTPException(401, "No refresh token")
-    try:
-        decoded = jwt.decode(token, settings.JWT_REFRESH_SECRET, algorithms=["HS256"])
-    except Exception:
-        raise HTTPException(401, "Invalid refresh token")
-    result = await db.execute(select(User).where(User.id == decoded["id"]))
+    user_id = None
+    if token:
+        try:
+            decoded = jwt.decode(token, settings.JWT_REFRESH_SECRET, algorithms=["HS256"])
+            user_id = decoded.get("id")
+        except Exception:
+            pass
+
+    if not user_id:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            bearer_token = auth_header.replace("Bearer ", "").strip()
+            try:
+                decoded = jwt.decode(bearer_token, settings.JWT_SECRET, algorithms=["HS256"])
+                user_id = decoded.get("id")
+            except Exception:
+                pass
+
+    if not user_id:
+        raise HTTPException(401, "No valid refresh or access token provided")
+
+    result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user or not user.is_active:
         raise HTTPException(401, "Invalid session")
@@ -152,23 +176,110 @@ async def magic_link(body: MagicLinkBody, db: AsyncSession = Depends(get_db)):
     clean_email = body.email.strip().lower()
     result = await db.execute(select(User).where(User.email.ilike(clean_email)))
     user = result.scalar_one_or_none()
+
+    from app.models.models import Quotation, QuotationLine, LineType, CustomerTier, UserRole, Product, QuotationStatus
+    from decimal import Decimal
+    import uuid
+
     if not user:
-        return {"message": "If this email exists, a link was sent"}
+        # Dynamically auto-provision customer account and quotation for new email
+        username_part = clean_email.split("@")[0].replace(".", " ").title()
+        comp_name = f"{username_part} Corporation"
+        user = User(
+            name=username_part,
+            email=clean_email,
+            password=hash_pw("Customer@123"),
+            role=UserRole.CUSTOMER,
+            customer_tier=CustomerTier.GOLD,
+            company_name=comp_name,
+            is_active=True
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+
+        # Get first active sales rep
+        rep_res = await db.execute(select(User).where(User.role == UserRole.SALES_REP).limit(1))
+        rep = rep_res.scalar_one_or_none()
+        rep_id = rep.id if rep else user.id
+
+        # Get sample product
+        prod_res = await db.execute(select(Product).limit(1))
+        sample_prod = prod_res.scalar_one_or_none()
+
+        # Create unique personalized quotation
+        portal_token = f"portal-token-{clean_email.split('@')[0].lower()[:12]}-{secrets.token_hex(3)}"
+        new_q = Quotation(
+            quotation_number=f"QT-2024-{secrets.token_hex(2).upper()}",
+            rep_id=rep_id,
+            customer_id=user.id,
+            customer_tier=CustomerTier.GOLD,
+            status=QuotationStatus.SENT_TO_CUSTOMER,
+            blended_risk_score=6.5,
+            subtotal=Decimal("170000.00"),
+            tax_amount=Decimal("30600.00"),
+            discount_amount=Decimal("17000.00"),
+            total=Decimal("183600.00"),
+            margin=28.0,
+            portal_token=portal_token,
+            expiry_date=datetime.utcnow() + timedelta(days=14),
+            last_activity_at=datetime.utcnow()
+        )
+        db.add(new_q)
+        await db.commit()
+        await db.refresh(new_q)
+
+        if sample_prod:
+            ql = QuotationLine(
+                quotation_id=new_q.id,
+                product_id=sample_prod.id,
+                line_type=LineType.ONE_TIME,
+                quantity=2,
+                unit_price=sample_prod.unit_price or Decimal("85000.00"),
+                cost_price=sample_prod.cost_price or Decimal("60000.00"),
+                discount=10.0,
+                tax=Decimal("18.00"),
+                line_total=Decimal("183600.00"),
+                margin=25.0
+            )
+            db.add(ql)
+            await db.commit()
+
     token = secrets.token_hex(32)
     user.magic_link_token = token
     user.magic_link_expiry = datetime.utcnow() + timedelta(minutes=30)
     await db.commit()
 
-    portal_token = "portal-token-acme-004"
-    from app.models.models import Quotation
+    # Find customer's active quotation
     q_res = await db.execute(
-        select(Quotation.portal_token)
-        .where(Quotation.customer_id == user.id, Quotation.portal_token.isnot(None))
+        select(Quotation)
+        .where(Quotation.customer_id == user.id)
         .order_by(Quotation.created_at.desc())
     )
-    portal_token = q_res.scalars().first() or "portal-token-acme-004"
+    cust_q = q_res.scalars().first()
+    if cust_q:
+        if not cust_q.portal_token:
+            cust_q.portal_token = f"portal-token-{clean_email.split('@')[0].lower()[:12]}-{secrets.token_hex(3)}"
+            await db.commit()
+        portal_token = cust_q.portal_token
+    else:
+        portal_token = "demo-portal-token-acme"
 
-    return {"message": "Magic link sent", "token": token, "portalToken": portal_token, "userId": user.id}
+    # Dispatch real email via Gmail SMTP
+    try:
+        from app.utils.mailer import send_magic_link_email
+        send_magic_link_email(user.email, portal_token, user.name or user.company_name or "Valued Customer")
+    except Exception as mail_err:
+        print(f"[Mailer Error] {mail_err}")
+
+    return {
+        "message": "Magic link sent to your email",
+        "token": token,
+        "portalToken": portal_token,
+        "customerName": user.name,
+        "companyName": user.company_name,
+        "userId": user.id
+    }
 
 @router.post("/verify-magic")
 async def verify_magic(body: VerifyMagicBody, response: Response, db: AsyncSession = Depends(get_db)):
@@ -219,13 +330,42 @@ class ResetPasswordBody(BaseModel):
 
 @router.get("/users")
 async def get_all_users(
+    search: Optional[str] = Query(None),
+    role: Optional[str] = Query(None),
+    tier: Optional[str] = Query(None),
     user: dict = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
     from sqlalchemy.orm import selectinload
-    from app.models.models import Quotation
+    from app.models.models import Quotation, CustomerTier
     
     stmt = select(User).order_by(User.created_at.desc())
+
+    if role and role != "ALL":
+        try:
+            role_enum = UserRole(role.upper().strip())
+            stmt = stmt.where(User.role == role_enum)
+        except ValueError:
+            pass
+
+    if tier and tier != "ALL":
+        try:
+            tier_enum = CustomerTier(tier.upper().strip())
+            stmt = stmt.where(User.customer_tier == tier_enum)
+        except ValueError:
+            pass
+
+    if search and search.strip():
+        pat = f"%{search.strip()}%"
+        stmt = stmt.where(
+            or_(
+                User.name.ilike(pat),
+                User.email.ilike(pat),
+                User.company_name.ilike(pat),
+                User.phone.ilike(pat)
+            )
+        )
+    
     res = await db.execute(stmt)
     users = res.scalars().all()
     
