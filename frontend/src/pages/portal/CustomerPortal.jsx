@@ -97,6 +97,72 @@ const STATUS_CONFIG = {
   },
 };
 
+// ─── Sub-Component: Live Countdown Timer ────────────────────────────────────
+
+function CountdownTimer({ expiryDate }) {
+  const [display, setDisplay] = React.useState({ text: '', isUrgent: false, isExpired: false });
+
+  React.useEffect(() => {
+    const update = () => {
+      const diff = new Date(expiryDate) - new Date();
+      if (diff <= 0) {
+        setDisplay({ text: 'EXPIRED', isUrgent: true, isExpired: true });
+        return;
+      }
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const secs = Math.floor((diff % (1000 * 60)) / 1000);
+      const isUrgent = diff < 48 * 60 * 60 * 1000;
+      const parts = [];
+      if (days > 0) parts.push(`${days}d`);
+      parts.push(`${String(hours).padStart(2, '0')}h`);
+      parts.push(`${String(mins).padStart(2, '0')}m`);
+      parts.push(`${String(secs).padStart(2, '0')}s`);
+      setDisplay({ text: parts.join(' '), isUrgent, isExpired: false });
+    };
+    update();
+    const t = setInterval(update, 1000);
+    return () => clearInterval(t);
+  }, [expiryDate]);
+
+  const urgentBg = '#7f1d1d';
+  const normalBg = 'rgba(30,58,95,0.95)';
+  const urgentBorder = '#ef4444';
+  const normalBorder = '#3b82f6';
+  const urgentColor = '#f87171';
+  const normalColor = '#93c5fd';
+
+  return (
+    <div style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 8,
+      padding: '8px 16px',
+      borderRadius: 9999,
+      background: display.isUrgent ? urgentBg : normalBg,
+      border: `1px solid ${display.isUrgent ? urgentBorder : normalBorder}`,
+      fontFamily: 'monospace',
+      fontWeight: 700,
+      color: display.isUrgent ? urgentColor : normalColor,
+      fontSize: 14,
+      boxShadow: display.isUrgent
+        ? '0 0 16px rgba(239,68,68,0.35)'
+        : '0 0 12px rgba(59,130,246,0.25)',
+      animation: display.isUrgent && !display.isExpired ? 'cpulse 1.5s infinite' : 'none',
+    }}>
+      <style>{`
+        @keyframes cpulse {
+          0%, 100% { box-shadow: 0 0 16px rgba(239,68,68,0.35); }
+          50% { box-shadow: 0 0 28px rgba(239,68,68,0.7); }
+        }
+      `}</style>
+      <span style={{ fontSize: 16 }}>⏳</span>
+      <span>{display.isExpired ? 'OFFER EXPIRED' : display.text}</span>
+    </div>
+  );
+}
+
 // ─── Sub-Component: Confirm Order Dialog ───────────────────────────────────
 
 function ConfirmModal({ quotation, onClose, onConfirm, loading }) {
@@ -480,35 +546,32 @@ export default function CustomerPortal() {
               </div>
             </div>
 
-            {/* Expiry Countdown Card */}
-            <div
-              className={`p-4 rounded-2xl border transition-all ${
-                timeLeft.isExpired
-                  ? 'bg-rose-500/10 border-rose-500/40 text-rose-300'
-                  : timeLeft.isUrgent
-                  ? 'bg-rose-500/10 border-rose-500/30 text-rose-300 animate-pulse'
-                  : 'bg-slate-800/50 border-slate-700/80 text-slate-200'
-              }`}
-            >
-              <div className="flex items-center gap-2 mb-1.5">
-                <Clock
-                  size={15}
-                  className={timeLeft.isUrgent || timeLeft.isExpired ? 'text-rose-400' : 'text-blue-400'}
-                />
-                <span className="text-[11px] uppercase tracking-wider font-bold">
-                  {timeLeft.isExpired ? 'Offer Expired' : 'Limited Time Offer'}
-                </span>
-              </div>
-              <p className="font-mono text-sm font-black tracking-tight">
-                {timeLeft.isExpired ? (
-                  'Proposal Validity Lapsed'
-                ) : (
-                  <>
-                    ⏳ {timeLeft.days}d {timeLeft.hours}h {timeLeft.minutes}m{' '}
-                    <span className="text-blue-400 font-extrabold">{timeLeft.seconds}s</span> remaining
-                  </>
-                )}
-              </p>
+            {/* Live Countdown Timer + PDF Download */}
+            <div className="flex flex-col items-end gap-3">
+              {/* CountdownTimer pill */}
+              {(quotation.expiry_date || quotation.expiryDate) && (
+                <div className="flex flex-col items-end gap-1">
+                  <span className="text-[10px] uppercase font-mono text-slate-500 tracking-widest">
+                    Offer Expires In
+                  </span>
+                  <CountdownTimer
+                    expiryDate={quotation.expiry_date || quotation.expiryDate}
+                  />
+                </div>
+              )}
+
+              {/* PDF Download button for non-draft quotations */}
+              {quotation.status && quotation.status !== 'DRAFT' && (
+                <a
+                  href={`http://localhost:5000/api/quotations/${quotation.id}/pdf`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs font-semibold transition-colors"
+                >
+                  <Download size={13} className="text-indigo-400" />
+                  📄 Download PDF
+                </a>
+              )}
             </div>
           </div>
         </section>
