@@ -75,6 +75,41 @@ async def create_warehouse(
     return wh
 
 
+class WarehouseUpdate(BaseModel):
+    name: Optional[str] = None
+    location: Optional[str] = None
+    shippingCost: Optional[float] = None
+    isActive: Optional[bool] = None
+
+
+@router.put("/warehouses/{id}")
+async def update_warehouse(
+    id: str,
+    body: WarehouseUpdate,
+    user: dict = Depends(require_roles("ADMIN", "SALES_MANAGER")),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update warehouse details or status."""
+    stmt = select(Warehouse).where(Warehouse.id == id)
+    res = await db.execute(stmt)
+    wh = res.scalar_one_or_none()
+    if not wh:
+        raise HTTPException(status_code=404, detail="Warehouse not found")
+
+    if body.name is not None:
+        wh.name = body.name
+    if body.location is not None:
+        wh.location = body.location
+    if body.shippingCost is not None:
+        wh.shipping_cost = Decimal(str(body.shippingCost))
+    if body.isActive is not None:
+        wh.is_active = body.isActive
+
+    await db.commit()
+    await db.refresh(wh)
+    return wh
+
+
 @router.put("/warehouses/{warehouse_id}/stock/{product_id}")
 async def upsert_warehouse_stock(
     warehouse_id: str,

@@ -99,6 +99,102 @@ async def create_category(
     return cat
 
 
+class CategoryUpdate(BaseModel):
+    name: Optional[str] = None
+    maxDiscount: Optional[float] = None
+    description: Optional[str] = None
+
+
+@router.put("/categories/{id}")
+async def update_category(
+    id: str,
+    body: CategoryUpdate,
+    user: dict = Depends(require_roles("ADMIN", "SALES_MANAGER")),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(ProductCategory).where(ProductCategory.id == id)
+    res = await db.execute(stmt)
+    cat = res.scalar_one_or_none()
+    if not cat:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    if body.name is not None:
+        cat.name = body.name
+    if body.maxDiscount is not None:
+        cat.max_discount = body.maxDiscount
+    if body.description is not None:
+        cat.description = body.description
+
+    await db.commit()
+    await db.refresh(cat)
+    return cat
+
+
+# ---------------------------------------------------------------------------
+# Discount Tiers Endpoints
+# ---------------------------------------------------------------------------
+
+class DiscountTierUpdate(BaseModel):
+    maxDiscount: float
+    requiresManager: Optional[bool] = None
+    requiresFinance: Optional[bool] = None
+
+
+@router.get("/discount-tiers")
+async def get_discount_tiers(
+    user: dict = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(DiscountTier).order_by(DiscountTier.tier.asc())
+    res = await db.execute(stmt)
+    tiers = res.scalars().all()
+    
+    # If not seeded in DB, return defaults
+    if not tiers:
+        defaults = [
+            {"tier": "BRONZE", "max_discount": 5.0, "requires_manager": False, "requires_finance": False},
+            {"tier": "SILVER", "max_discount": 10.0, "requires_manager": True, "requires_finance": False},
+            {"tier": "GOLD", "max_discount": 15.0, "requires_manager": True, "requires_finance": True},
+        ]
+        return defaults
+    return tiers
+
+
+@router.put("/discount-tiers/{tier}")
+async def update_discount_tier(
+    tier: str,
+    body: DiscountTierUpdate,
+    user: dict = Depends(require_roles("ADMIN", "SALES_MANAGER")),
+    db: AsyncSession = Depends(get_db)
+):
+    try:
+        tier_enum = CustomerTier(tier.upper())
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid customer tier")
+
+    stmt = select(DiscountTier).where(DiscountTier.tier == tier_enum)
+    res = await db.execute(stmt)
+    dt = res.scalar_one_or_none()
+    if not dt:
+        dt = DiscountTier(
+            tier=tier_enum,
+            max_discount=body.maxDiscount,
+            requires_manager=body.requiresManager or False,
+            requires_finance=body.requiresFinance or False
+        )
+        db.add(dt)
+    else:
+        dt.max_discount = body.maxDiscount
+        if body.requiresManager is not None:
+            dt.requires_manager = body.requiresManager
+        if body.requiresFinance is not None:
+            dt.requires_finance = body.requiresFinance
+
+    await db.commit()
+    await db.refresh(dt)
+    return dt
+
+
 # ---------------------------------------------------------------------------
 # Price Lists Endpoints
 # ---------------------------------------------------------------------------
@@ -136,8 +232,108 @@ async def create_pricelist(
 
 
 # ---------------------------------------------------------------------------
-# Upsell Suggestions Endpoint
+# Upsell Rules Management & Suggestions
 # ---------------------------------------------------------------------------
+
+class UpsellRuleCreate(BaseModel):
+    sourceProductId: str
+    targetProductId: str
+    score: Optional[int] = 50
+    isPromoted: Optional[bool] = False
+    minMargin: Optional[float] = 0.0
+
+
+@router.get("/upsell-rules")
+async def get_upsell_rules(
+    user: dict = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = (
+        select(UpsellRule)
+        .options(
+            selectinload(UpsellRule.source_product).selectinload(Product.category),
+            selectinload(UpsellRule.target_product).selectinload(Product.category)
+        )
+        .order_by(UpsellRule.created_at.desc())
+    )
+    res = await db.execute(stmt)
+    return res.scalars().all()
+
+
+@router.post("/upsell-rules", status_code=status.HTTP_201_CREATED)
+async def create_upsell_rule(
+    body: UpsellRuleCreate,
+    user: dict = Depends(require_roles("ADMIN", "SALES_MANAGER")),
+    db: AsyncSession = Depends(get_db)
+):
+    if body.sourceProductId == body.targetProductId:
+        raise HTTPException(status_code=400, detail="Source and Target product cannot be the same")
+
+    stmt = select(UpsellRule).where(
+        UpsellRule.source_product_id == body.sourceProductId,
+        UpsellRule.target_product_id == body.targetProductId
+    )
+    res = await db.execute(stmt)
+    if res.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Upsell rule between these products already exists")
+
+    rule = UpsellRule(
+        source_product_id=body.sourceProductId,
+        target_product_id=body.targetProductId,
+        score=body.score or 50,
+        is_promoted=body.isPromoted or False,
+        min_margin=body.minMargin or 0.0
+    )
+    db.add(rule)
+    await db.commit()
+    await db.refresh(rule)
+    return rule
+
+
+@router.put("/upsell-rules/{id}")
+async def update_upsell_rule(
+    id: str,
+    body: UpsellRuleCreate,
+    user: dict = Depends(require_roles("ADMIN", "SALES_MANAGER")),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(UpsellRule).where(UpsellRule.id == id)
+    res = await db.execute(stmt)
+    rule = res.scalar_one_or_none()
+    if not rule:
+        raise HTTPException(status_code=404, detail="Upsell rule not found")
+
+    if body.sourceProductId:
+        rule.source_product_id = body.sourceProductId
+    if body.targetProductId:
+        rule.target_product_id = body.targetProductId
+    if body.score is not None:
+        rule.score = body.score
+    if body.isPromoted is not None:
+        rule.is_promoted = body.isPromoted
+    if body.minMargin is not None:
+        rule.min_margin = body.minMargin
+
+    await db.commit()
+    await db.refresh(rule)
+    return rule
+
+
+@router.delete("/upsell-rules/{id}")
+async def delete_upsell_rule(
+    id: str,
+    user: dict = Depends(require_roles("ADMIN")),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(UpsellRule).where(UpsellRule.id == id)
+    res = await db.execute(stmt)
+    rule = res.scalar_one_or_none()
+    if not rule:
+        raise HTTPException(status_code=404, detail="Upsell rule not found")
+
+    await db.delete(rule)
+    await db.commit()
+    return {"message": "Upsell rule deleted"}
 
 @router.post("/upsell-suggestions")
 async def get_upsell_suggestions(
