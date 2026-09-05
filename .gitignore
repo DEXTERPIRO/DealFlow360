@@ -13,3 +13,16 @@ venv/
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# Documentation & PDF Generators
+APP_FLOW.md
+APP_FLOW.pdf
+FRONTEND_EXPLAINED.md
+FRONTEND_EXPLAINED.pdf
+MATHEMATICS_AND_WORKFLOW_EXPLAINED.md
+MATHEMATICS_AND_WORKFLOW_EXPLAINED.pdf
+PROJECT_STATE.md
+PROJECT_STATE.pdf
+generate_pdf_docs.py
+*.pdf
+
