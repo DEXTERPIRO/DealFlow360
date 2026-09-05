@@ -19,9 +19,16 @@ export const productsAPI = {
   getUpsells: (data) => api.post('/products/upsell-suggestions', data),
   getCategories: () => api.get('/products/categories/all'),
   createCategory: (d) => api.post('/products/categories', d),
+  updateCategory: (id, d) => api.put(`/products/categories/${id}`, d),
   getPriceLists: () => api.get('/products/pricelists/all'),
   createPriceList: (d) => api.post('/products/pricelists', d),
   addVariant: (productId, d) => api.post(`/products/${productId}/variants`, d),
+  getDiscountTiers: () => api.get('/products/discount-tiers'),
+  updateDiscountTier: (tier, d) => api.put(`/products/discount-tiers/${tier}`, d),
+  getUpsellRules: () => api.get('/products/upsell-rules'),
+  createUpsellRule: (d) => api.post('/products/upsell-rules', d),
+  updateUpsellRule: (id, d) => api.put(`/products/upsell-rules/${id}`, d),
+  deleteUpsellRule: (id) => api.delete(`/products/upsell-rules/${id}`),
 };
 
 export const quotationsAPI = {
@@ -43,6 +50,7 @@ export const fulfillmentAPI = {
   acceptSplit: (quotationId) => api.post(`/fulfillment/${quotationId}/accept-split`),
   getWarehouseStock: () => api.get('/fulfillment/warehouses/stock'),
   createWarehouse: (d) => api.post('/fulfillment/warehouses', d),
+  updateWarehouse: (id, d) => api.put(`/fulfillment/warehouses/${id}`, d),
   updateStock: (wId, pId, d) => api.put(`/fulfillment/warehouses/${wId}/stock/${pId}`, d),
 };
 
