@@ -85,10 +85,21 @@ export default function PortalLogin() {
       }
     } catch (err) {
       console.error(err);
-      toast.error(err.response?.data?.detail || 'Invalid email or password');
+      toast.error(err.response?.data?.detail || err.response?.data?.error || 'Invalid email or password');
     } finally {
       setPasswordLoading(false);
     }
+  };
+
+  const handlePrefillDemo = () => {
+    setEmail('customer@acme.com');
+    setPassword('Customer@123');
+    toast.success('Customer credentials filled!');
+  };
+
+  const handlePrefillMagic = () => {
+    setMagicEmail('customer@acme.com');
+    toast.success('Customer email filled!');
   };
 
   const handleCopyToken = () => {
@@ -233,6 +244,18 @@ export default function PortalLogin() {
                     {magicLoading ? 'Sending link...' : 'Send me a login link'}
                     <ArrowRight size={14} />
                   </button>
+
+                  {/* Magic Link Demo Hint */}
+                  <div
+                    onClick={handlePrefillMagic}
+                    className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 hover:border-blue-500/50 hover:bg-slate-900/60 transition-all cursor-pointer text-[11px] text-slate-400 group"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-slate-300">Demo Customer Email:</span>
+                      <span className="text-[10px] text-blue-400 group-hover:underline font-medium">Click to fill</span>
+                    </div>
+                    <p className="mt-1 font-mono text-slate-300">customer@acme.com</p>
+                  </div>
                 </form>
               )}
             </div>
@@ -291,9 +314,16 @@ export default function PortalLogin() {
               </button>
 
               {/* Demo Hint */}
-              <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 text-[11px] text-slate-400">
-                <span className="font-semibold text-slate-300">Demo Customer Credentials:</span>
-                <p className="mt-0.5 font-mono text-slate-400">customer@acme.com / customer123</p>
+              <div
+                onClick={handlePrefillDemo}
+                className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/80 hover:border-blue-500/50 hover:bg-slate-900/60 transition-all cursor-pointer text-[11px] text-slate-400 group"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-300">Demo Customer Credentials:</span>
+                  <span className="text-[10px] text-blue-400 group-hover:underline font-medium">Click to fill</span>
+                </div>
+                <p className="mt-1 font-mono text-slate-300">customer@acme.com / Customer@123</p>
+                <p className="text-[10px] text-slate-500 mt-0.5">(also accepts customer123)</p>
               </div>
             </form>
           )}

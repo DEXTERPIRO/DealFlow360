@@ -3,7 +3,7 @@ from app.config import settings
 
 sio = socketio.AsyncServer(
     async_mode="asgi",
-    cors_allowed_origins=[settings.FRONTEND_URL] if settings.FRONTEND_URL else ["http://localhost:5173"],
+    cors_allowed_origins="*",
 )
 
 @sio.event

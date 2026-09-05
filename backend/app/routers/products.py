@@ -12,7 +12,7 @@ from app.middleware.upload import process_image
 from app.models.models import (
     Product, ProductCategory, ProductVariant,
     PriceList, PriceListItem, WarehouseStock,
-    UpsellRule, CustomerTier, BillingCycle
+    UpsellRule, CustomerTier, BillingCycle, DiscountTier
 )
 
 router = APIRouter(prefix="/api/products", tags=["products"])

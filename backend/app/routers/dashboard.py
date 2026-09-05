@@ -8,7 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.middleware.auth import verify_token
 from app.models.models import (
-    Quotation, QuotationStatus, Invoice, InvoiceStatus,
+    Quotation, QuotationStatus, QuotationLine, Product, ProductCategory,
+    Approval, AuditLog, AuditAction, Invoice, InvoiceStatus,
     Subscription, User, UserRole
 )
 
@@ -25,7 +26,7 @@ async def get_dashboard_metrics(
     """
     Returns full Deal Health + Operations Dashboard KPIs, charts, and alert lists.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.utcnow()
     cutoff = None
     if period == "today":
         cutoff = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -84,8 +85,8 @@ async def get_dashboard_metrics(
     for q in all_quotations:
         if q.status not in (QuotationStatus.CONFIRMED, QuotationStatus.CANCELLED, QuotationStatus.REJECTED):
             activity_dt = q.last_activity_at or q.updated_at or q.created_at
-            if activity_dt and activity_dt.replace(tzinfo=timezone.utc) < five_days_ago:
-                days_stalled = (now - activity_dt.replace(tzinfo=timezone.utc)).days
+            if activity_dt and activity_dt < five_days_ago:
+                days_stalled = (now - activity_dt).days
                 stalled_deals.append({
                     "id": q.id,
                     "quotationNumber": q.quotation_number,
@@ -115,7 +116,7 @@ async def get_dashboard_metrics(
     expiring_deals = []
     for q in all_quotations:
         if q.status not in (QuotationStatus.CONFIRMED, QuotationStatus.CANCELLED) and q.expiry_date:
-            exp_dt = q.expiry_date.replace(tzinfo=timezone.utc)
+            exp_dt = q.expiry_date
             if now <= exp_dt <= seven_days_future:
                 days_left = max(0, (exp_dt - now).days)
                 expiring_deals.append({
