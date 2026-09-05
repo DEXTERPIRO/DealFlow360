@@ -4,7 +4,7 @@
   "description": "DealFlow360 backend service with Express, Prisma, Socket.io",
   "main": "server.js",
   "scripts": {
-    "dev": "nodemon server.js",
+    "dev": "nodemon",
     "seed": "node prisma/seed.js",
     "start": "node server.js",
     "prisma:generate": "prisma generate",

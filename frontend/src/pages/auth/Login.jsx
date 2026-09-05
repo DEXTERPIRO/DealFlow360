@@ -22,24 +22,24 @@ export default function Login() {
   const navigate = useNavigate();
   const setAuth = useAuthStore((state) => state.setAuth);
 
-  const [email, setEmail] = useState('admin@dealflow360.com');
-  const [password, setPassword] = useState('Password@123');
+  const [email, setEmail] = useState('admin@dealflow.com');
+  const [password, setPassword] = useState('Admin@123');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [authError, setAuthError] = useState('');
 
   const demoAccounts = [
-    { role: 'ADMIN', name: 'Admin', email: 'admin@dealflow360.com', color: 'border-rose-500/40 bg-rose-500/10 text-rose-300' },
-    { role: 'SALES_REP', name: 'Sales Rep', email: 'sarah.rep@dealflow360.com', color: 'border-blue-500/40 bg-blue-500/10 text-blue-300' },
-    { role: 'SALES_MANAGER', name: 'Sales Manager', email: 'david.manager@dealflow360.com', color: 'border-purple-500/40 bg-purple-500/10 text-purple-300' },
-    { role: 'FINANCE', name: 'Finance', email: 'emma.finance@dealflow360.com', color: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300' },
-    { role: 'CUSTOMER', name: 'Customer', email: 'john@acmecorp.com', color: 'border-amber-500/40 bg-amber-500/10 text-amber-300' },
+    { role: 'ADMIN', name: 'Admin', email: 'admin@dealflow.com', password: 'Admin@123', color: 'border-rose-500/40 bg-rose-500/10 text-rose-300' },
+    { role: 'SALES_REP', name: 'Sales Rep (Priya)', email: 'priya@dealflow.com', password: 'Rep@123', color: 'border-blue-500/40 bg-blue-500/10 text-blue-300' },
+    { role: 'SALES_MANAGER', name: 'Manager (Raj)', email: 'manager@dealflow.com', password: 'Manager@123', color: 'border-purple-500/40 bg-purple-500/10 text-purple-300' },
+    { role: 'FINANCE', name: 'Finance (Sneha)', email: 'finance@dealflow.com', password: 'Finance@123', color: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300' },
+    { role: 'CUSTOMER', name: 'Customer (Acme)', email: 'buyer@acme.com', password: 'Customer@123', color: 'border-amber-500/40 bg-amber-500/10 text-amber-300' },
   ];
 
   const handleSelectDemo = (acc) => {
     setEmail(acc.email);
-    setPassword('Password@123');
+    setPassword(acc.password || 'Admin@123');
     setErrors({});
     setAuthError('');
   };
