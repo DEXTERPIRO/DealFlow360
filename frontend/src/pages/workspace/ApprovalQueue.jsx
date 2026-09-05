@@ -329,18 +329,18 @@ export default function ApprovalQueue() {
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-mono font-bold text-sm text-blue-400">
-                          {item.quotation_number}
+                          {item.quotationNumber || item.quotation_number || 'Quotation'}
                         </span>
                         <span
                           className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase border ${getTierBadge(
-                            item.customer_tier
+                            item.customerTier || item.customer_tier
                           )}`}
                         >
-                          {item.customer_tier || 'BRONZE'}
+                          {item.customerTier || item.customer_tier || 'BRONZE'}
                         </span>
                       </div>
                       <h3 className="text-sm font-bold text-white mt-0.5">
-                        {item.customer?.name || item.customer?.company_name || 'Prospect Customer'}
+                        {item.customer?.name || item.customer?.companyName || item.customer?.company_name || 'Prospect Customer'}
                       </h3>
                       <p className="text-[11px] text-slate-400">
                         Sales Rep: <span className="text-slate-300 font-medium">{item.rep?.name || 'Rep'}</span>
@@ -353,7 +353,7 @@ export default function ApprovalQueue() {
                     {/* Time waiting badge */}
                     <div className="flex items-center gap-1.5 text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-xl font-mono">
                       <Clock className="w-3.5 h-3.5" />
-                      <span>{getWaitingTime(item.created_at)}</span>
+                      <span>{getWaitingTime(item.createdAt || item.created_at)}</span>
                     </div>
 
                     {/* Blended Risk visual meter */}
@@ -363,16 +363,16 @@ export default function ApprovalQueue() {
                           Blended Risk
                         </div>
                         <div className="text-xs font-mono font-bold text-white">
-                          {Number(item.blended_risk_score || 0).toFixed(1)} / 10.0
+                          {Number(item.blendedRiskScore ?? item.blended_risk_score ?? 0).toFixed(1)} / 10.0
                         </div>
                       </div>
 
                       <div
                         className={`w-12 h-12 rounded-xl flex items-center justify-center font-mono font-black text-sm border ${getRiskColor(
-                          item.blended_risk_score
+                          item.blendedRiskScore ?? item.blended_risk_score
                         )}`}
                       >
-                        {Number(item.blended_risk_score || 0).toFixed(1)}
+                        {Number(item.blendedRiskScore ?? item.blended_risk_score ?? 0).toFixed(1)}
                       </div>
                     </div>
                   </div>
@@ -402,7 +402,7 @@ export default function ApprovalQueue() {
                         <tbody className="divide-y divide-slate-800/60">
                           {item.lines?.map((line, lIdx) => {
                             const discount = Number(line.discount || 0);
-                            const catMax = line.product?.category?.max_discount || tierMax;
+                            const catMax = line.product?.category?.maxDiscount || line.product?.category?.max_discount || tierMax;
                             const effectiveMax = Math.min(tierMax, catMax);
                             const overage = Math.max(0, discount - effectiveMax);
                             const isOver = overage > 0;
@@ -424,7 +424,7 @@ export default function ApprovalQueue() {
                                   {line.quantity}
                                 </td>
                                 <td className="p-3 text-right font-mono text-slate-300">
-                                  ₹{Number(line.unit_price || 0).toLocaleString()}
+                                  ₹{Number(line.unitPrice || line.unit_price || 0).toLocaleString()}
                                 </td>
                                 <td className="p-3 text-center font-mono font-bold">
                                   <span className={isOver ? 'text-rose-400' : 'text-slate-300'}>

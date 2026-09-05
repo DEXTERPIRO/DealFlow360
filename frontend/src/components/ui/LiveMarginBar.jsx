@@ -161,7 +161,7 @@ export default function LiveMarginBar({ lines = [], sidebarCollapsed = false }) 
               transition: 'color 300ms',
             }}
           >
-            {margin.toFixed(1)}%
+            {Number(margin || 0).toFixed(1)}%
           </span>
         </div>
         {/* Bar */}
@@ -246,7 +246,7 @@ export default function LiveMarginBar({ lines = [], sidebarCollapsed = false }) 
             fontWeight: 700,
           }}
         >
-          {riskScore.toFixed(1)} / 15
+          {Number(riskScore || 0).toFixed(1)} / 15
         </div>
         <style>{`
           @keyframes ledpulse {

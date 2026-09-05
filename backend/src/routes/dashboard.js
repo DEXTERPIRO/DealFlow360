@@ -53,32 +53,71 @@ router.get('/metrics', verifyToken, async (req, res) => {
 
     // 3. Stalled Deals (lastActivityAt > 5 days ago and not confirmed/rejected)
     const stallDate = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
-    const stalledDeals = quotations.filter(q =>
-      ['DRAFT', 'SENT_TO_CUSTOMER', 'UNDER_NEGOTIATION'].includes(q.status) &&
-      new Date(q.lastActivityAt || q.updatedAt) < stallDate
-    );
+    const stalledDeals = quotations
+      .filter(q =>
+        ['DRAFT', 'SENT_TO_CUSTOMER', 'UNDER_NEGOTIATION'].includes(q.status) &&
+        new Date(q.lastActivityAt || q.updatedAt) < stallDate
+      )
+      .map(q => {
+        const lastAct = new Date(q.lastActivityAt || q.updatedAt || Date.now()).getTime();
+        const daysStalled = Math.max(1, Math.floor((Date.now() - lastAct) / (24 * 60 * 60 * 1000)));
+        return {
+          id: q.id,
+          quotationNumber: q.quotationNumber,
+          status: q.status,
+          repName: q.rep?.name || 'Sales Rep',
+          customerName: q.customer?.name || q.customer?.companyName || 'Customer',
+          total: Number(q.total || 0),
+          daysStalled
+        };
+      });
 
     // 4. Discount Anomalies (quotes where discount > 15% or high risk)
-    const discountAnomalies = quotations.filter(q =>
-      Number(q.blendedRiskScore) > 10 ||
-      (Number(q.discountAmount) > 0 && (Number(q.discountAmount) / (Number(q.subtotal) || 1)) * 100 > 15)
-    );
+    const discountAnomalies = quotations
+      .filter(q =>
+        Number(q.blendedRiskScore || 0) > 10 ||
+        (Number(q.discountAmount || 0) > 0 && (Number(q.discountAmount) / (Number(q.subtotal) || 1)) * 100 > 15)
+      )
+      .map(q => ({
+        id: q.id,
+        quotationNumber: q.quotationNumber,
+        status: q.status,
+        repName: q.rep?.name || 'Sales Rep',
+        customerName: q.customer?.name || q.customer?.companyName || 'Customer',
+        total: Number(q.total || 0),
+        riskScore: Number(q.blendedRiskScore || 0),
+        blendedRiskScore: Number(q.blendedRiskScore || 0)
+      }));
 
     // 5. Expiring Quotations (expiryDate in next 7 days and active)
     const now = new Date();
     const sevenDaysLater = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    const expiringQuotations = quotations.filter(q =>
-      q.expiryDate &&
-      new Date(q.expiryDate) >= now &&
-      new Date(q.expiryDate) <= sevenDaysLater &&
-      !['CONFIRMED', 'CANCELLED', 'REJECTED'].includes(q.status)
-    );
+    const expiringQuotations = quotations
+      .filter(q =>
+        q.expiryDate &&
+        new Date(q.expiryDate) >= now &&
+        new Date(q.expiryDate) <= sevenDaysLater &&
+        !['CONFIRMED', 'CANCELLED', 'REJECTED'].includes(q.status)
+      )
+      .map(q => {
+        const exp = new Date(q.expiryDate).getTime();
+        const daysRemaining = Math.max(0, Math.ceil((exp - Date.now()) / (24 * 60 * 60 * 1000)));
+        return {
+          id: q.id,
+          quotationNumber: q.quotationNumber,
+          status: q.status,
+          repName: q.rep?.name || 'Sales Rep',
+          customerName: q.customer?.name || q.customer?.companyName || 'Customer',
+          total: Number(q.total || 0),
+          daysRemaining
+        };
+      });
 
     // 6. Pipeline distribution chart
     const stageCounts = {};
     for (const q of quotations) {
       const st = q.status;
-      if (!stageCounts[st]) stageCounts[st] = { stage: st, count: 0, value: 0 };
+      if (!stageCounts[st]) stageCounts[st] = { stage: st, status: st, count: 0, value: 0 };
       stageCounts[st].count += 1;
       stageCounts[st].value += Number(q.total || 0);
     }
@@ -108,11 +147,29 @@ router.get('/metrics', verifyToken, async (req, res) => {
     for (const q of confirmed) {
       const rId = q.repId;
       const rName = q.rep?.name || 'Sales Rep';
-      if (!repPerformance[rId]) repPerformance[rId] = { id: rId, name: rName, revenue: 0, deals: 0 };
+      if (!repPerformance[rId]) {
+        repPerformance[rId] = {
+          id: rId,
+          name: rName,
+          revenue: 0,
+          totalValue: 0,
+          deals: 0,
+          confirmedDeals: 0,
+          totalMargin: 0
+        };
+      }
       repPerformance[rId].revenue += Number(q.total || 0);
+      repPerformance[rId].totalValue += Number(q.total || 0);
       repPerformance[rId].deals += 1;
+      repPerformance[rId].confirmedDeals += 1;
+      repPerformance[rId].totalMargin += Number(q.margin || 0);
     }
-    const topReps = Object.values(repPerformance).sort((a, b) => b.revenue - a.revenue);
+    const topReps = Object.values(repPerformance)
+      .map(r => ({
+        ...r,
+        avgMargin: r.deals > 0 ? (r.totalMargin / r.deals).toFixed(1) : '0.0'
+      }))
+      .sort((a, b) => b.revenue - a.revenue);
 
     res.json({
       kpis: {

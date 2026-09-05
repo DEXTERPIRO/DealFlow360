@@ -21,7 +21,7 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 // 1. Socket.io Setup
 const io = new Server(server, {
   cors: {
-    origin: FRONTEND_URL,
+    origin: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     credentials: true,
   },
@@ -37,14 +37,16 @@ app.use(
   })
 );
 
+// Permissive CORS for seamless local development
 app.use(
   cors({
-    origin: FRONTEND_URL,
+    origin: true,
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
   })
 );
+app.options('*', cors());
 
 app.use(cookieParser());
 app.use(express.json());
@@ -53,7 +55,7 @@ app.use(express.urlencoded({ extended: true }));
 // 3. Rate Limiting (Dev friendly defaults)
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 1000,
+  max: 2000,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Too many requests, please try again later.' },
@@ -62,6 +64,7 @@ app.use('/api/', limiter);
 
 // 4. Static Uploads Serving
 app.use('/uploads', express.static(path.join(__dirname, 'src/uploads')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // 5. Health Check Endpoint
 app.get('/api/health', (req, res) => {
@@ -89,11 +92,11 @@ app.use(errorHandler);
 
 // 9. Start Server
 if (process.env.NODE_ENV !== 'test') {
-  server.listen(PORT, () => {
+  server.listen(PORT, '0.0.0.0', () => {
     console.log(`=========================================`);
     console.log(`🚀 DealFlow360 Backend Server Running`);
     console.log(`📡 URL: http://localhost:${PORT}`);
-    console.log(`🌐 Allowed Origin: ${FRONTEND_URL}`);
+    console.log(`🌐 Allowed Origin: ${FRONTEND_URL} (and local dev origins)`);
     console.log(`⚡ Socket.io Active`);
     console.log(`=========================================`);
   });

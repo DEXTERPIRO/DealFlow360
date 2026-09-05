@@ -537,13 +537,13 @@ export default function QuotationsList() {
                 {filteredQuotations.map((q) => {
                   const badge = getStatusBadge(q.status);
                   const custName = q.customer?.name || q.customer_name || 'Direct Customer';
-                  const compName = q.customer?.company_name || q.customer_company || 'Independent';
-                  const tier = q.customer?.customer_tier || q.customer_tier || 'BRONZE';
+                  const compName = q.customer?.companyName || q.customer?.company_name || q.customer_company || 'Independent';
+                  const tier = q.customerTier || q.customer?.customerTier || q.customer?.customer_tier || 'BRONZE';
                   const repName = q.rep?.name || q.rep_name || 'Self';
-                  const expired = isExpired(q.valid_until);
-                  const total = q.final_amount ?? q.total_amount ?? 0;
-                  const margin = q.gross_margin_percent ?? q.margin_percent ?? 28.5;
-                  const riskScore = q.risk_score ?? 3.5;
+                  const expired = isExpired(q.expiryDate || q.valid_until);
+                  const total = Number(q.total ?? q.final_amount ?? q.total_amount ?? 0);
+                  const margin = Number(q.margin ?? q.gross_margin_percent ?? q.margin_percent ?? 0);
+                  const riskScore = Number(q.blendedRiskScore ?? q.blended_risk_score ?? q.risk_score ?? 0);
                   const isDraft = q.status === 'DRAFT';
                   const isPending = ['PENDING_MANAGER', 'PENDING_FINANCE'].includes(q.status);
 
@@ -556,7 +556,7 @@ export default function QuotationsList() {
                       {/* QT# in blue monospace */}
                       <td className="py-3 px-4">
                         <span className="font-mono font-bold text-blue-400 group-hover:text-blue-300">
-                          {q.quotation_number || `QT-${q.id.substring(0, 6).toUpperCase()}`}
+                          {q.quotationNumber || q.quotation_number || `QT-${q.id.substring(0, 6).toUpperCase()}`}
                         </span>
                       </td>
 
@@ -690,13 +690,13 @@ export default function QuotationsList() {
           {filteredQuotations.map((q) => {
             const badge = getStatusBadge(q.status);
             const custName = q.customer?.name || q.customer_name || 'Direct Customer';
-            const compName = q.customer?.company_name || q.customer_company || 'Independent';
-            const tier = q.customer?.customer_tier || q.customer_tier || 'BRONZE';
+            const compName = q.customer?.companyName || q.customer?.company_name || q.customer_company || 'Independent';
+            const tier = q.customerTier || q.customer?.customerTier || q.customer?.customer_tier || 'BRONZE';
             const repName = q.rep?.name || q.rep_name || 'Self';
-            const expired = isExpired(q.valid_until);
-            const total = q.final_amount ?? q.total_amount ?? 0;
-            const margin = q.gross_margin_percent ?? q.margin_percent ?? 28.5;
-            const riskScore = q.risk_score ?? 3.5;
+            const expired = isExpired(q.expiryDate || q.valid_until);
+            const total = Number(q.total ?? q.final_amount ?? q.total_amount ?? 0);
+            const margin = Number(q.margin ?? q.gross_margin_percent ?? q.margin_percent ?? 0);
+            const riskScore = Number(q.blendedRiskScore ?? q.blended_risk_score ?? q.risk_score ?? 0);
             const isDraft = q.status === 'DRAFT';
             const isPending = ['PENDING_MANAGER', 'PENDING_FINANCE'].includes(q.status);
 
@@ -710,7 +710,7 @@ export default function QuotationsList() {
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <span className="font-mono font-bold text-sm text-blue-400 group-hover:text-blue-300">
-                      {q.quotation_number || `QT-${q.id.substring(0, 6).toUpperCase()}`}
+                      {q.quotationNumber || q.quotation_number || `QT-${q.id.substring(0, 6).toUpperCase()}`}
                     </span>
                     <h4 className="font-bold text-slate-100 text-sm flex items-center gap-1 mt-0.5">
                       <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />

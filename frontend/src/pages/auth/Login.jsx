@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { authAPI } from '../../api';
+import { setToken } from '../../api/client';
 import toast from 'react-hot-toast';
 
 export default function Login() {
@@ -74,6 +75,7 @@ export default function Login() {
       const user = res.user;
       const accessToken = res.accessToken;
       setAuth(user, accessToken);
+      setToken(accessToken);
       toast.success(`Welcome back, ${user.name || 'User'}!`);
 
       // Role based redirection

@@ -27,23 +27,6 @@ router.get('/', verifyToken, async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'Something went wrong' }); }
 });
 
-// GET single product
-router.get('/:id', verifyToken, async (req, res) => {
-  try {
-    const product = await prisma.product.findUnique({
-      where: { id: req.params.id },
-      include: {
-        category: true,
-        variants: true,
-        warehouseStocks: { include: { warehouse: true } },
-        upsellRules: { include: { targetProduct: { include: { category: true } } } }
-      }
-    });
-    if (!product) return res.status(404).json({ error: 'Product not found' });
-    res.json(product);
-  } catch (e) { res.status(500).json({ error: 'Something went wrong' }); }
-});
-
 // GET upsell suggestions for given product IDs
 router.post('/upsell-suggestions', verifyToken, async (req, res) => {
   try {
@@ -115,45 +98,6 @@ router.post('/', verifyToken,
   }
 });
 
-// PUT update product with optional image
-router.put('/:id', verifyToken,
-  requireRoles('ADMIN', 'SALES_MANAGER'),
-  upload.single('image'),
-  processImage,
-  async (req, res) => {
-  try {
-    const { name, description, basePrice, costPrice,
-            tax, unit, isSubscription, billingCycle } = req.body;
-    const data = {
-      name, description,
-      basePrice: basePrice ? parseFloat(basePrice) : undefined,
-      costPrice: costPrice ? parseFloat(costPrice) : undefined,
-      tax: tax ? parseFloat(tax) : undefined,
-      unit, isSubscription: isSubscription !== undefined
-        ? isSubscription === 'true' : undefined,
-    };
-    if (req.file?.savedPath) data.imageUrl = req.file.savedPath;
-    const product = await prisma.product.update({
-      where: { id: req.params.id },
-      data,
-      include: { category: true }
-    });
-    res.json(product);
-  } catch (e) { res.status(500).json({ error: 'Something went wrong' }); }
-});
-
-// DELETE product (soft)
-router.delete('/:id', verifyToken,
-  requireRoles('ADMIN'), async (req, res) => {
-  try {
-    await prisma.product.update({
-      where: { id: req.params.id },
-      data: { isActive: false }
-    });
-    res.json({ message: 'Product deactivated' });
-  } catch (e) { res.status(500).json({ error: 'Something went wrong' }); }
-});
-
 // Product categories CRUD
 router.get('/categories/all', verifyToken, async (req, res) => {
   try {
@@ -177,31 +121,6 @@ router.post('/categories', verifyToken,
   } catch (e) { res.status(500).json({ error: 'Something went wrong' }); }
 });
 
-// Variant management
-router.post('/:id/variants', verifyToken,
-  requireRoles('ADMIN', 'SALES_MANAGER'), async (req, res) => {
-  try {
-    const { name, attribute, value, extraPrice } = req.body;
-    const variant = await prisma.productVariant.create({
-      data: {
-        productId: req.params.id, name, attribute,
-        value, extraPrice: parseFloat(extraPrice) || 0
-      }
-    });
-    res.status(201).json(variant);
-  } catch (e) { res.status(500).json({ error: 'Something went wrong' }); }
-});
-
-// Price list management
-router.get('/pricelists/all', verifyToken, async (req, res) => {
-  try {
-    const lists = await prisma.priceList.findMany({
-      include: { items: { include: { product: true } } }
-    });
-    res.json(lists);
-  } catch (e) { res.status(500).json({ error: 'Something went wrong' }); }
-});
-
 router.put('/categories/:id', verifyToken,
   requireRoles('ADMIN', 'SALES_MANAGER'), async (req, res) => {
   try {
@@ -215,6 +134,16 @@ router.put('/categories/:id', verifyToken,
       }
     });
     res.json(cat);
+  } catch (e) { res.status(500).json({ error: 'Something went wrong' }); }
+});
+
+// Price list management
+router.get('/pricelists/all', verifyToken, async (req, res) => {
+  try {
+    const lists = await prisma.priceList.findMany({
+      include: { items: { include: { product: true } } }
+    });
+    res.json(lists);
   } catch (e) { res.status(500).json({ error: 'Something went wrong' }); }
 });
 
@@ -310,5 +239,77 @@ router.delete('/upsell-rules/:id', verifyToken,
   } catch (e) { res.status(500).json({ error: 'Failed to delete upsell rule' }); }
 });
 
-module.exports = router;
+// ── PARAMETRIC PRODUCT ROUTES (Must be placed AFTER all static/sub-resource routes) ──
 
+// Variant management
+router.post('/:id/variants', verifyToken,
+  requireRoles('ADMIN', 'SALES_MANAGER'), async (req, res) => {
+  try {
+    const { name, attribute, value, extraPrice } = req.body;
+    const variant = await prisma.productVariant.create({
+      data: {
+        productId: req.params.id, name, attribute,
+        value, extraPrice: parseFloat(extraPrice) || 0
+      }
+    });
+    res.status(201).json(variant);
+  } catch (e) { res.status(500).json({ error: 'Something went wrong' }); }
+});
+
+// GET single product
+router.get('/:id', verifyToken, async (req, res) => {
+  try {
+    const product = await prisma.product.findUnique({
+      where: { id: req.params.id },
+      include: {
+        category: true,
+        variants: true,
+        warehouseStocks: { include: { warehouse: true } },
+        upsellRules: { include: { targetProduct: { include: { category: true } } } }
+      }
+    });
+    if (!product) return res.status(404).json({ error: 'Product not found' });
+    res.json(product);
+  } catch (e) { res.status(500).json({ error: 'Something went wrong' }); }
+});
+
+// PUT update product with optional image
+router.put('/:id', verifyToken,
+  requireRoles('ADMIN', 'SALES_MANAGER'),
+  upload.single('image'),
+  processImage,
+  async (req, res) => {
+  try {
+    const { name, description, basePrice, costPrice,
+            tax, unit, isSubscription, billingCycle } = req.body;
+    const data = {
+      name, description,
+      basePrice: basePrice ? parseFloat(basePrice) : undefined,
+      costPrice: costPrice ? parseFloat(costPrice) : undefined,
+      tax: tax ? parseFloat(tax) : undefined,
+      unit, isSubscription: isSubscription !== undefined
+        ? isSubscription === 'true' : undefined,
+    };
+    if (req.file?.savedPath) data.imageUrl = req.file.savedPath;
+    const product = await prisma.product.update({
+      where: { id: req.params.id },
+      data,
+      include: { category: true }
+    });
+    res.json(product);
+  } catch (e) { res.status(500).json({ error: 'Something went wrong' }); }
+});
+
+// DELETE product (soft)
+router.delete('/:id', verifyToken,
+  requireRoles('ADMIN'), async (req, res) => {
+  try {
+    await prisma.product.update({
+      where: { id: req.params.id },
+      data: { isActive: false }
+    });
+    res.json({ message: 'Product deactivated' });
+  } catch (e) { res.status(500).json({ error: 'Something went wrong' }); }
+});
+
+module.exports = router;

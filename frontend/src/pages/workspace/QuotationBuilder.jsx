@@ -704,7 +704,7 @@ export default function QuotationBuilder() {
 
                     {/* Margin */}
                     <td className={`py-3 px-3 text-center font-mono font-bold ${marginColor}`}>
-                      {margin.toFixed(1)}%
+                      {Number(margin || 0).toFixed(1)}%
                     </td>
 
                     {/* Remove */}

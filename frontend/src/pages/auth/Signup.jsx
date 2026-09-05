@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { authAPI } from '../../api';
+import { setToken } from '../../api/client';
 import toast from 'react-hot-toast';
 
 export default function Signup() {
@@ -96,6 +97,7 @@ export default function Signup() {
       const user = res.user;
       const accessToken = res.accessToken;
       setAuth(user, accessToken);
+      setToken(accessToken);
       toast.success('Account created successfully!');
 
       // Redirect based on role

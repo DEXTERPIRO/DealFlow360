@@ -149,7 +149,7 @@ router.get('/me', verifyToken, async (req, res) => {
 
 // ── User Management (for Users page via usersAPI) ─────────────────────────
 
-router.get('/users', verifyToken, requireRoles('ADMIN'), async (req, res) => {
+router.get('/users', verifyToken, requireRoles('ADMIN', 'SALES_MANAGER', 'SALES_REP', 'FINANCE'), async (req, res) => {
   try {
     const users = await prisma.user.findMany({
       select: {

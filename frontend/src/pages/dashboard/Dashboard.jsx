@@ -353,17 +353,17 @@ export default function Dashboard() {
                 >
                   <div>
                     <div className="font-bold text-white flex items-center gap-1.5">
-                      <span>{d.quotationNumber}</span>
+                      <span>{d.quotationNumber || d.quotation_number || 'Quotation'}</span>
                       <span className="text-[10px] text-slate-500 font-normal">({d.status})</span>
                     </div>
                     <div className="text-[11px] text-slate-400">
-                      {d.customerName} · Rep: <span className="text-slate-300">{d.repName}</span>
+                      {d.customerName || d.customer?.name || 'Direct Customer'} · Rep: <span className="text-slate-300">{d.repName || d.rep?.name || 'Rep'}</span>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-3 shrink-0">
                     <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">
-                      {d.daysStalled}d stalled
+                      {d.daysStalled ?? 5}d stalled
                     </span>
                     <button
                       onClick={() => navigate(`/quotations/${d.id}`)}
@@ -408,11 +408,11 @@ export default function Dashboard() {
                 >
                   <div>
                     <div className="font-bold text-white flex items-center gap-2">
-                      <span>{a.quotationNumber}</span>
-                      <span className="text-[10px] text-slate-500">₹{a.total.toLocaleString()}</span>
+                      <span>{a.quotationNumber || a.quotation_number || 'Quotation'}</span>
+                      <span className="text-[10px] text-slate-500">₹{Number(a.total || 0).toLocaleString()}</span>
                     </div>
                     <div className="text-[11px] text-slate-400">
-                      Rep: <span className="text-slate-300">{a.repName}</span> · {a.customerName}
+                      Rep: <span className="text-slate-300">{a.repName || a.rep?.name || 'Rep'}</span> · {a.customerName || a.customer?.name || 'Customer'}
                     </div>
                   </div>
 
@@ -420,7 +420,7 @@ export default function Dashboard() {
                     <div className="text-right">
                       <div className="text-[10px] text-slate-500 font-mono">Risk Score</div>
                       <span className="inline-block px-2 py-0.5 rounded font-mono font-bold text-[11px] bg-rose-500 text-white">
-                        {a.riskScore.toFixed(1)}
+                        {Number(a.riskScore ?? a.blendedRiskScore ?? 0).toFixed(1)}
                       </span>
                     </div>
                     <button
@@ -546,15 +546,15 @@ export default function Dashboard() {
                   className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl flex items-center justify-between text-xs"
                 >
                   <div>
-                    <div className="font-bold text-white">{q.quotationNumber}</div>
+                    <div className="font-bold text-white">{q.quotationNumber || q.quotation_number || 'Quotation'}</div>
                     <div className="text-[11px] text-slate-400">
-                      {q.customerName} · Rep: {q.repName}
+                      {q.customerName || q.customer?.name || 'Customer'} · Rep: {q.repName || q.rep?.name || 'Rep'}
                     </div>
                   </div>
 
                   <div className="flex items-center gap-3">
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                      {q.daysRemaining} days left
+                      {q.daysRemaining ?? 0} days left
                     </span>
                     <button
                       onClick={() => navigate(`/quotations/${q.id}`)}
@@ -599,13 +599,13 @@ export default function Dashboard() {
                 ) : (
                   data.topReps?.map((rep) => (
                     <tr key={rep.id} className="hover:bg-slate-850/60 transition-colors">
-                      <td className="py-2.5 font-semibold text-slate-200">{rep.name}</td>
-                      <td className="py-2.5 text-center text-slate-300 font-mono">{rep.confirmedDeals}</td>
+                      <td className="py-2.5 font-semibold text-slate-200">{rep.name || 'Sales Rep'}</td>
+                      <td className="py-2.5 text-center text-slate-300 font-mono">{rep.confirmedDeals ?? rep.deals ?? 0}</td>
                       <td className="py-2.5 text-right font-bold text-white font-mono">
-                        ₹{rep.totalValue.toLocaleString()}
+                        ₹{Number(rep.totalValue ?? rep.revenue ?? 0).toLocaleString()}
                       </td>
                       <td className="py-2.5 text-right font-semibold text-emerald-400 font-mono">
-                        {rep.avgMargin}%
+                        {rep.avgMargin ?? '0.0'}%
                       </td>
                     </tr>
                   ))
