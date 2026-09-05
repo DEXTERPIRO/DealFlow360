@@ -10,12 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 load_dotenv()
 
-# ── Socket.IO ─────────────────────────────────────────────────────────────────
-sio = socketio.AsyncServer(
-    async_mode="asgi",
-    cors_allowed_origins=os.getenv("FRONTEND_URL", "http://localhost:5173"),
-)
-
+from app.sockets.server import sio
 
 @sio.event
 async def connect(sid, environ):
