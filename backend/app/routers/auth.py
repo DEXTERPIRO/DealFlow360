@@ -127,8 +127,9 @@ async def signup(body: SignupBody, response: Response, db: AsyncSession = Depend
     result = await db.execute(select(User).where(User.email == body.email))
     if result.scalar_one_or_none():
         raise HTTPException(409, "Email already registered")
-    allowed_roles = {"SALES_REP", "SALES_MANAGER", "FINANCE", "ADMIN"}
-    role = body.role if body.role in allowed_roles else "SALES_REP"
+    # In enterprise CPQ, self-service signups default strictly to standard member role.
+    # Administrative privilege elevation is performed by admins in the user management console.
+    role = "SALES_REP"
     hashed = hash_pw(body.password)
     user = User(name=body.name, email=body.email, password=hashed, role=UserRole(role))
     db.add(user)
