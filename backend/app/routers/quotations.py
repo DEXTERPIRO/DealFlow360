@@ -691,3 +691,110 @@ async def send_quotation(
         "portalUrl": portal_url,
         "portalToken": quotation.portal_token
     }
+
+
+class StatusUpdateBody(BaseModel):
+    status: str
+    reason: Optional[str] = None
+
+
+@router.put("/{id}/status")
+async def update_quotation_status(
+    id: str,
+    body: StatusUpdateBody,
+    user: dict = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(Quotation).where(Quotation.id == id)
+    res = await db.execute(stmt)
+    quotation = res.scalar_one_or_none()
+    if not quotation:
+        raise HTTPException(status_code=404, detail="Quotation not found")
+
+    target_status = body.status.upper()
+    try:
+        new_status_enum = QuotationStatus(target_status)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid status: {body.status}")
+
+    # Validation guards
+    if quotation.status == QuotationStatus.REJECTED and new_status_enum == QuotationStatus.CONFIRMED:
+        raise HTTPException(status_code=400, detail="Cannot transition directly from REJECTED to CONFIRMED")
+
+    quotation.status = new_status_enum
+    quotation.last_activity_at = datetime.now(timezone.utc)
+
+    audit = AuditLog(
+        quotation_id=quotation.id,
+        user_id=user["id"],
+        action=AuditAction.UPDATED,
+        details=f"Status changed to {target_status}. {body.reason or ''}"
+    )
+    db.add(audit)
+    await db.commit()
+
+    try:
+        await sio.emit("quotation-updated", {"id": quotation.id, "status": target_status}, room="dashboard")
+    except Exception:
+        pass
+
+    return {"message": "Status updated", "status": target_status}
+
+
+class BatchDecisionBody(BaseModel):
+    quotationIds: List[str]
+    action: str  # APPROVED, REJECTED
+    reason: Optional[str] = None
+
+
+@router.post("/batch-decision")
+async def batch_decision(
+    body: BatchDecisionBody,
+    user: dict = Depends(require_roles("SALES_MANAGER", "FINANCE", "ADMIN")),
+    db: AsyncSession = Depends(get_db)
+):
+    action = body.action.upper()
+    if action not in ("APPROVED", "REJECTED"):
+        raise HTTPException(status_code=400, detail="Action must be APPROVED or REJECTED")
+
+    new_status = QuotationStatus.APPROVED if action == "APPROVED" else QuotationStatus.REJECTED
+    audit_action = AuditAction.APPROVED if action == "APPROVED" else AuditAction.REJECTED
+    approval_level = 2 if user.get("role") == "FINANCE" else 1
+
+    updated_count = 0
+    for q_id in body.quotationIds:
+        stmt = select(Quotation).where(Quotation.id == q_id)
+        res = await db.execute(stmt)
+        q = res.scalar_one_or_none()
+        if q:
+            q.status = new_status
+            q.last_activity_at = datetime.now(timezone.utc)
+
+            approval = Approval(
+                quotation_id=q.id,
+                approver_id=user["id"],
+                level=approval_level,
+                action=action,
+                reason=body.reason or f"Bulk {action}",
+                decided_at=datetime.now(timezone.utc)
+            )
+            db.add(approval)
+
+            audit = AuditLog(
+                quotation_id=q.id,
+                user_id=user["id"],
+                action=audit_action,
+                details=f"Bulk {action} by {user.get('role')}"
+            )
+            db.add(audit)
+            updated_count += 1
+
+    await db.commit()
+
+    try:
+        await sio.emit("approval-decision", {"batch": True, "action": action}, room="dashboard")
+    except Exception:
+        pass
+
+    return {"message": f"Successfully processed {updated_count} quotations", "count": updated_count}
+

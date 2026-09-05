@@ -202,3 +202,44 @@ async def get_dashboard_metrics(
         "topReps": top_reps[:5],
         "reps": reps_list
     }
+
+
+@router.get("/approval-queue")
+async def get_approval_queue(
+    user: dict = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Returns pending quotations for Sales Manager & Finance approval with full line & risk details.
+    """
+    stmt = (
+        select(Quotation)
+        .where(Quotation.status.in_([QuotationStatus.PENDING_MANAGER, QuotationStatus.PENDING_FINANCE]))
+        .options(
+            selectinload(Quotation.rep),
+            selectinload(Quotation.customer),
+            selectinload(Quotation.lines).selectinload(QuotationLine.product).selectinload(Product.category),
+            selectinload(Quotation.approvals).selectinload(Approval.approver),
+            selectinload(Quotation.audit_logs).selectinload(AuditLog.user)
+        )
+        .order_by(Quotation.created_at.asc())
+    )
+    result = await db.execute(stmt)
+    pending_quotations = result.scalars().all()
+
+    # Also fetch recent audit trail actions for approvals
+    audit_stmt = (
+        select(AuditLog)
+        .where(AuditLog.action.in_([AuditAction.APPROVED, AuditAction.REJECTED, AuditAction.RETURNED, AuditAction.SUBMITTED]))
+        .options(selectinload(AuditLog.user), selectinload(AuditLog.quotation))
+        .order_by(AuditLog.created_at.desc())
+        .limit(20)
+    )
+    audit_res = await db.execute(audit_stmt)
+    audit_trail = audit_res.scalars().all()
+
+    return {
+        "queue": pending_quotations,
+        "auditTrail": audit_trail
+    }
+
