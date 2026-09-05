@@ -137,6 +137,7 @@ class Product(Base):
     price_list_items = relationship("PriceListItem", back_populates="product")
     quotation_lines = relationship("QuotationLine", back_populates="product")
     warehouse_stocks = relationship("WarehouseStock", back_populates="product")
+    upsell_rules = relationship("UpsellRule", foreign_keys="UpsellRule.source_product_id", back_populates="source_product")
 
 
 class ProductVariant(Base):
@@ -232,6 +233,9 @@ class UpsellRule(Base):
     is_promoted: Mapped[bool] = mapped_column(Boolean, default=False)
     min_margin: Mapped[float] = mapped_column(Float, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    source_product = relationship("Product", foreign_keys=[source_product_id], back_populates="upsell_rules")
+    target_product = relationship("Product", foreign_keys=[target_product_id])
 
 
 class Quotation(Base):

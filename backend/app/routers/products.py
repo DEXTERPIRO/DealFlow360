@@ -1,110 +1,158 @@
-"""app/routers/products.py — Products, categories, variants, pricelists (FastAPI)."""
-import os
-import uuid as _uuid
-from io import BytesIO
-
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
-from fastapi.responses import JSONResponse
-from PIL import Image
+from decimal import Decimal
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query, status
 from pydantic import BaseModel
-from sqlalchemy import select, or_
+from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.middleware.auth import verify_token, require_roles
+from app.middleware.upload import process_image
 from app.models.models import (
     Product, ProductCategory, ProductVariant,
-    PriceList, PriceListItem, UpsellRule,
+    PriceList, PriceListItem, WarehouseStock,
+    UpsellRule, CustomerTier, BillingCycle
 )
 
 router = APIRouter(prefix="/api/products", tags=["products"])
 
-UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "../../uploads/products")
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+# ---------------------------------------------------------------------------
+# Pydantic Schemas
+# ---------------------------------------------------------------------------
+
+class UpsellRequest(BaseModel):
+    productIds: List[str]
+    customerTier: Optional[str] = "BRONZE"
+
+class CategoryCreate(BaseModel):
+    name: str
+    maxDiscount: Optional[float] = 15.0
+    description: Optional[str] = None
+
+class VariantCreate(BaseModel):
+    name: str
+    attribute: str
+    value: str
+    extraPrice: Optional[float] = 0.0
+
+class PriceListCreate(BaseModel):
+    name: str
+    tier: CustomerTier
+    currency: Optional[str] = "INR"
 
 
-# ── Helper: process and save uploaded image ───────────────────────────────────
-
-async def _save_image(file: UploadFile) -> str | None:
-    if not file:
-        return None
-    allowed = {"image/jpeg", "image/png", "image/webp"}
-    if file.content_type not in allowed:
-        raise HTTPException(status_code=400, detail="Only JPEG, PNG and WebP images allowed")
-    contents = await file.read()
-    if len(contents) > 5 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="File too large (max 5 MB)")
-
-    img = Image.open(BytesIO(contents))
-    img.thumbnail((800, 600), Image.LANCZOS)
-
-    filename = f"{_uuid.uuid4()}.webp"
-    filepath = os.path.join(UPLOAD_DIR, filename)
-    img.save(filepath, "WEBP", quality=85)
-    return f"/uploads/products/{filename}"
-
-
-# ── Routes ────────────────────────────────────────────────────────────────────
+# ---------------------------------------------------------------------------
+# Product Categories Endpoints
+# ---------------------------------------------------------------------------
 
 @router.get("/categories/all")
-async def get_categories(user=Depends(verify_token), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(ProductCategory).order_by(ProductCategory.name))
-    cats = result.scalars().all()
-    return [{"id": str(c.id), "name": c.name, "description": c.description,
-             "maxDiscount": float(c.max_discount)} for c in cats]
-
-
-@router.post("/categories", status_code=201)
-async def create_category(
-    name: str = Form(...), max_discount: float = Form(15), description: str = Form(None),
-    user=Depends(require_roles("ADMIN", "SALES_MANAGER")),
-    db: AsyncSession = Depends(get_db),
+async def get_all_categories(
+    user: dict = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
 ):
-    cat = ProductCategory(name=name, max_discount=max_discount, description=description)
-    db.add(cat)
-    await db.flush()
-    await db.refresh(cat)
-    return {"id": str(cat.id), "name": cat.name}
+    stmt = (
+        select(ProductCategory, func.count(Product.id).label("product_count"))
+        .outerjoin(Product, (Product.category_id == ProductCategory.id) & (Product.is_active == True))
+        .group_by(ProductCategory.id)
+        .order_by(ProductCategory.name.asc())
+    )
+    result = await db.execute(stmt)
+    rows = result.all()
+    
+    categories = []
+    for cat, count in rows:
+        cat_dict = {
+            "id": cat.id,
+            "name": cat.name,
+            "maxDiscount": cat.max_discount,
+            "description": cat.description,
+            "createdAt": cat.created_at.isoformat() if cat.created_at else None,
+            "_count": {"products": count}
+        }
+        categories.append(cat_dict)
+    return categories
 
+
+@router.post("/categories", status_code=status.HTTP_201_CREATED)
+async def create_category(
+    body: CategoryCreate,
+    user: dict = Depends(require_roles("ADMIN", "SALES_MANAGER")),
+    db: AsyncSession = Depends(get_db)
+):
+    if not body.name:
+        raise HTTPException(status_code=400, detail="Name required")
+    
+    existing = await db.execute(select(ProductCategory).where(ProductCategory.name == body.name))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Category name already exists")
+
+    cat = ProductCategory(
+        name=body.name,
+        max_discount=body.maxDiscount if body.maxDiscount is not None else 15.0,
+        description=body.description
+    )
+    db.add(cat)
+    await db.commit()
+    await db.refresh(cat)
+    return cat
+
+
+# ---------------------------------------------------------------------------
+# Price Lists Endpoints
+# ---------------------------------------------------------------------------
 
 @router.get("/pricelists/all")
-async def get_pricelists(user=Depends(verify_token), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(PriceList).options(
+async def get_all_pricelists(
+    user: dict = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = (
+        select(PriceList)
+        .options(
             selectinload(PriceList.items).selectinload(PriceListItem.product)
         )
     )
-    lists = result.scalars().all()
-    return lists
+    result = await db.execute(stmt)
+    return result.scalars().all()
 
 
-@router.post("/pricelists", status_code=201)
+@router.post("/pricelists", status_code=status.HTTP_201_CREATED)
 async def create_pricelist(
-    name: str = Form(...), tier: str = Form(None), currency: str = Form("INR"),
-    user=Depends(require_roles("ADMIN", "SALES_MANAGER")),
-    db: AsyncSession = Depends(get_db),
+    body: PriceListCreate,
+    user: dict = Depends(require_roles("ADMIN", "SALES_MANAGER")),
+    db: AsyncSession = Depends(get_db)
 ):
-    pl = PriceList(name=name, tier=tier, currency=currency)
-    db.add(pl)
-    await db.flush()
-    await db.refresh(pl)
-    return {"id": str(pl.id), "name": pl.name, "tier": pl.tier}
+    plist = PriceList(
+        name=body.name,
+        tier=body.tier,
+        currency=body.currency or "INR"
+    )
+    db.add(plist)
+    await db.commit()
+    await db.refresh(plist)
+    return plist
 
+
+# ---------------------------------------------------------------------------
+# Upsell Suggestions Endpoint
+# ---------------------------------------------------------------------------
 
 @router.post("/upsell-suggestions")
-async def upsell_suggestions(
-    body: dict, user=Depends(verify_token), db: AsyncSession = Depends(get_db)
+async def get_upsell_suggestions(
+    body: UpsellRequest,
+    user: dict = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
 ):
-    product_ids = body.get("productIds", [])
-    if not product_ids:
+    if not body.productIds:
         return []
 
-    result = await db.execute(
+    stmt = (
         select(UpsellRule)
         .where(
-            UpsellRule.source_product_id.in_(product_ids),
-            UpsellRule.target_product_id.notin_(product_ids),
+            UpsellRule.source_product_id.in_(body.productIds),
+            UpsellRule.target_product_id.not_in(body.productIds)
         )
         .options(
             selectinload(UpsellRule.target_product).selectinload(Product.category)
@@ -112,158 +160,257 @@ async def upsell_suggestions(
         .order_by(UpsellRule.is_promoted.desc(), UpsellRule.score.desc())
         .limit(5)
     )
+    result = await db.execute(stmt)
     rules = result.scalars().all()
 
     suggestions = []
+    seen_target_ids = set()
+
     for r in rules:
-        p = r.target_product
-        base = float(p.base_price)
-        cost = float(p.cost_price)
-        margin = round((base - cost) / base * 100, 1) if base > 0 else 0
+        target = r.target_product
+        if not target or not target.is_active or target.id in seen_target_ids:
+            continue
+        seen_target_ids.add(target.id)
+
+        base_p = float(target.base_price) if target.base_price else 0.0
+        cost_p = float(target.cost_price) if target.cost_price else 0.0
+        margin_delta = round(((base_p - cost_p) / base_p * 100), 1) if base_p > 0 else 0.0
+
         suggestions.append({
-            "id": str(p.id), "name": p.name, "sku": p.sku,
-            "basePrice": base, "score": r.score,
-            "isPromoted": r.is_promoted, "marginDelta": margin,
-            "category": {"name": p.category.name} if p.category else None,
+            "id": target.id,
+            "name": target.name,
+            "sku": target.sku,
+            "description": target.description,
+            "categoryId": target.category_id,
+            "category": target.category,
+            "basePrice": target.base_price,
+            "costPrice": target.cost_price,
+            "tax": target.tax,
+            "unit": target.unit,
+            "imageUrl": target.image_url,
+            "isActive": target.is_active,
+            "isSubscription": target.is_subscription,
+            "billingCycle": target.billing_cycle,
+            "score": r.score,
+            "isPromoted": r.is_promoted,
+            "marginDelta": margin_delta
         })
+
     return suggestions
 
 
+# ---------------------------------------------------------------------------
+# Product CRUD Endpoints
+# ---------------------------------------------------------------------------
+
+@router.get("")
 @router.get("/")
 async def get_products(
-    category: str = Query(None),
-    search: str = Query(None),
-    is_subscription: bool = Query(None),
-    user=Depends(verify_token),
-    db: AsyncSession = Depends(get_db),
+    category: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+    isSubscription: Optional[str] = Query(None),
+    user: dict = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
 ):
     stmt = (
         select(Product)
+        .where(Product.is_active == True)
         .options(
             selectinload(Product.category),
             selectinload(Product.variants),
-            selectinload(Product.warehouse_stocks),
+            selectinload(Product.warehouse_stocks).selectinload(WarehouseStock.warehouse)
         )
-        .where(Product.is_active == True)
-        .order_by(Product.name)
+        .order_by(Product.name.asc())
     )
+
     if category:
         stmt = stmt.where(Product.category_id == category)
-    if is_subscription is not None:
-        stmt = stmt.where(Product.is_subscription == is_subscription)
+    if isSubscription is not None:
+        stmt = stmt.where(Product.is_subscription == (isSubscription.lower() == "true"))
     if search:
         stmt = stmt.where(Product.name.ilike(f"%{search}%"))
 
     result = await db.execute(stmt)
-    return result.scalars().all()
+    products = result.scalars().all()
+    return products
 
 
-@router.get("/{product_id}")
-async def get_product(product_id: str, user=Depends(verify_token), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
+@router.get("/{id}")
+async def get_product(
+    id: str,
+    user: dict = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = (
         select(Product)
+        .where(Product.id == id)
         .options(
             selectinload(Product.category),
             selectinload(Product.variants),
-            selectinload(Product.warehouse_stocks),
-            selectinload(Product.upsell_rules).selectinload(UpsellRule.target_product).selectinload(Product.category),
+            selectinload(Product.warehouse_stocks).selectinload(WarehouseStock.warehouse),
+            selectinload(Product.upsell_rules).selectinload(UpsellRule.target_product).selectinload(Product.category)
         )
-        .where(Product.id == product_id)
     )
+    result = await db.execute(stmt)
     product = result.scalar_one_or_none()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     return product
 
 
-@router.post("/", status_code=201)
+@router.post("", status_code=status.HTTP_201_CREATED)
+@router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_product(
-    name: str = Form(...), sku: str = Form(...),
-    category_id: str = Form(...), base_price: float = Form(...),
-    cost_price: float = Form(0), tax: float = Form(18),
-    unit: str = Form("piece"), description: str = Form(None),
-    is_subscription: bool = Form(False), billing_cycle: str = Form(None),
-    image: UploadFile = File(None),
-    user=Depends(require_roles("ADMIN", "SALES_MANAGER")),
-    db: AsyncSession = Depends(get_db),
+    name: str = Form(...),
+    sku: str = Form(...),
+    categoryId: str = Form(...),
+    basePrice: str = Form(...),
+    description: Optional[str] = Form(None),
+    costPrice: Optional[str] = Form("0"),
+    tax: Optional[str] = Form("18"),
+    unit: Optional[str] = Form("piece"),
+    isSubscription: Optional[str] = Form("false"),
+    billingCycle: Optional[str] = Form(None),
+    image: Optional[UploadFile] = File(None),
+    user: dict = Depends(require_roles("ADMIN", "SALES_MANAGER")),
+    db: AsyncSession = Depends(get_db)
 ):
-    existing = await db.execute(select(Product).where(Product.sku == sku))
-    if existing.scalar_one_or_none():
+    if not name or not sku or not categoryId or not basePrice:
+        raise HTTPException(status_code=400, detail="Name, SKU, category and price required")
+
+    existing_sku = await db.execute(select(Product).where(Product.sku == sku))
+    if existing_sku.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="SKU already exists")
 
-    image_url = await _save_image(image) if image and image.filename else None
+    image_url = await process_image(image) if image else None
+
+    is_sub = str(isSubscription).lower() == "true"
+    parsed_billing_cycle = None
+    if is_sub and billingCycle:
+        try:
+            parsed_billing_cycle = BillingCycle(billingCycle)
+        except ValueError:
+            parsed_billing_cycle = None
 
     product = Product(
-        name=name, sku=sku, category_id=category_id,
-        base_price=base_price, cost_price=cost_price,
-        tax=tax, unit=unit, description=description,
-        image_url=image_url, is_subscription=is_subscription,
-        billing_cycle=billing_cycle if is_subscription else None,
+        name=name,
+        sku=sku,
+        description=description,
+        category_id=categoryId,
+        base_price=Decimal(basePrice),
+        cost_price=Decimal(costPrice or "0"),
+        tax=Decimal(tax or "18"),
+        unit=unit or "piece",
+        image_url=image_url,
+        is_subscription=is_sub,
+        billing_cycle=parsed_billing_cycle
     )
     db.add(product)
-    await db.flush()
+    await db.commit()
     await db.refresh(product)
-    return product
+
+    # Reload with category eager loaded
+    stmt = select(Product).where(Product.id == product.id).options(selectinload(Product.category))
+    res = await db.execute(stmt)
+    return res.scalar_one()
 
 
-@router.put("/{product_id}")
+@router.put("/{id}")
 async def update_product(
-    product_id: str,
-    name: str = Form(None), description: str = Form(None),
-    base_price: float = Form(None), cost_price: float = Form(None),
-    tax: float = Form(None), unit: str = Form(None),
-    is_subscription: bool = Form(None),
-    image: UploadFile = File(None),
-    user=Depends(require_roles("ADMIN", "SALES_MANAGER")),
-    db: AsyncSession = Depends(get_db),
+    id: str,
+    name: Optional[str] = Form(None),
+    description: Optional[str] = Form(None),
+    basePrice: Optional[str] = Form(None),
+    costPrice: Optional[str] = Form(None),
+    tax: Optional[str] = Form(None),
+    unit: Optional[str] = Form(None),
+    isSubscription: Optional[str] = Form(None),
+    billingCycle: Optional[str] = Form(None),
+    image: Optional[UploadFile] = File(None),
+    user: dict = Depends(require_roles("ADMIN", "SALES_MANAGER")),
+    db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(select(Product).where(Product.id == product_id))
+    stmt = select(Product).where(Product.id == id)
+    result = await db.execute(stmt)
     product = result.scalar_one_or_none()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    if name is not None: product.name = name
-    if description is not None: product.description = description
-    if base_price is not None: product.base_price = base_price
-    if cost_price is not None: product.cost_price = cost_price
-    if tax is not None: product.tax = tax
-    if unit is not None: product.unit = unit
-    if is_subscription is not None: product.is_subscription = is_subscription
-    if image and image.filename:
-        product.image_url = await _save_image(image)
+    if name is not None:
+        product.name = name
+    if description is not None:
+        product.description = description
+    if basePrice is not None:
+        product.base_price = Decimal(basePrice)
+    if costPrice is not None:
+        product.cost_price = Decimal(costPrice)
+    if tax is not None:
+        product.tax = Decimal(tax)
+    if unit is not None:
+        product.unit = unit
+    if isSubscription is not None:
+        product.is_subscription = str(isSubscription).lower() == "true"
+    if billingCycle is not None:
+        try:
+            product.billing_cycle = BillingCycle(billingCycle)
+        except ValueError:
+            product.billing_cycle = None
 
-    await db.flush()
+    if image:
+        new_image_url = await process_image(image)
+        if new_image_url:
+            product.image_url = new_image_url
+
+    await db.commit()
     await db.refresh(product)
-    return product
+
+    stmt_reload = select(Product).where(Product.id == id).options(selectinload(Product.category))
+    res = await db.execute(stmt_reload)
+    return res.scalar_one()
 
 
-@router.delete("/{product_id}")
+@router.delete("/{id}")
 async def delete_product(
-    product_id: str,
-    user=Depends(require_roles("ADMIN")),
-    db: AsyncSession = Depends(get_db),
+    id: str,
+    user: dict = Depends(require_roles("ADMIN")),
+    db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(select(Product).where(Product.id == product_id))
+    stmt = select(Product).where(Product.id == id)
+    result = await db.execute(stmt)
     product = result.scalar_one_or_none()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
+
     product.is_active = False
+    await db.commit()
     return {"message": "Product deactivated"}
 
 
-@router.post("/{product_id}/variants", status_code=201)
-async def add_variant(
-    product_id: str,
-    name: str = Form(...), attribute: str = Form(...),
-    value: str = Form(...), extra_price: float = Form(0),
-    user=Depends(require_roles("ADMIN", "SALES_MANAGER")),
-    db: AsyncSession = Depends(get_db),
+# ---------------------------------------------------------------------------
+# Product Variants Endpoint
+# ---------------------------------------------------------------------------
+
+@router.post("/{id}/variants", status_code=status.HTTP_201_CREATED)
+async def create_variant(
+    id: str,
+    body: VariantCreate,
+    user: dict = Depends(require_roles("ADMIN", "SALES_MANAGER")),
+    db: AsyncSession = Depends(get_db)
 ):
+    stmt = select(Product).where(Product.id == id)
+    result = await db.execute(stmt)
+    product = result.scalar_one_or_none()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
     variant = ProductVariant(
-        product_id=product_id, name=name,
-        attribute=attribute, value=value, extra_price=extra_price,
+        product_id=id,
+        name=body.name,
+        attribute=body.attribute,
+        value=body.value,
+        extra_price=Decimal(str(body.extraPrice or 0.0))
     )
     db.add(variant)
-    await db.flush()
+    await db.commit()
     await db.refresh(variant)
     return variant
