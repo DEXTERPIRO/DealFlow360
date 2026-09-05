@@ -309,7 +309,7 @@ class FulfillmentLine(Base):
     __tablename__ = "fulfillment_lines"
     id: Mapped[str] = mapped_column(String, primary_key=True, default=gen_uuid)
     quotation_id: Mapped[str] = mapped_column(ForeignKey("quotations.id", ondelete="CASCADE"))
-    warehouse_id: Mapped[str] = mapped_column(ForeignKey("warehouses.id"))
+    warehouse_id: Mapped[str | None] = mapped_column(ForeignKey("warehouses.id"), nullable=True)
     product_id: Mapped[str] = mapped_column(ForeignKey("products.id"))
     quantity_needed: Mapped[int] = mapped_column(Integer)
     quantity_fulfilled: Mapped[int] = mapped_column(Integer, default=0)

@@ -68,10 +68,16 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 from app.routers.auth import router as auth_router          # noqa: E402
 from app.routers.products import router as products_router  # noqa: E402
 from app.routers.quotations import router as quotations_router  # noqa: E402
+from app.routers.fulfillment import router as fulfillment_router  # noqa: E402
+from app.routers.subscriptions import router as subscriptions_router  # noqa: E402
+from app.routers.invoices import router as invoices_router  # noqa: E402
 
 app.include_router(auth_router)
 app.include_router(products_router)
 app.include_router(quotations_router)
+app.include_router(fulfillment_router)
+app.include_router(subscriptions_router)
+app.include_router(invoices_router)
 
 
 @app.get("/api/health", tags=["health"])
