@@ -233,7 +233,8 @@ async def get_portal_quotation(
             selectinload(Quotation.rep),
             selectinload(Quotation.customer),
             selectinload(Quotation.lines).selectinload(QuotationLine.product).selectinload(Product.category),
-            selectinload(Quotation.negotiations)
+            selectinload(Quotation.negotiations),
+            selectinload(Quotation.audit_logs).selectinload(AuditLog.user)
         )
     )
     result = await db.execute(stmt)
