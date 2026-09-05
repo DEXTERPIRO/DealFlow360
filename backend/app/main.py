@@ -1,89 +1,54 @@
-"""app/main.py — FastAPI application entry point."""
 import os
-from contextlib import asynccontextmanager
-
-import socketio
-from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
+import socketio
 
-load_dotenv()
-
+from app.config import settings
 from app.sockets.server import sio
-
-@sio.event
-async def connect(sid, environ):
-    print(f"[Socket] Client connected: {sid}")
-
-
-@sio.event
-async def join(sid, data):
-    room = data.get("room", "dashboard")
-    await sio.enter_room(sid, room)
-    print(f"[Socket] {sid} joined room: {room}")
-
-
-@sio.event
-async def disconnect(sid):
-    print(f"[Socket] Client disconnected: {sid}")
-
-
-# ── App lifecycle ─────────────────────────────────────────────────────────────
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    print("✅ DealFlow360 FastAPI backend starting...")
-    yield
-    print("👋 DealFlow360 backend shutting down.")
-
-
-# ── FastAPI app ───────────────────────────────────────────────────────────────
-app = FastAPI(
-    title="DealFlow360 API",
-    description="CPQ & Deal Management Platform — FastAPI Backend",
-    version="2.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
-    lifespan=lifespan,
+from app.routers import (
+    auth, products, quotations, fulfillment,
+    subscriptions, invoices, negotiations, dashboard, notifications
 )
 
-# Make sio accessible to routers via app state
-app.state.sio = sio
+app = FastAPI(title="DealFlow360 API")
 
-# CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.getenv("FRONTEND_URL", "http://localhost:5173")],
+    allow_origins=[settings.FRONTEND_URL],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Static file serving for uploads
-UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "../uploads")
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
+# Ensure upload directory exists
+os.makedirs("app/uploads/products", exist_ok=True)
+os.makedirs("app/uploads/logos", exist_ok=True)
 
-# ── Routers ───────────────────────────────────────────────────────────────────
-from app.routers.auth import router as auth_router          # noqa: E402
-from app.routers.products import router as products_router  # noqa: E402
-from app.routers.quotations import router as quotations_router  # noqa: E402
-from app.routers.fulfillment import router as fulfillment_router  # noqa: E402
-from app.routers.subscriptions import router as subscriptions_router  # noqa: E402
-from app.routers.invoices import router as invoices_router  # noqa: E402
+# Serve uploaded files (equivalent to express.static)
+app.mount("/uploads", StaticFiles(directory="app/uploads"), name="uploads")
 
-app.include_router(auth_router)
-app.include_router(products_router)
-app.include_router(quotations_router)
-app.include_router(fulfillment_router)
-app.include_router(subscriptions_router)
-app.include_router(invoices_router)
+# Route wiring (equivalent to app.use('/api/...', require('./routes/...')))
+app.include_router(auth.router)
+app.include_router(products.router)
+app.include_router(quotations.router)
+app.include_router(fulfillment.router)
+app.include_router(subscriptions.router)
+app.include_router(invoices.router)
+app.include_router(negotiations.router)
+app.include_router(dashboard.router)
+app.include_router(notifications.router)
 
-
-@app.get("/api/health", tags=["health"])
+@app.get("/api/health")
 async def health():
-    return {"status": "ok", "service": "DealFlow360", "version": "2.0.0"}
+    from datetime import datetime
+    return {"status": "ok", "time": datetime.utcnow().isoformat()}
 
+# Global exception handler (equivalent to Express's error middleware)
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(status_code=500, content={"error": str(exc) or "Internal server error"})
 
-# ── Mount Socket.IO ───────────────────────────────────────────────────────────
+# Mount Socket.io onto the FastAPI app (ASGI) — this is the ASGI app you actually run
 socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
