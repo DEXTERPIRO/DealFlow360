@@ -1,7 +1,11 @@
-node_modules/
+venv/
+__pycache__/
+*.pyc
 .env
+node_modules/
 dist/
 uploads/
+app/uploads/
 *.log
 .DS_Store
 Thumbs.db

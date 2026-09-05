@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.middleware.auth import verify_token, require_roles
-from app.models.product import (
+from app.models.models import (
     Product, ProductCategory, ProductVariant,
     PriceList, PriceListItem, UpsellRule,
 )

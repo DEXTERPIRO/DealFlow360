@@ -10,11 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.middleware.auth import verify_token, require_roles
-from app.models.quotation import (
-    Quotation, QuotationLine, Approval, Negotiation, QuotationStatus
+from app.models.models import (
+    Quotation, QuotationLine, Approval, Negotiation, QuotationStatus,
+    Product, AuditLog, AuditAction
 )
-from app.models.product import Product
-from app.models.audit import AuditLog, AuditAction
 from app.utils.blended_risk_engine import compute_blended_risk_score, compute_order_totals
 
 router = APIRouter(prefix="/api/quotations", tags=["quotations"])

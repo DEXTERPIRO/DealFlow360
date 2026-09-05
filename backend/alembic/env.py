@@ -27,8 +27,8 @@ if DATABASE_URL.startswith("postgresql://"):
 config.set_main_option("sqlalchemy.url", DATABASE_URL)
 
 # Import all models so Alembic can detect them
-from app.database import Base  # noqa: E402
-import app.models.base  # noqa: E402, F401 — registers all models
+# Import Base and models so Alembic can detect them
+from app.models.models import Base  # noqa: E402
 
 target_metadata = Base.metadata
 

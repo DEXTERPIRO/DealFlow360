@@ -2,7 +2,7 @@
 from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.models.product import Product, ProductCategory
+from app.models.models import Product, ProductCategory
 
 TIER_MAX_DISCOUNT = {
     "BRONZE": 5,

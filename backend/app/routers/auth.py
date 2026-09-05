@@ -1,201 +1,144 @@
-"""app/routers/auth.py — Authentication routes (FastAPI)."""
-import os
 import secrets
-from datetime import datetime, timedelta, timezone
-
-from fastapi import APIRouter, Depends, HTTPException, Response, Cookie, status
-from fastapi.responses import JSONResponse
-from jose import JWTError, jwt
-from passlib.context import CryptContext
+from datetime import datetime, timedelta
+from fastapi import APIRouter, Depends, HTTPException, Response, Request
 from pydantic import BaseModel, EmailStr
+from passlib.context import CryptContext
+from jose import jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.database import get_db
+from app.models.models import User, UserRole
 from app.middleware.auth import verify_token
-from app.models.user import User, UserRole
+from app.config import settings
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
-
-JWT_SECRET = os.getenv("JWT_SECRET", "dealflow360_jwt_secret_2024_xyz")
-JWT_REFRESH_SECRET = os.getenv("JWT_REFRESH_SECRET", "dealflow360_refresh_secret_2024_abc")
-JWT_ALGORITHM = "HS256"
-
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+limiter = Limiter(key_func=get_remote_address)
 
-# ── Pydantic schemas ──────────────────────────────────────────────────────────
-
-class LoginRequest(BaseModel):
-    email: str
+class LoginBody(BaseModel):
+    email: EmailStr
     password: str
 
-class SignupRequest(BaseModel):
+class SignupBody(BaseModel):
     name: str
-    email: str
+    email: EmailStr
     password: str
-    role: str | None = "SALES_REP"
+    role: str | None = None
 
-class MagicLinkRequest(BaseModel):
-    email: str
+def generate_tokens(user: User) -> tuple[str, str]:
+    access = jwt.encode(
+        {"id": user.id, "email": user.email, "role": user.role.value if hasattr(user.role, 'value') else user.role,
+         "name": user.name, "exp": datetime.utcnow() + timedelta(minutes=15)},
+        settings.JWT_SECRET, algorithm="HS256"
+    )
+    refresh = jwt.encode(
+        {"id": user.id, "exp": datetime.utcnow() + timedelta(days=7)},
+        settings.JWT_REFRESH_SECRET, algorithm="HS256"
+    )
+    return access, refresh
 
-class VerifyMagicRequest(BaseModel):
-    token: str
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-def _generate_tokens(user: User) -> tuple[str, str]:
-    now = datetime.now(timezone.utc)
-    access_payload = {
-        "id": str(user.id),
-        "email": user.email,
-        "role": user.role.value,
-        "name": user.name,
-        "exp": now + timedelta(minutes=15),
-    }
-    refresh_payload = {
-        "id": str(user.id),
-        "exp": now + timedelta(days=7),
-    }
-    access_token = jwt.encode(access_payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
-    refresh_token = jwt.encode(refresh_payload, JWT_REFRESH_SECRET, algorithm=JWT_ALGORITHM)
-    return access_token, refresh_token
-
-
-def _set_refresh_cookie(response: Response, token: str) -> None:
+def set_refresh_cookie(response: Response, token: str):
     response.set_cookie(
-        key="refreshToken",
-        value=token,
-        httponly=True,
-        samesite="strict",
-        max_age=7 * 24 * 60 * 60,
+        "refreshToken", token, httponly=True, samesite="strict",
+        max_age=7 * 24 * 60 * 60
     )
 
-# ── Routes ────────────────────────────────────────────────────────────────────
-
 @router.post("/login")
-async def login(body: LoginRequest, response: Response, db: AsyncSession = Depends(get_db)):
+@limiter.limit("10/15minutes")
+async def login(request: Request, body: LoginBody, response: Response,
+                 db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
-
     if not user or not pwd_context.verify(body.password, user.password):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        raise HTTPException(401, "Invalid credentials")
     if not user.is_active:
-        raise HTTPException(status_code=403, detail="Account deactivated")
-
-    access_token, refresh_token = _generate_tokens(user)
-    _set_refresh_cookie(response, refresh_token)
+        raise HTTPException(403, "Account deactivated")
+    access, refresh = generate_tokens(user)
+    set_refresh_cookie(response, refresh)
     return {
-        "accessToken": access_token,
-        "user": {
-            "id": str(user.id), "name": user.name,
-            "email": user.email, "role": user.role.value,
-            "avatar": user.avatar,
-        },
+        "accessToken": access,
+        "user": {"id": user.id, "name": user.name, "email": user.email,
+                  "role": user.role.value if hasattr(user.role, 'value') else user.role, "avatar": user.avatar}
     }
-
 
 @router.post("/signup", status_code=201)
-async def signup(body: SignupRequest, response: Response, db: AsyncSession = Depends(get_db)):
-    if not body.name or not body.email or not body.password:
-        raise HTTPException(status_code=400, detail="All fields required")
+async def signup(body: SignupBody, response: Response, db: AsyncSession = Depends(get_db)):
     if len(body.password) < 8:
-        raise HTTPException(status_code=400, detail="Password min 8 characters")
-
+        raise HTTPException(400, "Password min 8 characters")
     result = await db.execute(select(User).where(User.email == body.email))
     if result.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail="Email already registered")
-
+        raise HTTPException(409, "Email already registered")
     allowed_roles = {"SALES_REP", "SALES_MANAGER", "FINANCE", "ADMIN"}
-    role = UserRole(body.role) if body.role in allowed_roles else UserRole.SALES_REP
-
+    role = body.role if body.role in allowed_roles else "SALES_REP"
     hashed = pwd_context.hash(body.password)
-    user = User(name=body.name, email=body.email, password=hashed, role=role)
+    user = User(name=body.name, email=body.email, password=hashed, role=UserRole(role))
     db.add(user)
-    await db.flush()
+    await db.commit()
     await db.refresh(user)
-
-    access_token, refresh_token = _generate_tokens(user)
-    _set_refresh_cookie(response, refresh_token)
-    return {
-        "accessToken": access_token,
-        "user": {"id": str(user.id), "name": user.name, "email": user.email, "role": user.role.value},
-    }
-
+    access, refresh = generate_tokens(user)
+    set_refresh_cookie(response, refresh)
+    return {"accessToken": access,
+            "user": {"id": user.id, "name": user.name, "email": user.email, "role": user.role.value if hasattr(user.role, 'value') else user.role}}
 
 @router.post("/refresh")
-async def refresh_token(response: Response, refreshToken: str | None = Cookie(default=None), db: AsyncSession = Depends(get_db)):
-    if not refreshToken:
-        raise HTTPException(status_code=401, detail="No refresh token")
+async def refresh_token(request: Request, response: Response, db: AsyncSession = Depends(get_db)):
+    token = request.cookies.get("refreshToken")
+    if not token:
+        raise HTTPException(401, "No refresh token")
     try:
-        payload = jwt.decode(refreshToken, JWT_REFRESH_SECRET, algorithms=[JWT_ALGORITHM])
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid refresh token")
-
-    result = await db.execute(select(User).where(User.id == payload["id"]))
+        decoded = jwt.decode(token, settings.JWT_REFRESH_SECRET, algorithms=["HS256"])
+    except Exception:
+        raise HTTPException(401, "Invalid refresh token")
+    result = await db.execute(select(User).where(User.id == decoded["id"]))
     user = result.scalar_one_or_none()
     if not user or not user.is_active:
-        raise HTTPException(status_code=401, detail="Invalid session")
-
-    access_token, new_refresh = _generate_tokens(user)
-    _set_refresh_cookie(response, new_refresh)
-    return {"accessToken": access_token}
-
+        raise HTTPException(401, "Invalid session")
+    access, refresh = generate_tokens(user)
+    set_refresh_cookie(response, refresh)
+    return {"accessToken": access}
 
 @router.post("/magic-link")
-async def magic_link(body: MagicLinkRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.email == body.email))
+async def magic_link(email: EmailStr, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
     if not user or user.role != UserRole.CUSTOMER:
         return {"message": "If this email exists, a link was sent"}
-
     token = secrets.token_hex(32)
-    expiry = datetime.now(timezone.utc) + timedelta(minutes=30)
     user.magic_link_token = token
-    user.magic_link_expiry = expiry
-    await db.flush()
-    # In production: send email — for demo return token
-    return {"message": "Magic link sent", "token": token, "userId": str(user.id)}
-
+    user.magic_link_expiry = datetime.utcnow() + timedelta(minutes=30)
+    await db.commit()
+    return {"message": "Magic link sent", "token": token, "userId": user.id}
 
 @router.post("/verify-magic")
-async def verify_magic(body: VerifyMagicRequest, response: Response, db: AsyncSession = Depends(get_db)):
+async def verify_magic(token: str, response: Response, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(User).where(
-            User.magic_link_token == body.token,
-            User.magic_link_expiry > datetime.now(timezone.utc),
-        )
+        select(User).where(User.magic_link_token == token,
+                            User.magic_link_expiry > datetime.utcnow())
     )
     user = result.scalar_one_or_none()
     if not user:
-        raise HTTPException(status_code=401, detail="Link expired or invalid")
-
+        raise HTTPException(401, "Link expired or invalid")
     user.magic_link_token = None
     user.magic_link_expiry = None
-    await db.flush()
-
-    access_token, refresh_token = _generate_tokens(user)
-    _set_refresh_cookie(response, refresh_token)
-    return {
-        "accessToken": access_token,
-        "user": {"id": str(user.id), "name": user.name, "email": user.email, "role": user.role.value},
-    }
-
+    await db.commit()
+    access, refresh = generate_tokens(user)
+    set_refresh_cookie(response, refresh)
+    return {"accessToken": access,
+            "user": {"id": user.id, "name": user.name, "email": user.email, "role": user.role.value if hasattr(user.role, 'value') else user.role}}
 
 @router.post("/logout")
 async def logout(response: Response):
     response.delete_cookie("refreshToken")
     return {"message": "Logged out"}
 
-
 @router.get("/me")
-async def me(user_payload: dict = Depends(verify_token), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).where(User.id == user_payload["id"]))
-    user = result.scalar_one_or_none()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    return {
-        "id": str(user.id), "name": user.name, "email": user.email,
-        "role": user.role.value, "avatar": user.avatar,
-        "customerTier": user.customer_tier.value if user.customer_tier else None,
-        "companyName": user.company_name,
-    }
+async def me(user: dict = Depends(verify_token), db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(User).where(User.id == user["id"]))
+    u = result.scalar_one_or_none()
+    if not u:
+        raise HTTPException(404, "User not found")
+    return {"id": u.id, "name": u.name, "email": u.email, "role": u.role.value if hasattr(u.role, 'value') else u.role,
+            "avatar": u.avatar, "customerTier": u.customer_tier.value if hasattr(u.customer_tier, 'value') else u.customer_tier, "companyName": u.company_name}
