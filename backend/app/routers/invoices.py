@@ -183,6 +183,25 @@ async def pay_invoice(
     }
 
 
+@router.put("/{id}/send")
+async def send_invoice(
+    id: str,
+    user: dict = Depends(require_roles("FINANCE", "ADMIN", "SALES_MANAGER")),
+    db: AsyncSession = Depends(get_db)
+):
+    """Mark an invoice as SENT."""
+    stmt = select(Invoice).where(Invoice.id == id)
+    res = await db.execute(stmt)
+    invoice = res.scalar_one_or_none()
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+
+    invoice.status = InvoiceStatus.SENT
+    await db.commit()
+    await db.refresh(invoice)
+    return {"message": f"Invoice {invoice.invoice_number} marked as SENT", "invoice": invoice}
+
+
 @router.get("/{id}/pdf")
 async def get_invoice_pdf(
     id: str,

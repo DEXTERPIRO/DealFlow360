@@ -75,6 +75,34 @@ async def create_plan(
     return plan
 
 
+@router.put("/plans/{id}")
+async def update_plan(
+    id: str,
+    body: PlanCreate,
+    user: dict = Depends(require_roles("ADMIN", "SALES_MANAGER")),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update a subscription plan (restricted to ADMIN or SALES_MANAGER)."""
+    stmt = select(SubscriptionPlan).where(SubscriptionPlan.id == id)
+    res = await db.execute(stmt)
+    plan = res.scalar_one_or_none()
+    if not plan:
+        raise HTTPException(status_code=404, detail="Subscription plan not found")
+
+    plan.name = body.name
+    plan.billing_cycle = body.billingCycle
+    if body.prorateOnChange is not None:
+        plan.prorate_on_change = body.prorateOnChange
+    if body.cancelPolicy is not None:
+        plan.cancel_policy = body.cancelPolicy
+    if body.partialRefund is not None:
+        plan.partial_refund = body.partialRefund
+
+    await db.commit()
+    await db.refresh(plan)
+    return plan
+
+
 @router.get("")
 @router.get("/")
 async def get_subscriptions(
@@ -86,7 +114,8 @@ async def get_subscriptions(
         select(Subscription)
         .options(
             selectinload(Subscription.plan),
-            selectinload(Subscription.quotation)
+            selectinload(Subscription.quotation).selectinload(Quotation.customer),
+            selectinload(Subscription.quotation).selectinload(Quotation.lines).selectinload(QuotationLine.product)
         )
         .order_by(Subscription.next_billing_date.asc())
     )
