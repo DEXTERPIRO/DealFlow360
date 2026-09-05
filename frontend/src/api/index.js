@@ -34,6 +34,8 @@ export const quotationsAPI = {
   send: (id) => api.put(`/quotations/${id}/send`),
   computeRisk: (d) => api.post('/quotations/compute-risk', d),
   getPortal: (token) => api.get(`/quotations/portal/${token}`),
+  updateStatus: (id, d) => api.put(`/quotations/${id}/status`, d),
+  batchDecision: (d) => api.post('/quotations/batch-decision', d),
 };
 
 export const fulfillmentAPI = {
