@@ -229,7 +229,33 @@ async def get_all_pricelists(
             )
         )
     result = await db.execute(stmt)
-    return result.scalars().all()
+    output = []
+    for pl in result.scalars().all():
+        output.append({
+            "id": pl.id,
+            "name": pl.name,
+            "tier": pl.tier.value if hasattr(pl.tier, "value") else str(pl.tier),
+            "currency": pl.currency,
+            "isActive": pl.is_active,
+            "createdAt": pl.created_at.isoformat() if pl.created_at else None,
+            "items": [
+                {
+                    "id": it.id,
+                    "priceListId": it.price_list_id,
+                    "productId": it.product_id,
+                    "price": float(it.price) if it.price is not None else 0.0,
+                    "product": {
+                        "id": it.product.id,
+                        "name": it.product.name,
+                        "sku": it.product.sku,
+                        "basePrice": float(it.product.base_price) if it.product.base_price is not None else 0.0,
+                        "costPrice": float(it.product.cost_price) if it.product.cost_price is not None else 0.0,
+                    } if it.product else None
+                }
+                for it in (pl.items or [])
+            ]
+        })
+    return output
 
 
 @router.post("/pricelists", status_code=status.HTTP_201_CREATED)

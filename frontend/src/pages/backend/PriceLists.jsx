@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   DollarSign,
   Tag,
@@ -239,7 +239,7 @@ export default function PriceListsPage() {
                       </tr>
                     ) : (
                       pl.items?.map((item) => {
-                        const standardPrice = Number(item.product?.basePrice) || 0;
+                        const standardPrice = Number(item.product?.basePrice ?? item.product?.base_price ?? item.product?.unit_price) || 0;
                         const contractPrice = Number(item.price) || 0;
                         const discountPct =
                           standardPrice > 0

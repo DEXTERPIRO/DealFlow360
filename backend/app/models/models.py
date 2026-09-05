@@ -30,6 +30,7 @@ class CustomerTier(str, PyEnum):
     BRONZE = "BRONZE"
     SILVER = "SILVER"
     GOLD = "GOLD"
+    PLATINUM = "PLATINUM"
 
 class QuotationStatus(str, PyEnum):
     DRAFT = "DRAFT"

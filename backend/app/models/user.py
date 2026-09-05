@@ -21,6 +21,7 @@ class CustomerTier(str, enum.Enum):
     BRONZE = "BRONZE"
     SILVER = "SILVER"
     GOLD = "GOLD"
+    PLATINUM = "PLATINUM"
 
 
 class User(Base):

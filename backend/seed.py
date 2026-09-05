@@ -136,6 +136,28 @@ async def seed():
         db.add_all(upsells)
         await db.commit()
 
+        # 9b. Customer Tier Contracted Price Lists
+        pl_bronze = PriceList(name="Bronze Tier Standard Rates", tier=CustomerTier.BRONZE, currency="INR")
+        pl_silver = PriceList(name="Silver Corporate Partner Rates", tier=CustomerTier.SILVER, currency="INR")
+        pl_gold = PriceList(name="Gold Enterprise Preferred", tier=CustomerTier.GOLD, currency="INR")
+        pl_platinum = PriceList(name="Platinum Global Key Accounts", tier=CustomerTier.PLATINUM, currency="INR")
+        db.add_all([pl_bronze, pl_silver, pl_gold, pl_platinum])
+        await db.commit()
+        await db.refresh(pl_bronze)
+        await db.refresh(pl_silver)
+        await db.refresh(pl_gold)
+        await db.refresh(pl_platinum)
+
+        all_prods = [p_laptop, p_monitor, p_keyboard, p_license, p_setup, p_training, p_backup, p_support]
+        discounts = {pl_bronze: Decimal("0.05"), pl_silver: Decimal("0.10"), pl_gold: Decimal("0.15"), pl_platinum: Decimal("0.20")}
+        pl_items = []
+        for pl, disc in discounts.items():
+            for prod in all_prods:
+                c_price = round(prod.base_price * (Decimal("1.00") - disc), 2)
+                pl_items.append(PriceListItem(price_list_id=pl.id, product_id=prod.id, price=c_price))
+        db.add_all(pl_items)
+        await db.commit()
+
         # 10. Sample Quotations for Demo
         cust_acme = user_map["customer@acme.com"]
         cust_beta = user_map["contact@beta.com"]
