@@ -23,3 +23,5 @@ export const AppLayout = () => {
     </div>
   );
 };
+
+export default AppLayout;
