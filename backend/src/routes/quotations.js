@@ -3,6 +3,7 @@ const { PrismaClient } = require('@prisma/client');
 const { verifyToken, requireRoles } = require('../middleware/auth');
 const { computeBlendedRiskScore, computeOrderTotals } = require('../utils/blendedRiskEngine');
 const { v4: uuidv4 } = require('uuid');
+const PDFDocument = require('pdfkit');
 const prisma = new PrismaClient();
 
 // GET all quotations
@@ -36,6 +37,18 @@ router.get('/', verifyToken, async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+// GET /api/quotations/discount-tiers (STEP 3)
+router.get('/discount-tiers', verifyToken, async (req, res) => {
+  try {
+    const tiers = await prisma.discountTier.findMany({ orderBy: { maxDiscount: 'asc' } });
+    const categories = await prisma.productCategory.findMany({ orderBy: { name: 'asc' } });
+    res.json({ tiers, categories });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to fetch discount tiers' });
   }
 });
 
@@ -395,4 +408,183 @@ router.put('/:id/send', verifyToken,
   } catch (e) { res.status(500).json({ error: 'Something went wrong' }); }
 });
 
+// PUT /:id/status — Quick status update
+router.put('/:id/status', verifyToken, requireRoles('SALES_REP', 'SALES_MANAGER', 'FINANCE', 'ADMIN'), async (req, res) => {
+  try {
+    const { status } = req.body;
+    const quotation = await prisma.quotation.update({
+      where: { id: req.params.id },
+      data: { status, lastActivityAt: new Date() }
+    });
+    res.json(quotation);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to update quotation status' });
+  }
+});
+
+// POST /batch-decision — Bulk approve / reject quotations
+router.post('/batch-decision', verifyToken, requireRoles('SALES_MANAGER', 'FINANCE', 'ADMIN'), async (req, res) => {
+  try {
+    const { quotationIds, action, reason } = req.body;
+    if (!quotationIds?.length || !['APPROVED', 'REJECTED'].includes(action)) {
+      return res.status(400).json({ error: 'Invalid batch action parameters' });
+    }
+
+    const updated = [];
+    for (const qId of quotationIds) {
+      await prisma.$transaction([
+        prisma.approval.create({
+          data: {
+            quotationId: qId,
+            approverId: req.user.id,
+            level: req.user.role === 'FINANCE' ? 2 : 1,
+            action,
+            reason: reason || `Bulk ${action} by ${req.user.name}`,
+            decidedAt: new Date()
+          }
+        }),
+        prisma.quotation.update({
+          where: { id: qId },
+          data: { status: action === 'APPROVED' ? 'APPROVED' : 'REJECTED', lastActivityAt: new Date() }
+        }),
+        prisma.auditLog.create({
+          data: {
+            quotationId: qId,
+            userId: req.user.id,
+            action: action === 'APPROVED' ? 'APPROVED' : 'REJECTED',
+            details: `Bulk ${action.toLowerCase()} from approval queue`
+          }
+        })
+      ]);
+      updated.push(qId);
+    }
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to('dashboard').emit('approval-decision', { quotationIds: updated, action });
+    }
+
+    res.json({ message: `Successfully ${action.toLowerCase()} ${updated.length} quotations`, updated });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to perform batch action' });
+  }
+});
+
+// GET /:id/pdf — Branded Quotation PDF export
+router.get('/:id/pdf', async (req, res) => {
+  try {
+    const quotation = await prisma.quotation.findUnique({
+      where: { id: req.params.id },
+      include: {
+        customer: true,
+        rep: true,
+        lines: { include: { product: true } },
+        approvals: { include: { approver: true } }
+      }
+    });
+
+    if (!quotation) return res.status(404).json({ error: 'Quotation not found' });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${quotation.quotationNumber}.pdf"`);
+
+    const doc = new PDFDocument({ margin: 40 });
+    doc.pipe(res);
+
+    // Header banner
+    doc.rect(0, 0, doc.page.width, 80).fill('#0f172a');
+    doc.fontSize(22).fillColor('#ffffff').font('Helvetica-Bold').text('DealFlow360', 40, 22);
+    doc.fontSize(10).fillColor('#94a3b8').font('Helvetica').text('Intelligent Sales Quotation & Pricing Summary', 40, 50);
+
+    doc.fontSize(16).fillColor('#ffffff').font('Helvetica-Bold').text(quotation.quotationNumber, doc.page.width - 200, 22, { align: 'right' });
+    doc.fontSize(10).fillColor('#10b981').font('Helvetica').text(`STATUS: ${quotation.status}`, doc.page.width - 200, 50, { align: 'right' });
+
+    doc.moveDown(3);
+
+    // Meta columns
+    const customer = quotation.customer;
+    const rep = quotation.rep;
+
+    const leftColX = 40;
+    const rightColX = 320;
+    const startY = doc.y;
+
+    doc.fontSize(11).fillColor('#0f172a').font('Helvetica-Bold').text('Prepared For:', leftColX, startY);
+    doc.fontSize(10).fillColor('#334155').font('Helvetica')
+      .text(customer?.companyName || customer?.name || 'Customer Organization', leftColX)
+      .text(`Contact: ${customer?.name || 'N/A'}`, leftColX)
+      .text(`Email: ${customer?.email || 'N/A'}`, leftColX)
+      .text(`Tier: ${quotation.customerTier || 'BRONZE'}`, leftColX);
+
+    doc.fontSize(11).fillColor('#0f172a').font('Helvetica-Bold').text('Prepared By:', rightColX, startY);
+    doc.fontSize(10).fillColor('#334155').font('Helvetica')
+      .text(rep?.name || 'Sales Representative', rightColX)
+      .text(rep?.email || '', rightColX)
+      .text(`Date: ${new Date(quotation.createdAt).toLocaleDateString()}`, rightColX)
+      .text(`Valid Until: ${quotation.expiryDate ? new Date(quotation.expiryDate).toLocaleDateString() : '30 Days'}`, rightColX);
+
+    doc.moveDown(2);
+    doc.strokeColor('#e2e8f0').lineWidth(1).moveTo(40, doc.y).lineTo(doc.page.width - 40, doc.y).stroke();
+    doc.moveDown(0.5);
+
+    // Table Header
+    const tableTop = doc.y;
+    doc.fontSize(9).font('Helvetica-Bold').fillColor('#0f172a');
+    doc.text('Item / Product', 40, tableTop);
+    doc.text('Type', 250, tableTop);
+    doc.text('Qty', 310, tableTop);
+    doc.text('Unit Price', 360, tableTop);
+    doc.text('Disc %', 430, tableTop);
+    doc.text('Total', 480, tableTop, { align: 'right' });
+
+    doc.moveDown(0.5);
+    doc.strokeColor('#cbd5e1').lineWidth(0.5).moveTo(40, doc.y).lineTo(doc.page.width - 40, doc.y).stroke();
+    doc.moveDown(0.5);
+
+    for (const line of quotation.lines) {
+      const y = doc.y;
+      doc.fontSize(9).font('Helvetica').fillColor('#334155');
+      doc.text(line.product?.name || 'Product', 40, y, { width: 200 });
+      doc.text(line.lineType === 'SUBSCRIPTION' ? 'Subscription' : 'One-Time', 250, y);
+      doc.text(String(line.quantity), 310, y);
+      doc.text(`₹${Number(line.unitPrice).toLocaleString()}`, 360, y);
+      doc.text(`${line.discount || 0}%`, 430, y);
+      doc.text(`₹${Number(line.lineTotal).toLocaleString()}`, 480, y, { align: 'right' });
+      doc.moveDown(0.8);
+    }
+
+    doc.moveDown();
+    doc.strokeColor('#cbd5e1').lineWidth(1).moveTo(40, doc.y).lineTo(doc.page.width - 40, doc.y).stroke();
+    doc.moveDown(0.5);
+
+    // Totals Box
+    const totalsX = 350;
+    doc.fontSize(9).font('Helvetica').fillColor('#475569');
+    doc.text(`Subtotal: ₹${Number(quotation.subtotal).toLocaleString()}`, totalsX, doc.y, { align: 'right' });
+    doc.moveDown(0.3);
+    doc.text(`Discount: -₹${Number(quotation.discountAmount).toLocaleString()}`, totalsX, doc.y, { align: 'right' });
+    doc.moveDown(0.3);
+    doc.text(`Tax (GST): ₹${Number(quotation.taxAmount).toLocaleString()}`, totalsX, doc.y, { align: 'right' });
+    doc.moveDown(0.5);
+
+    doc.fontSize(14).font('Helvetica-Bold').fillColor('#0f172a');
+    doc.text(`Total: ₹${Number(quotation.total).toLocaleString()}`, totalsX, doc.y, { align: 'right' });
+
+    // Portal link & QR note
+    doc.moveDown(2);
+    if (quotation.portalToken) {
+      doc.fontSize(9).font('Helvetica').fillColor('#3b82f6')
+        .text(`View & Negotiate Online: ${process.env.FRONTEND_URL || 'http://localhost:5173'}/portal/${quotation.portalToken}`, 40, doc.y);
+    }
+
+    doc.end();
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Failed to generate quotation PDF' });
+  }
+});
+
 module.exports = router;
+

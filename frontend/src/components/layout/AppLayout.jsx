@@ -31,6 +31,7 @@ import { useAuthStore } from '../../store/authStore';
 import { io } from 'socket.io-client';
 import toast from 'react-hot-toast';
 import { notificationsAPI, quotationsAPI } from '../../api';
+import api from '../../api/client';
 import NotificationDropdown from '../ui/NotificationDropdown';
 
 export default function AppLayout() {
@@ -41,6 +42,15 @@ export default function AppLayout() {
   // Sidebar states
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [companyName, setCompanyName] = useState('DealFlow360');
+
+  // Fetch system config on mount
+  useEffect(() => {
+    api.get('/config').then((res) => {
+      const name = res?.data?.company_name || res?.company_name;
+      if (name) setCompanyName(name);
+    }).catch(() => {});
+  }, []);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -246,7 +256,11 @@ export default function AppLayout() {
               {!collapsed && (
                 <div className="flex flex-col min-w-0">
                   <span className="font-extrabold text-base tracking-tight text-white truncate">
-                    DealFlow<span className="text-blue-500">360</span>
+                    {companyName === 'DealFlow360' ? (
+                      <>DealFlow<span className="text-blue-500">360</span></>
+                    ) : (
+                      companyName
+                    )}
                   </span>
                   <span className="text-[10px] text-slate-400 font-mono tracking-wider uppercase">
                     CPQ Enterprise

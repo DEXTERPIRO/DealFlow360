@@ -202,15 +202,113 @@ router.get('/pricelists/all', verifyToken, async (req, res) => {
   } catch (e) { res.status(500).json({ error: 'Something went wrong' }); }
 });
 
-router.post('/pricelists', verifyToken,
+router.put('/categories/:id', verifyToken,
   requireRoles('ADMIN', 'SALES_MANAGER'), async (req, res) => {
   try {
-    const { name, tier, currency } = req.body;
-    const list = await prisma.priceList.create({
-      data: { name, tier, currency: currency || 'INR' }
+    const { name, maxDiscount, description } = req.body;
+    const cat = await prisma.productCategory.update({
+      where: { id: req.params.id },
+      data: {
+        name: name !== undefined ? name : undefined,
+        maxDiscount: maxDiscount !== undefined ? parseFloat(maxDiscount) : undefined,
+        description: description !== undefined ? description : undefined
+      }
     });
-    res.status(201).json(list);
+    res.json(cat);
   } catch (e) { res.status(500).json({ error: 'Something went wrong' }); }
 });
 
+// Discount Tiers (productsAPI.getDiscountTiers / updateDiscountTier)
+router.get('/discount-tiers', verifyToken, async (req, res) => {
+  try {
+    const tiers = await prisma.discountTier.findMany({ orderBy: { maxDiscount: 'asc' } });
+    const categories = await prisma.productCategory.findMany({ orderBy: { name: 'asc' } });
+    res.json({ tiers, categories });
+  } catch (e) { res.status(500).json({ error: 'Failed to fetch discount tiers' }); }
+});
+
+router.put('/discount-tiers/:tier', verifyToken,
+  requireRoles('ADMIN', 'SALES_MANAGER'), async (req, res) => {
+  try {
+    const { maxDiscount, requiresManager, requiresFinance } = req.body;
+    const tierName = req.params.tier.toUpperCase();
+    const updated = await prisma.discountTier.upsert({
+      where: { tier: tierName },
+      update: {
+        maxDiscount: maxDiscount !== undefined ? parseFloat(maxDiscount) : undefined,
+        requiresManager: requiresManager !== undefined ? Boolean(requiresManager) : undefined,
+        requiresFinance: requiresFinance !== undefined ? Boolean(requiresFinance) : undefined
+      },
+      create: {
+        tier: tierName,
+        maxDiscount: parseFloat(maxDiscount) || 10,
+        requiresManager: Boolean(requiresManager),
+        requiresFinance: Boolean(requiresFinance)
+      }
+    });
+    res.json(updated);
+  } catch (e) { res.status(500).json({ error: 'Failed to update discount tier' }); }
+});
+
+// Upsell Rules (productsAPI.getUpsellRules / create / update / delete)
+router.get('/upsell-rules', verifyToken, async (req, res) => {
+  try {
+    const rules = await prisma.upsellRule.findMany({
+      include: {
+        sourceProduct: { include: { category: true } },
+        targetProduct: { include: { category: true } }
+      },
+      orderBy: { score: 'desc' }
+    });
+    res.json(rules);
+  } catch (e) { res.status(500).json({ error: 'Failed to fetch upsell rules' }); }
+});
+
+router.post('/upsell-rules', verifyToken,
+  requireRoles('ADMIN', 'SALES_MANAGER'), async (req, res) => {
+  try {
+    const { sourceProductId, targetProductId, score, isPromoted, minMargin } = req.body;
+    if (!sourceProductId || !targetProductId) {
+      return res.status(400).json({ error: 'Source and Target products required' });
+    }
+    const rule = await prisma.upsellRule.create({
+      data: {
+        sourceProductId,
+        targetProductId,
+        score: parseInt(score) || 50,
+        isPromoted: Boolean(isPromoted),
+        minMargin: parseFloat(minMargin) || 0
+      },
+      include: { sourceProduct: true, targetProduct: true }
+    });
+    res.status(201).json(rule);
+  } catch (e) { res.status(500).json({ error: 'Failed to create upsell rule' }); }
+});
+
+router.put('/upsell-rules/:id', verifyToken,
+  requireRoles('ADMIN', 'SALES_MANAGER'), async (req, res) => {
+  try {
+    const { score, isPromoted, minMargin } = req.body;
+    const rule = await prisma.upsellRule.update({
+      where: { id: req.params.id },
+      data: {
+        score: score !== undefined ? parseInt(score) : undefined,
+        isPromoted: isPromoted !== undefined ? Boolean(isPromoted) : undefined,
+        minMargin: minMargin !== undefined ? parseFloat(minMargin) : undefined
+      },
+      include: { sourceProduct: true, targetProduct: true }
+    });
+    res.json(rule);
+  } catch (e) { res.status(500).json({ error: 'Failed to update upsell rule' }); }
+});
+
+router.delete('/upsell-rules/:id', verifyToken,
+  requireRoles('ADMIN', 'SALES_MANAGER'), async (req, res) => {
+  try {
+    await prisma.upsellRule.delete({ where: { id: req.params.id } });
+    res.json({ message: 'Upsell rule deleted successfully' });
+  } catch (e) { res.status(500).json({ error: 'Failed to delete upsell rule' }); }
+});
+
 module.exports = router;
+
