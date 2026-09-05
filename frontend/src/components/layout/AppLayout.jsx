@@ -31,8 +31,10 @@ import { useAuthStore } from '../../store/authStore';
 import { io } from 'socket.io-client';
 import toast from 'react-hot-toast';
 import { notificationsAPI, quotationsAPI } from '../../api';
+import NotificationDropdown from '../ui/NotificationDropdown';
 
 export default function AppLayout() {
+
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
 
@@ -404,65 +406,20 @@ export default function AppLayout() {
               >
                 <Bell className="w-5 h-5" />
                 {unreadCount > 0 && (
-                  <span className="absolute top-1.5 right-1.5 w-4 h-4 flex items-center justify-center bg-rose-500 text-white rounded-full text-[9px] font-bold">
+                  <span className="absolute top-1.5 right-1.5 w-4 h-4 flex items-center justify-center bg-rose-500 text-white rounded-full text-[9px] font-bold shadow-md shadow-rose-500/50">
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
                 )}
               </button>
 
-              {/* Notifications Dropdown Panel */}
-              {showNotifications && (
-                <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-slate-800 border border-slate-700 shadow-2xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100">
-                  <div className="p-3.5 border-b border-slate-700/80 flex items-center justify-between bg-slate-850">
-                    <span className="font-bold text-xs text-white uppercase tracking-wider">
-                      Recent Alerts
-                    </span>
-                    <button
-                      onClick={async () => {
-                        try {
-                          await notificationsAPI.markAllRead();
-                          setNotifications((prev) =>
-                            prev.map((n) => ({ ...n, is_read: true }))
-                          );
-                        } catch {
-                          setNotifications((prev) =>
-                            prev.map((n) => ({ ...n, is_read: true }))
-                          );
-                        }
-                      }}
-                      className="text-[11px] text-blue-400 hover:underline"
-                    >
-                      Mark all as read
-                    </button>
-                  </div>
-
-                  <div className="max-h-72 overflow-y-auto divide-y divide-slate-700/50">
-                    {notifications.length === 0 ? (
-                      <div className="p-6 text-center text-xs text-slate-400">
-                        No notifications yet
-                      </div>
-                    ) : (
-                      notifications.slice(0, 10).map((n) => (
-                        <div
-                          key={n.id}
-                          className={`p-3 text-xs transition-colors hover:bg-slate-750 ${
-                            !n.is_read ? 'bg-blue-500/5' : ''
-                          }`}
-                        >
-                          <div className="font-semibold text-slate-200">{n.title}</div>
-                          <div className="text-slate-400 mt-0.5 text-[11px] leading-relaxed">
-                            {n.message}
-                          </div>
-                          <div className="text-[9px] text-slate-500 mt-1 font-mono">
-                            {n.created_at ? new Date(n.created_at).toLocaleTimeString() : 'Just now'}
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
+              <NotificationDropdown
+                isOpen={showNotifications}
+                onClose={() => setShowNotifications(false)}
+                notifications={notifications}
+                setNotifications={setNotifications}
+              />
             </div>
+
 
             {/* User Avatar with Dropdown */}
             <div className="relative" ref={userMenuRef}>

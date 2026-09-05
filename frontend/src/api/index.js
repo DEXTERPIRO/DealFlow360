@@ -87,3 +87,11 @@ export const notificationsAPI = {
   markRead: (id) => api.put(`/notifications/${id}/read`),
   markAllRead: () => api.put('/notifications/read-all'),
 };
+
+export const usersAPI = {
+  getAll: () => api.get('/auth/users'),
+  create: (d) => api.post('/auth/users', d),
+  toggleStatus: (id) => api.put(`/auth/users/${id}/status`),
+  resetPassword: (id, d) => api.put(`/auth/users/${id}/reset-password`, d),
+};
+
