@@ -15,6 +15,37 @@ body {
 
 .font-mono { font-family: 'JetBrains Mono', monospace; }
 
+/* ── WebKit & Chromium Autofill Fix for Dark Theme ────────────────── */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active,
+textarea:-webkit-autofill,
+textarea:-webkit-autofill:hover,
+textarea:-webkit-autofill:focus,
+textarea:-webkit-autofill:active,
+select:-webkit-autofill,
+select:-webkit-autofill:hover,
+select:-webkit-autofill:focus,
+select:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #020617 inset !important; /* bg-slate-950 */
+  -webkit-text-fill-color: #f1f5f9 !important; /* text-slate-100 */
+  caret-color: #f1f5f9 !important;
+  transition: background-color 500000s ease-in-out 0s !important;
+}
+
+/* Inputs residing in slate-900 surfaces */
+.bg-slate-900 input:-webkit-autofill,
+.bg-slate-900 input:-webkit-autofill:hover,
+.bg-slate-900 input:-webkit-autofill:focus,
+.bg-slate-900 input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #0f172a inset !important; /* bg-slate-900 */
+  -webkit-text-fill-color: #f1f5f9 !important;
+  caret-color: #f1f5f9 !important;
+  transition: background-color 500000s ease-in-out 0s !important;
+}
+
+
 /* Custom glassmorphism helpers */
 .glass-panel {
   background: rgba(15, 23, 42, 0.75);

@@ -140,7 +140,7 @@ export default function Signup() {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
           {/* Full Name */}
           <div>
             <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
@@ -154,6 +154,8 @@ export default function Signup() {
                 value={formData.name}
                 onChange={handleChange}
                 placeholder="Elena Vance"
+                autoComplete="off"
+                spellCheck="false"
                 className={`w-full bg-slate-950 border rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 transition-colors ${
                   errors.name ? 'border-rose-500 focus:ring-rose-500' : 'border-slate-800 focus:border-blue-500 focus:ring-blue-500'
                 }`}
@@ -175,6 +177,8 @@ export default function Signup() {
                 value={formData.email}
                 onChange={handleChange}
                 placeholder="elena@company.com"
+                autoComplete="off"
+                spellCheck="false"
                 className={`w-full bg-slate-950 border rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 transition-colors ${
                   errors.email ? 'border-rose-500 focus:ring-rose-500' : 'border-slate-800 focus:border-blue-500 focus:ring-blue-500'
                 }`}
@@ -221,6 +225,7 @@ export default function Signup() {
                 value={formData.password}
                 onChange={handleChange}
                 placeholder="••••••••"
+                autoComplete="new-password"
                 className={`w-full bg-slate-950 border rounded-xl pl-10 pr-10 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 transition-colors ${
                   errors.password ? 'border-rose-500 focus:ring-rose-500' : 'border-slate-800 focus:border-blue-500 focus:ring-blue-500'
                 }`}
@@ -315,6 +320,7 @@ export default function Signup() {
                 value={formData.confirmPassword}
                 onChange={handleChange}
                 placeholder="••••••••"
+                autoComplete="new-password"
                 className={`w-full bg-slate-950 border rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 transition-colors ${
                   errors.confirmPassword ? 'border-rose-500 focus:ring-rose-500' : 'border-slate-800 focus:border-blue-500 focus:ring-blue-500'
                 }`}

@@ -208,6 +208,7 @@ export default function Login() {
                     if (errors.email) setErrors((prev) => ({ ...prev, email: null }));
                   }}
                   placeholder="name@company.com"
+                  autoComplete="email"
                   className={`w-full bg-slate-900 border rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 transition-colors ${
                     errors.email
                       ? 'border-rose-500 focus:ring-rose-500'
@@ -236,6 +237,7 @@ export default function Login() {
                     if (errors.password) setErrors((prev) => ({ ...prev, password: null }));
                   }}
                   placeholder="••••••••"
+                  autoComplete="current-password"
                   className={`w-full bg-slate-900 border rounded-xl pl-10 pr-10 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 transition-colors ${
                     errors.password
                       ? 'border-rose-500 focus:ring-rose-500'
