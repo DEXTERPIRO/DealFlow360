@@ -52,12 +52,14 @@ export const subscriptionsAPI = {
   cancel: (id) => api.put(`/subscriptions/${id}/cancel`),
   getPlans: () => api.get('/subscriptions/plans'),
   createPlan: (d) => api.post('/subscriptions/plans', d),
+  updatePlan: (id, d) => api.put(`/subscriptions/plans/${id}`, d),
 };
 
 export const invoicesAPI = {
   getAll: (params) => api.get('/invoices', { params }),
   create: (d) => api.post('/invoices', d),
   markPaid: (id, d) => api.put(`/invoices/${id}/pay`, d),
+  markSent: (id) => api.put(`/invoices/${id}/send`),
   downloadPDF: (id) => window.open(`http://localhost:5000/api/invoices/${id}/pdf`, '_blank'),
 };
 
