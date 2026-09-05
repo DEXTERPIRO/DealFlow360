@@ -1,14 +1,21 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  body {
-    @apply bg-slate-950 text-slate-100 min-h-screen antialiased;
-  }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: #0f172a;
+  color: #f1f5f9;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Custom glassmorphism and subtle scrollbars */
+.font-mono { font-family: 'JetBrains Mono', monospace; }
+
+/* Custom glassmorphism helpers */
 .glass-panel {
   background: rgba(15, 23, 42, 0.75);
   backdrop-filter: blur(12px);
@@ -27,20 +34,45 @@
   transform: translateY(-2px);
 }
 
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+::selection { background: rgba(59,130,246,0.3); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.2); }
 }
 
-::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.5);
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
 }
 
-::-webkit-scrollbar-thumb {
-  background: rgba(71, 85, 105, 0.5);
-  border-radius: 9999px;
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 0.8);
+.animate-pulse-dot {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.slide-in {
+  animation: slideIn 300ms ease-out;
+}
+
+.fade-in {
+  animation: fadeIn 200ms ease-out;
+}
+
+/* React hot toast overrides */
+[data-hot-toast] {
+  font-family: 'Inter', sans-serif !important;
+  background: #1e293b !important;
+  color: #f1f5f9 !important;
+  border: 1px solid #334155 !important;
+  border-radius: 12px !important;
 }
