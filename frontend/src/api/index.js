@@ -93,5 +93,6 @@ export const usersAPI = {
   create: (d) => api.post('/auth/users', d),
   toggleStatus: (id) => api.put(`/auth/users/${id}/status`),
   resetPassword: (id, d) => api.put(`/auth/users/${id}/reset-password`, d),
+  updateRole: (id, d) => api.put(`/auth/users/${id}/role`, d),
 };
 

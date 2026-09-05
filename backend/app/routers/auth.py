@@ -12,7 +12,7 @@ from slowapi.util import get_remote_address
 
 from app.database import get_db
 from app.models.models import User, UserRole
-from app.middleware.auth import verify_token
+from app.middleware.auth import verify_token, require_roles
 from app.config import settings
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -498,4 +498,63 @@ async def reset_user_password(
     target.password = hash_pw(new_pw)
     await db.commit()
     return {"message": "Password reset successfully", "temporary_password": new_pw}
+
+
+class UpdateUserRoleBody(BaseModel):
+    role: str
+    customer_tier: str | None = None
+    company_name: str | None = None
+
+
+@router.put("/users/{id}/role")
+async def update_user_role(
+    id: str,
+    body: UpdateUserRoleBody,
+    user: dict = Depends(require_roles("ADMIN")),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(User).where(User.id == id)
+    res = await db.execute(stmt)
+    target = res.scalar_one_or_none()
+    if not target:
+        raise HTTPException(404, "User not found")
+
+    allowed_roles = {"ADMIN", "SALES_REP", "SALES_MANAGER", "FINANCE", "CUSTOMER"}
+    new_role = body.role.upper().strip()
+    if new_role not in allowed_roles:
+        raise HTTPException(400, f"Invalid role: {body.role}")
+
+    # Prevent demoting the logged-in admin user themselves
+    if id == user["id"] and new_role != "ADMIN":
+        raise HTTPException(400, "You cannot demote your own administrator account")
+
+    target.role = UserRole(new_role)
+
+    # If updating customer tier
+    if new_role == "CUSTOMER":
+        if body.customer_tier and body.customer_tier.upper() in {"BRONZE", "SILVER", "GOLD"}:
+            target.customer_tier = CustomerTier(body.customer_tier.upper())
+        elif not target.customer_tier:
+            target.customer_tier = CustomerTier.BRONZE
+        if not target.magic_link_token:
+            target.magic_link_token = secrets.token_hex(16)
+    else:
+        if body.customer_tier is None and target.role != UserRole.CUSTOMER:
+            target.customer_tier = None
+
+    if body.company_name is not None:
+        target.company_name = body.company_name.strip() or None
+
+    await db.commit()
+    await db.refresh(target)
+
+    return {
+        "id": target.id,
+        "name": target.name,
+        "email": target.email,
+        "role": target.role.value if hasattr(target.role, 'value') else str(target.role),
+        "customer_tier": target.customer_tier.value if (target.customer_tier and hasattr(target.customer_tier, 'value')) else None,
+        "company_name": target.company_name,
+        "message": f"Role updated to {target.role.value if hasattr(target.role, 'value') else str(target.role)} successfully"
+    }
 

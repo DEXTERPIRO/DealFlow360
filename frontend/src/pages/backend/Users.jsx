@@ -21,7 +21,9 @@ import {
   Send,
   AlertCircle,
   FileText,
-  Database
+  Database,
+  Edit3,
+  ShieldCheck
 } from 'lucide-react';
 import { usersAPI } from '../../api';
 import { useAuthStore } from '../../store/authStore';
@@ -59,6 +61,45 @@ export default function UsersPage() {
   const [resetModalUser, setResetModalUser] = useState(null);
   const [newPassword, setNewPassword] = useState('');
   const [submittingReset, setSubmittingReset] = useState(false);
+
+  // Edit Role Modal State
+  const [editRoleUser, setEditRoleUser] = useState(null);
+  const [editRoleForm, setEditRoleForm] = useState({
+    role: 'SALES_REP',
+    customer_tier: 'BRONZE',
+    company_name: '',
+  });
+  const [submittingRoleEdit, setSubmittingRoleEdit] = useState(false);
+
+  const openEditRoleModal = (user) => {
+    setEditRoleUser(user);
+    setEditRoleForm({
+      role: user.role || 'SALES_REP',
+      customer_tier: user.customer_tier || 'BRONZE',
+      company_name: user.company_name || '',
+    });
+  };
+
+  const handleUpdateRole = async (e) => {
+    e.preventDefault();
+    if (!editRoleUser) return;
+    try {
+      setSubmittingRoleEdit(true);
+      await usersAPI.updateRole(editRoleUser.id, {
+        role: editRoleForm.role,
+        customer_tier: editRoleForm.role === 'CUSTOMER' ? editRoleForm.customer_tier : null,
+        company_name: editRoleForm.company_name,
+      });
+      toast.success(`Role for "${editRoleUser.name}" updated to ${editRoleForm.role.replace('_', ' ')}!`);
+      setEditRoleUser(null);
+      loadUsers(searchQuery, roleFilter);
+    } catch (err) {
+      const msg = err.response?.data?.detail || err.message || 'Failed to update role';
+      toast.error(msg);
+    } finally {
+      setSubmittingRoleEdit(false);
+    }
+  };
 
   // Fetch users directly from PostgreSQL database with search and role filtering
   const loadUsers = async (q = searchQuery, role = roleFilter) => {
@@ -376,11 +417,14 @@ export default function UsersPage() {
 
                         {/* Role Badge */}
                         <td className="py-3 px-4 text-center">
-                          <span
-                            className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase border ${roleBadge.bg}`}
+                          <button
+                            onClick={() => openEditRoleModal(u)}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase border hover:scale-105 hover:shadow-md transition-all cursor-pointer ${roleBadge.bg}`}
+                            title="Click to edit user role & permissions"
                           >
-                            {roleBadge.label}
-                          </span>
+                            <span>{roleBadge.label}</span>
+                            <Edit3 className="w-2.5 h-2.5 opacity-60" />
+                          </button>
                         </td>
 
                         {/* Status */}
@@ -411,6 +455,15 @@ export default function UsersPage() {
                         {/* Actions */}
                         <td className="py-3 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
+                            {/* Edit Role */}
+                            <button
+                              onClick={() => openEditRoleModal(u)}
+                              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-purple-400 hover:text-purple-300 transition-colors"
+                              title="Edit User Role & Permissions"
+                            >
+                              <Shield className="w-3.5 h-3.5" />
+                            </button>
+
                             {/* View their quotations */}
                             <button
                               onClick={() =>
@@ -561,6 +614,14 @@ export default function UsersPage() {
                         {/* Portal Access Link & Copy Button */}
                         <td className="py-3.5 px-4 text-right">
                           <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => openEditRoleModal(c)}
+                              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-purple-400 hover:text-purple-300 transition-colors"
+                              title="Edit User Role & Permissions"
+                            >
+                              <Shield className="w-3.5 h-3.5" />
+                            </button>
+
                             <button
                               onClick={() => copyPortalLink(c)}
                               className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors"
@@ -829,6 +890,152 @@ export default function UsersPage() {
                     <KeyRound className="w-3.5 h-3.5" />
                   )}
                   Confirm Reset
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── EDIT ROLE & PERMISSIONS MODAL ───────────────────────────── */}
+      {editRoleUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="font-bold text-base text-white flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-purple-400" />
+                Change User Role & Access
+              </h3>
+              <button
+                onClick={() => setEditRoleUser(null)}
+                className="text-slate-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl space-y-1">
+              <div className="text-xs font-bold text-white flex items-center justify-between">
+                <span>{editRoleUser.name}</span>
+                <span className="text-[10px] font-mono text-slate-400">{editRoleUser.email}</span>
+              </div>
+              <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                <span>Current Role:</span>
+                <span className="font-semibold text-purple-400">
+                  {editRoleUser.role?.replace('_', ' ')}
+                </span>
+              </div>
+            </div>
+
+            <form onSubmit={handleUpdateRole} className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-slate-300 block mb-1.5">
+                  Select New Role *
+                </label>
+                <div className="space-y-2">
+                  {[
+                    {
+                      id: 'SALES_REP',
+                      name: 'Sales Representative',
+                      desc: 'Create quotations, negotiate with clients, advance pipeline',
+                    },
+                    {
+                      id: 'SALES_MANAGER',
+                      name: 'Sales Manager',
+                      desc: 'Approve discounts, manage team pipeline & margin thresholds',
+                    },
+                    {
+                      id: 'FINANCE',
+                      name: 'Finance Officer',
+                      desc: 'Manage invoices, subscriptions, revenue audits & fulfillment splits',
+                    },
+                    {
+                      id: 'ADMIN',
+                      name: 'System Administrator',
+                      desc: 'Full administrative control, user roles, system configurations',
+                    },
+                    {
+                      id: 'CUSTOMER',
+                      name: 'Customer / Client',
+                      desc: 'Access client quotation negotiation portal & approvals',
+                    },
+                  ].map((r) => {
+                    const isSelected = editRoleForm.role === r.id;
+                    return (
+                      <label
+                        key={r.id}
+                        className={`flex items-start gap-3 p-2.5 rounded-xl border cursor-pointer transition-all ${
+                          isSelected
+                            ? 'bg-blue-600/10 border-blue-500 ring-1 ring-blue-500/50'
+                            : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="edit_role"
+                          value={r.id}
+                          checked={isSelected}
+                          onChange={() =>
+                            setEditRoleForm((prev) => ({ ...prev, role: r.id }))
+                          }
+                          className="mt-1 accent-blue-600"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-bold text-white flex items-center justify-between">
+                            <span>{r.name}</span>
+                            {isSelected && (
+                              <span className="text-[10px] text-blue-400 font-mono font-bold">
+                                Selected
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-0.5">{r.desc}</p>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* If Customer, allow selecting Customer Tier */}
+              {editRoleForm.role === 'CUSTOMER' && (
+                <div className="animate-in fade-in space-y-2 pt-1 border-t border-slate-800">
+                  <label className="text-xs font-semibold text-slate-300 block mb-1">
+                    Customer Contract Tier
+                  </label>
+                  <select
+                    value={editRoleForm.customer_tier}
+                    onChange={(e) =>
+                      setEditRoleForm((prev) => ({ ...prev, customer_tier: e.target.value }))
+                    }
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="BRONZE">Bronze Tier (Standard)</option>
+                    <option value="SILVER">Silver Tier (Preferred)</option>
+                    <option value="GOLD">Gold Tier (Enterprise VIP)</option>
+                  </select>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setEditRoleUser(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingRoleEdit}
+                  className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-purple-600/20 disabled:opacity-50"
+                >
+                  {submittingRoleEdit ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                  )}
+                  Apply Role Update
                 </button>
               </div>
             </form>
