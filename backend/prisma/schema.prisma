@@ -1,0 +1,117 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMIN
+  BROKER
+  CLIENT
+  ANALYST
+}
+
+enum DealStage {
+  LEAD
+  QUALIFICATION
+  DUE_DILIGENCE
+  NEGOTIATION
+  CLOSED_WON
+  CLOSED_LOST
+}
+
+enum DealPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model User {
+  id           String        @id @default(uuid())
+  email        String        @unique
+  password     String
+  firstName    String
+  lastName     String
+  role         Role          @default(ANALYST)
+  avatarUrl    String?
+  refreshToken String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  deals        Deal[]        @relation("DealOwner")
+  activities   ActivityLog[]
+
+  @@map("users")
+}
+
+model Workspace {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  deals       Deal[]
+
+  @@map("workspaces")
+}
+
+model Deal {
+  id            String           @id @default(uuid())
+  title         String
+  targetCompany String
+  industry      String
+  dealValue     Float            @default(0.0)
+  stage         DealStage        @default(LEAD)
+  priority      DealPriority     @default(MEDIUM)
+  probability   Int              @default(20)
+  closeDate     DateTime?
+  description   String?
+  
+  ownerId       String?
+  owner         User?            @relation("DealOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  workspaceId   String?
+  workspace     Workspace?       @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+
+  attachments   DealAttachment[]
+  activities    ActivityLog[]
+
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@map("deals")
+}
+
+model DealAttachment {
+  id           String   @id @default(uuid())
+  dealId       String
+  deal         Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  fileName     String
+  originalName String
+  filePath     String
+  mimeType     String
+  fileSize     Int
+  uploadedBy   String?
+  createdAt    DateTime @default(now())
+
+  @@map("deal_attachments")
+}
+
+model ActivityLog {
+  id        String   @id @default(uuid())
+  dealId    String?
+  deal      Deal?    @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  details   String?
+  createdAt DateTime @default(now())
+
+  @@map("activity_logs")
+}

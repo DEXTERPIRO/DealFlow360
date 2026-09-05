@@ -1,0 +1,37 @@
+{
+  "name": "dealflow360-backend",
+  "version": "1.0.0",
+  "description": "DealFlow360 backend service with Express, Prisma, Socket.io",
+  "main": "server.js",
+  "scripts": {
+    "dev": "nodemon server.js",
+    "seed": "node prisma/seed.js",
+    "start": "node server.js",
+    "prisma:generate": "prisma generate",
+    "prisma:push": "prisma db push"
+  },
+  "keywords": ["dealflow", "m-and-a", "crm", "express", "prisma", "socketio"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^6.9.16",
+    "pdfkit": "^0.16.0",
+    "sharp": "^0.33.5",
+    "socket.io": "^4.8.1",
+    "uuid": "^11.0.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9",
+    "prisma": "^5.22.0"
+  }
+}
