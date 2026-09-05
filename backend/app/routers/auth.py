@@ -142,3 +142,157 @@ async def me(user: dict = Depends(verify_token), db: AsyncSession = Depends(get_
         raise HTTPException(404, "User not found")
     return {"id": u.id, "name": u.name, "email": u.email, "role": u.role.value if hasattr(u.role, 'value') else u.role,
             "avatar": u.avatar, "customerTier": u.customer_tier.value if hasattr(u.customer_tier, 'value') else u.customer_tier, "companyName": u.company_name}
+
+
+class CreateUserBody(BaseModel):
+    name: str
+    email: EmailStr
+    password: str
+    role: str
+    company_name: str | None = None
+    customer_tier: str | None = None
+    phone: str | None = None
+    send_welcome_email: bool = False
+
+
+class ResetPasswordBody(BaseModel):
+    new_password: str | None = None
+
+
+@router.get("/users")
+async def get_all_users(
+    user: dict = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    from sqlalchemy.orm import selectinload
+    from app.models.models import Quotation
+    
+    stmt = select(User).order_by(User.created_at.desc())
+    res = await db.execute(stmt)
+    users = res.scalars().all()
+    
+    # Query quotation counts for reps and customers
+    from sqlalchemy import func
+    rep_counts_stmt = select(Quotation.rep_id, func.count(Quotation.id)).group_by(Quotation.rep_id)
+    cust_counts_stmt = select(Quotation.customer_id, func.count(Quotation.id)).group_by(Quotation.customer_id)
+    
+    rep_res = await db.execute(rep_counts_stmt)
+    cust_res = await db.execute(cust_counts_stmt)
+    
+    rep_counts = dict(rep_res.all())
+    cust_counts = dict(cust_res.all())
+    
+    user_list = []
+    for u in users:
+        role_val = u.role.value if hasattr(u.role, 'value') else str(u.role)
+        tier_val = u.customer_tier.value if (u.customer_tier and hasattr(u.customer_tier, 'value')) else (str(u.customer_tier) if u.customer_tier else None)
+        
+        q_count = rep_counts.get(u.id, 0) if role_val != "CUSTOMER" else cust_counts.get(u.id, 0)
+        
+        user_list.append({
+            "id": u.id,
+            "name": u.name,
+            "email": u.email,
+            "role": role_val,
+            "customer_tier": tier_val,
+            "company_name": u.company_name,
+            "phone": u.phone,
+            "is_active": u.is_active,
+            "created_at": u.created_at.isoformat() if u.created_at else None,
+            "quotations_count": q_count,
+            "magic_link_token": u.magic_link_token
+        })
+    return user_list
+
+
+@router.post("/users", status_code=201)
+async def create_user(
+    body: CreateUserBody,
+    user: dict = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    if len(body.password) < 8:
+        raise HTTPException(400, "Password min 8 characters")
+    
+    existing = await db.execute(select(User).where(User.email == body.email))
+    if existing.scalar_one_or_none():
+        raise HTTPException(409, "Email already exists")
+    
+    allowed_roles = {"ADMIN", "SALES_REP", "SALES_MANAGER", "FINANCE", "CUSTOMER"}
+    if body.role not in allowed_roles:
+        raise HTTPException(400, f"Invalid role: {body.role}")
+        
+    hashed = pwd_context.hash(body.password)
+    tier = None
+    if body.customer_tier and body.customer_tier.upper() in {"BRONZE", "SILVER", "GOLD"}:
+        tier = CustomerTier(body.customer_tier.upper())
+    elif body.role == "CUSTOMER":
+        tier = CustomerTier.BRONZE
+        
+    new_user = User(
+        name=body.name,
+        email=body.email,
+        password=hashed,
+        role=UserRole(body.role),
+        company_name=body.company_name,
+        customer_tier=tier,
+        phone=body.phone,
+        is_active=True
+    )
+    if body.role == "CUSTOMER":
+        new_user.magic_link_token = secrets.token_hex(16)
+        
+    db.add(new_user)
+    await db.commit()
+    await db.refresh(new_user)
+    
+    return {
+        "id": new_user.id,
+        "name": new_user.name,
+        "email": new_user.email,
+        "role": new_user.role.value if hasattr(new_user.role, 'value') else str(new_user.role),
+        "customer_tier": new_user.customer_tier.value if (new_user.customer_tier and hasattr(new_user.customer_tier, 'value')) else None,
+        "company_name": new_user.company_name,
+        "is_active": new_user.is_active,
+        "created_at": new_user.created_at.isoformat() if new_user.created_at else None
+    }
+
+
+@router.put("/users/{id}/status")
+async def toggle_user_status(
+    id: str,
+    user: dict = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    if id == user["id"]:
+        raise HTTPException(400, "Cannot change your own active status")
+        
+    stmt = select(User).where(User.id == id)
+    res = await db.execute(stmt)
+    target = res.scalar_one_or_none()
+    if not target:
+        raise HTTPException(404, "User not found")
+        
+    target.is_active = not target.is_active
+    await db.commit()
+    return {"id": target.id, "is_active": target.is_active, "message": f"User {'activated' if target.is_active else 'deactivated'} successfully"}
+
+
+@router.put("/users/{id}/reset-password")
+async def reset_user_password(
+    id: str,
+    body: ResetPasswordBody,
+    user: dict = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(User).where(User.id == id)
+    res = await db.execute(stmt)
+    target = res.scalar_one_or_none()
+    if not target:
+        raise HTTPException(404, "User not found")
+        
+    new_pw = body.new_password if body.new_password and len(body.new_password) >= 8 else "DealFlow360@Pass123"
+    target.password = pwd_context.hash(new_pw)
+    await db.commit()
+    return {"message": "Password reset successfully", "temporary_password": new_pw}
+

@@ -46,3 +46,22 @@ async def mark_notification_read(
     notif.is_read = True
     await db.commit()
     return {"message": "Notification marked as read"}
+
+
+@router.put("/read-all")
+@router.post("/read-all")
+async def mark_all_notifications_read(
+    user: dict = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    """Mark all notifications for the current user as read."""
+    from sqlalchemy import update
+    stmt = (
+        update(Notification)
+        .where(Notification.user_id == user["id"])
+        .values(is_read=True)
+    )
+    await db.execute(stmt)
+    await db.commit()
+    return {"message": "All notifications marked as read"}
+
