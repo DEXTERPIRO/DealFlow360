@@ -2,7 +2,7 @@ from decimal import Decimal
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query, status
 from pydantic import BaseModel
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func, or_, cast, String
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -201,6 +201,8 @@ async def update_discount_tier(
 
 @router.get("/pricelists/all")
 async def get_all_pricelists(
+    search: Optional[str] = Query(None),
+    tier: Optional[str] = Query(None),
     user: dict = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
@@ -209,7 +211,23 @@ async def get_all_pricelists(
         .options(
             selectinload(PriceList.items).selectinload(PriceListItem.product)
         )
+        .order_by(PriceList.created_at.desc())
     )
+    if tier and tier.upper() != "ALL":
+        try:
+            tier_enum = CustomerTier(tier.upper())
+            stmt = stmt.where(PriceList.tier == tier_enum)
+        except ValueError:
+            pass
+
+    if search:
+        search_term = f"%{search.strip()}%"
+        stmt = stmt.where(
+            or_(
+                PriceList.name.ilike(search_term),
+                cast(PriceList.tier, String).ilike(search_term)
+            )
+        )
     result = await db.execute(stmt)
     return result.scalars().all()
 
@@ -245,6 +263,7 @@ class UpsellRuleCreate(BaseModel):
 
 @router.get("/upsell-rules")
 async def get_upsell_rules(
+    search: Optional[str] = Query(None),
     user: dict = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
@@ -256,6 +275,18 @@ async def get_upsell_rules(
         )
         .order_by(UpsellRule.created_at.desc())
     )
+    if search:
+        search_term = f"%{search.strip()}%"
+        stmt = stmt.where(
+            or_(
+                UpsellRule.source_product.has(
+                    or_(Product.name.ilike(search_term), Product.sku.ilike(search_term))
+                ),
+                UpsellRule.target_product.has(
+                    or_(Product.name.ilike(search_term), Product.sku.ilike(search_term))
+                )
+            )
+        )
     res = await db.execute(stmt)
     return res.scalars().all()
 

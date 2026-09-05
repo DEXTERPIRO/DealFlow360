@@ -1,9 +1,9 @@
 """app/routers/fulfillment.py — Multi-warehouse inventory split and stock reservation."""
 from decimal import Decimal
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,6 +39,8 @@ class StockUpdate(BaseModel):
 
 @router.get("/warehouses/stock")
 async def get_warehouses_stock(
+    search: Optional[str] = Query(None),
+    warehouse_id: Optional[str] = Query(None),
     user: dict = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
@@ -53,6 +55,24 @@ async def get_warehouses_stock(
         )
         .order_by(Warehouse.name.asc())
     )
+    if warehouse_id and warehouse_id != "ALL":
+        stmt = stmt.where(Warehouse.id == warehouse_id)
+    if search:
+        search_term = f"%{search.strip()}%"
+        stmt = stmt.where(
+            or_(
+                Warehouse.name.ilike(search_term),
+                Warehouse.location.ilike(search_term),
+                Warehouse.stocks.any(
+                    WarehouseStock.product.has(
+                        or_(
+                            Product.name.ilike(search_term),
+                            Product.sku.ilike(search_term)
+                        )
+                    )
+                )
+            )
+        )
     result = await db.execute(stmt)
     return result.scalars().all()
 

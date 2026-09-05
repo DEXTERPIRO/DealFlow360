@@ -481,19 +481,20 @@ export default function Fulfillment() {
 
   // ── 1. Fetch Quotations for Left Panel ───────────────────────────────────
 
-  const loadQuotations = useCallback(async () => {
+  const loadQuotations = useCallback(async (q = searchQuery) => {
     try {
       setLoadingQuotations(true);
-      // Fetch confirmed / approved quotations needing fulfillment
-      const res = await quotationsAPI.getAll();
+      const params = {};
+      if (q && q.trim()) params.search = q.trim();
+      const res = await quotationsAPI.getAll(params);
       const list = Array.isArray(res) ? res : res?.quotations || [];
 
       // Filter quotations that have confirmed or approved status, or have lines
       const eligible = list.filter(
-        (q) =>
-          q.status === 'CONFIRMED' ||
-          q.status === 'APPROVED' ||
-          q.status === 'SENT_TO_CUSTOMER'
+        (item) =>
+          item.status === 'CONFIRMED' ||
+          item.status === 'APPROVED' ||
+          item.status === 'SENT_TO_CUSTOMER'
       );
       setQuotations(eligible);
 
@@ -508,6 +509,13 @@ export default function Fulfillment() {
       setLoadingQuotations(false);
     }
   }, [selectedQuotationId]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadQuotations(searchQuery);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery, loadQuotations]);
 
   // ── 2. Fetch Warehouses for Stock Overview & Dropdowns ───────────────────
 
@@ -566,18 +574,8 @@ export default function Fulfillment() {
     }
   }, [selectedQuotationId, loadQuotationData]);
 
-  // ── Filtered Quotations ──────────────────────────────────────────────────
-
-  const filteredQuotations = useMemo(() => {
-    if (!searchQuery.trim()) return quotations;
-    const q = searchQuery.toLowerCase();
-    return quotations.filter((item) => {
-      const num = (item.quotationNumber || item.quotation_number || '').toLowerCase();
-      const name = (item.customer?.name || '').toLowerCase();
-      const comp = (item.customer?.company_name || '').toLowerCase();
-      return num.includes(q) || name.includes(q) || comp.includes(q);
-    });
-  }, [quotations, searchQuery]);
+  // ── Database Queried Quotations ──────────────────────────────────────────
+  const filteredQuotations = quotations;
 
   // Non-subscription lines for the active quotation
   const physicalLines = useMemo(() => {

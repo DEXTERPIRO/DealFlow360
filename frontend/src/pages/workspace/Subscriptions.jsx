@@ -22,7 +22,8 @@ import {
   DollarSign,
   ChevronRight,
   Check,
-  X
+  X,
+  Database
 } from 'lucide-react';
 import { subscriptionsAPI, productsAPI, quotationsAPI } from '../../api';
 import toast from 'react-hot-toast';
@@ -314,12 +315,16 @@ export default function Subscriptions() {
   const [planModalData, setPlanModalData] = useState(null); // null = closed, {} = add, plan = edit
   const [savingPlan, setSavingPlan] = useState(false);
 
-  // ── Load Subscriptions ───────────────────────────────────────────────────
+  // ── Load Subscriptions directly from PostgreSQL Database ─────────────────
 
-  const loadSubscriptions = useCallback(async () => {
+  const loadSubscriptions = useCallback(async (q = searchQuery, st = filterStatus) => {
     try {
       setLoadingSubs(true);
-      const res = await subscriptionsAPI.getAll();
+      const params = {};
+      if (q && q.trim()) params.search = q.trim();
+      if (st && st !== 'ALL') params.status = st;
+
+      const res = await subscriptionsAPI.getAll(params);
       const list = Array.isArray(res) ? res : res?.subscriptions || [];
       setSubscriptions(list);
     } catch (err) {
@@ -329,6 +334,13 @@ export default function Subscriptions() {
       setLoadingSubs(false);
     }
   }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadSubscriptions(searchQuery, filterStatus);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery, filterStatus, loadSubscriptions]);
 
   // ── Load Plans ───────────────────────────────────────────────────────────
 
@@ -398,20 +410,10 @@ export default function Subscriptions() {
     });
   }, [subscriptions, productsMap]);
 
-  // Filtered subscriptions for Tab 1
+  // Filtered subscriptions directly from PostgreSQL database query
   const filteredSubs = useMemo(() => {
-    return enrichedSubs.filter((s) => {
-      const matchesStatus =
-        filterStatus === 'ALL' ? true : s.status === filterStatus;
-      const q = searchQuery.toLowerCase();
-      const custName = (s.quotation?.customer?.name || '').toLowerCase();
-      const compName = (s.quotation?.customer?.company_name || '').toLowerCase();
-      const prod = (s.productName || '').toLowerCase();
-      const matchesSearch =
-        !q || custName.includes(q) || compName.includes(q) || prod.includes(q);
-      return matchesStatus && matchesSearch;
-    });
-  }, [enrichedSubs, filterStatus, searchQuery]);
+    return enrichedSubs;
+  }, [enrichedSubs]);
 
   // ── Stats Computations ───────────────────────────────────────────────────
 

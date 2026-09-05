@@ -4,9 +4,9 @@ from decimal import Decimal
 from typing import Optional
 from dateutil.relativedelta import relativedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,7 +14,7 @@ from app.database import get_db
 from app.middleware.auth import verify_token, require_roles
 from app.models.models import (
     Subscription, SubscriptionPlan, Quotation, QuotationLine,
-    BillingCycle, LineType
+    BillingCycle, LineType, User
 )
 
 router = APIRouter(prefix="/api/subscriptions", tags=["subscriptions"])
@@ -106,10 +106,12 @@ async def update_plan(
 @router.get("")
 @router.get("/")
 async def get_subscriptions(
+    status: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
     user: dict = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
-    """List all subscriptions ordered by next_billing_date."""
+    """List all subscriptions, optionally filtered and searched directly in PostgreSQL."""
     stmt = (
         select(Subscription)
         .options(
@@ -119,6 +121,22 @@ async def get_subscriptions(
         )
         .order_by(Subscription.next_billing_date.asc())
     )
+
+    if status and status != "ALL":
+        stmt = stmt.where(Subscription.status == status.upper().strip())
+
+    if search and search.strip():
+        search_pattern = f"%{search.strip()}%"
+        stmt = stmt.outerjoin(Subscription.quotation).outerjoin(Quotation.customer).outerjoin(Subscription.plan).where(
+            or_(
+                User.name.ilike(search_pattern),
+                User.company_name.ilike(search_pattern),
+                User.email.ilike(search_pattern),
+                SubscriptionPlan.name.ilike(search_pattern),
+                Quotation.quotation_number.ilike(search_pattern)
+            )
+        )
+
     result = await db.execute(stmt)
     return result.scalars().all()
 

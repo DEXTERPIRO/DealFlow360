@@ -56,23 +56,46 @@ const defaultLine = (product = null) => ({
 });
 
 // ─── ProductPicker Dropdown ────────────────────────────────────────────────
-function ProductPicker({ products, onSelect, onClose }) {
+function ProductPicker({ products: initialProducts, onSelect, onClose }) {
   const [search, setSearch] = useState('');
-  const filtered = products.filter((p) =>
-    `${p.name} ${p.sku}`.toLowerCase().includes(search.toLowerCase())
-  );
+  const [items, setItems] = useState(initialProducts || []);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      try {
+        setLoading(true);
+        const params = {};
+        if (search && search.trim()) {
+          params.search = search.trim();
+        }
+        const res = await productsAPI.getAll(params);
+        const list = Array.isArray(res) ? res : res?.products || [];
+        setItems(list);
+      } catch (err) {
+        console.error('Failed to search products from database:', err);
+      } finally {
+        setLoading(false);
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
       <div className="w-full max-w-lg bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl flex flex-col max-h-[70vh]">
         <div className="p-3.5 border-b border-slate-800 flex items-center gap-2">
-          <Search className="w-4 h-4 text-slate-400 shrink-0" />
+          {loading ? (
+            <Loader2 className="w-4 h-4 text-blue-400 animate-spin shrink-0" />
+          ) : (
+            <Search className="w-4 h-4 text-slate-400 shrink-0" />
+          )}
           <input
             autoFocus
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search products by name or SKU..."
+            placeholder="Search products in database by name, SKU, or description..."
             className="flex-1 bg-transparent text-sm text-white placeholder-slate-400 focus:outline-none"
           />
           <button onClick={onClose} className="text-slate-500 hover:text-white">
@@ -81,10 +104,12 @@ function ProductPicker({ products, onSelect, onClose }) {
         </div>
 
         <div className="flex-1 overflow-y-auto divide-y divide-slate-800/60 p-1">
-          {filtered.length === 0 ? (
-            <div className="py-8 text-center text-slate-500 text-sm">No products found</div>
+          {items.length === 0 ? (
+            <div className="py-8 text-center text-slate-500 text-sm">
+              {loading ? 'Searching database...' : 'No products found'}
+            </div>
           ) : (
-            filtered.map((p) => (
+            items.map((p) => (
               <button
                 key={p.id}
                 onClick={() => { onSelect(p); onClose(); }}

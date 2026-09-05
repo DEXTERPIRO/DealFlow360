@@ -35,26 +35,34 @@ export default function UpsellRules() {
 
   // ── 1. Load Rules and Products ───────────────────────────────────────────
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (q = searchQuery) => {
     try {
       setLoading(true);
+      const params = {};
+      if (q && q.trim()) params.search = q.trim();
+
       const [rulesRes, prodsRes] = await Promise.all([
-        productsAPI.getUpsellRules(),
-        productsAPI.getAll(),
+        productsAPI.getUpsellRules(params),
+        products.length === 0 ? productsAPI.getAll() : Promise.resolve(products),
       ]);
       setRules(Array.isArray(rulesRes) ? rulesRes : []);
-      setProducts(Array.isArray(prodsRes) ? prodsRes : prodsRes?.products || []);
+      if (products.length === 0) {
+        setProducts(Array.isArray(prodsRes) ? prodsRes : prodsRes?.products || []);
+      }
     } catch (err) {
       console.error(err);
       toast.error('Failed to load upsell intelligence rules');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [searchQuery, products]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    const timer = setTimeout(() => {
+      loadData(searchQuery);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery, loadData]);
 
   // ── 2. Save Rule (Create or Edit) ────────────────────────────────────────
 
@@ -140,17 +148,8 @@ export default function UpsellRules() {
     }
   };
 
-  // ── Filtered Rules ───────────────────────────────────────────────────────
-
-  const filteredRules = useMemo(() => {
-    if (!searchQuery.trim()) return rules;
-    const q = searchQuery.toLowerCase();
-    return rules.filter((r) => {
-      const srcName = (r.source_product?.name || '').toLowerCase();
-      const tgtName = (r.target_product?.name || '').toLowerCase();
-      return srcName.includes(q) || tgtName.includes(q);
-    });
-  }, [rules, searchQuery]);
+  // ── Database Queried Rules ───────────────────────────────────────────────
+  const filteredRules = rules;
 
   // Pagination
   const [rulePage, setRulePage] = useState(1);

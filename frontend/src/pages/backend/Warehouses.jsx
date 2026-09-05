@@ -38,25 +38,37 @@ export default function Warehouses() {
   const [warehouseFilter, setWarehouseFilter] = useState('ALL');
   const [searchProduct, setSearchProduct] = useState('');
 
+  const [allWarehouses, setAllWarehouses] = useState([]);
+
   // ── 1. Load Warehouses & Stock ───────────────────────────────────────────
 
-  const loadWarehouses = useCallback(async () => {
+  const loadWarehouses = useCallback(async (q = searchProduct, whId = warehouseFilter) => {
     try {
       setLoading(true);
-      const res = await fulfillmentAPI.getWarehouseStock();
+      const params = {};
+      if (q && q.trim()) params.search = q.trim();
+      if (whId && whId !== 'ALL') params.warehouse_id = whId;
+
+      const res = await fulfillmentAPI.getWarehouseStock(params);
       const list = Array.isArray(res) ? res : res?.warehouses || [];
       setWarehouses(list);
+      if (!q && whId === 'ALL' && allWarehouses.length === 0) {
+        setAllWarehouses(list);
+      }
     } catch (err) {
       console.error(err);
       toast.error('Failed to load warehouse inventory');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [searchProduct, warehouseFilter, allWarehouses.length]);
 
   useEffect(() => {
-    loadWarehouses();
-  }, [loadWarehouses]);
+    const timer = setTimeout(() => {
+      loadWarehouses(searchProduct, warehouseFilter);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchProduct, warehouseFilter, loadWarehouses]);
 
   // ── 2. Create / Update Warehouse Handler ─────────────────────────────────
 
@@ -168,18 +180,8 @@ export default function Warehouses() {
     return rows;
   }, [warehouses]);
 
-  const filteredStock = useMemo(() => {
-    return flattenedStock.filter((item) => {
-      const matchesWh =
-        warehouseFilter === 'ALL' || item.warehouseId === warehouseFilter;
-      const q = searchProduct.toLowerCase();
-      const matchesProd =
-        !q ||
-        item.productName.toLowerCase().includes(q) ||
-        item.sku.toLowerCase().includes(q);
-      return matchesWh && matchesProd;
-    });
-  }, [flattenedStock, warehouseFilter, searchProduct]);
+  // Database-queried stock records
+  const filteredStock = flattenedStock;
 
   // Stock Pagination
   const [stockPage, setStockPage] = useState(1);
@@ -395,7 +397,7 @@ export default function Warehouses() {
               className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 transition-colors"
             >
               <option value="ALL">All Facilities</option>
-              {warehouses.map((wh) => (
+              {(allWarehouses.length > 0 ? allWarehouses : warehouses).map((wh) => (
                 <option key={wh.id} value={wh.id}>
                   {wh.name}
                 </option>

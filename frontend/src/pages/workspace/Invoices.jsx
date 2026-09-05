@@ -23,7 +23,8 @@ import {
   ArrowUpRight,
   ChevronRight,
   TrendingUp,
-  AlertCircle
+  AlertCircle,
+  Database
 } from 'lucide-react';
 import { invoicesAPI, quotationsAPI } from '../../api';
 import toast from 'react-hot-toast';
@@ -557,12 +558,16 @@ export default function Invoices() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
 
-  // ── 1. Fetch Invoices ────────────────────────────────────────────────────
+  // ── 1. Fetch Invoices directly from PostgreSQL Database ───────────────────
 
-  const loadInvoices = useCallback(async () => {
+  const loadInvoices = useCallback(async (q = searchQuery, tab = filterTab) => {
     try {
       setLoading(true);
-      const res = await invoicesAPI.getAll();
+      const params = {};
+      if (q && q.trim()) params.search = q.trim();
+      if (tab && tab !== 'ALL') params.status = tab;
+
+      const res = await invoicesAPI.getAll(params);
       const list = Array.isArray(res) ? res : res?.invoices || [];
       setInvoices(list);
     } catch (err) {
@@ -574,8 +579,11 @@ export default function Invoices() {
   }, []);
 
   useEffect(() => {
-    loadInvoices();
-  }, [loadInvoices]);
+    const timer = setTimeout(() => {
+      loadInvoices(searchQuery, filterTab);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery, filterTab, loadInvoices]);
 
   // ── 2. Mark Sent Handler ─────────────────────────────────────────────────
 
@@ -583,7 +591,7 @@ export default function Invoices() {
     try {
       await invoicesAPI.markSent(invoiceId);
       toast.success('Invoice marked as SENT');
-      loadInvoices();
+      loadInvoices(searchQuery, filterTab);
     } catch (err) {
       console.error(err);
       toast.error(err.response?.data?.detail || 'Failed to mark invoice as sent');
@@ -632,35 +640,11 @@ export default function Invoices() {
     };
   }, [invoices]);
 
-  // ── 5. Filtered Invoices ─────────────────────────────────────────────────
+  // ── 5. Invoices from PostgreSQL Database Query ────────────────────────────
 
   const filteredInvoices = useMemo(() => {
-    return invoices.filter((inv) => {
-      const st = (inv.status || '').toUpperCase();
-      const overdue = st !== 'PAID' && st !== 'CANCELLED' && isPastDue(inv.due_date);
-
-      let matchesTab = true;
-      if (filterTab === 'DRAFT') matchesTab = st === 'DRAFT';
-      else if (filterTab === 'SENT') matchesTab = st === 'SENT' && !overdue;
-      else if (filterTab === 'PAID') matchesTab = st === 'PAID';
-      else if (filterTab === 'OVERDUE') matchesTab = overdue || st === 'OVERDUE';
-
-      const q = searchQuery.toLowerCase();
-      const invNum = (inv.invoice_number || '').toLowerCase();
-      const custName = (inv.quotation?.customer?.name || '').toLowerCase();
-      const compName = (inv.quotation?.customer?.company_name || '').toLowerCase();
-      const quoteNum = (inv.quotation?.quotation_number || '').toLowerCase();
-
-      const matchesSearch =
-        !q ||
-        invNum.includes(q) ||
-        custName.includes(q) ||
-        compName.includes(q) ||
-        quoteNum.includes(q);
-
-      return matchesTab && matchesSearch;
-    });
-  }, [invoices, filterTab, searchQuery]);
+    return invoices;
+  }, [invoices]);
 
   // Reset page on filter change
   useEffect(() => { setCurrentPage(1); }, [filterTab, searchQuery]);

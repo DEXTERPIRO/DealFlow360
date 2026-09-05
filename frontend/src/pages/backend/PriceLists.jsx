@@ -17,31 +17,43 @@ import Pagination from '../../components/ui/Pagination';
 
 export default function PriceListsPage() {
   const [priceLists, setPriceLists] = useState([]);
+  const [allPriceLists, setAllPriceLists] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedTier, setSelectedTier] = useState('ALL');
   const [search, setSearch] = useState('');
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async (q = search, t = selectedTier) => {
     try {
       setLoading(true);
+      const params = {};
+      if (q && q.trim()) params.search = q.trim();
+      if (t && t !== 'ALL') params.tier = t;
+
       const [listsRes, prodsRes] = await Promise.all([
-        productsAPI.getPriceLists(),
-        productsAPI.getAll()
+        productsAPI.getPriceLists(params),
+        products.length === 0 ? productsAPI.getAll() : Promise.resolve(products)
       ]);
-      setPriceLists(listsRes || []);
-      setProducts(prodsRes || []);
+      const list = listsRes || [];
+      setPriceLists(list);
+      if (!q && t === 'ALL' && allPriceLists.length === 0) {
+        setAllPriceLists(list);
+      }
+      if (products.length === 0) setProducts(prodsRes || []);
     } catch (err) {
-      console.error('Failed to load price lists:', err);
+      console.error('Failed to load price lists from database:', err);
       toast.error('Failed to load price lists');
     } finally {
       setLoading(false);
     }
-  };
+  }, [search, selectedTier, products, allPriceLists.length]);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    const timer = setTimeout(() => {
+      fetchData(search, selectedTier);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [search, selectedTier, fetchData]);
 
   const tiers = ['BRONZE', 'SILVER', 'GOLD', 'PLATINUM'];
 
@@ -58,14 +70,8 @@ export default function PriceListsPage() {
     }
   };
 
-  const filteredLists = priceLists.filter((pl) => {
-    const matchesTier = selectedTier === 'ALL' || pl.tier === selectedTier;
-    const matchesSearch =
-      search === '' ||
-      pl.name?.toLowerCase().includes(search.toLowerCase()) ||
-      pl.tier?.toLowerCase().includes(search.toLowerCase());
-    return matchesTier && matchesSearch;
-  });
+  // Database-queried price lists
+  const filteredLists = priceLists;
 
   // Pagination
   const [page, setPage] = useState(1);
@@ -99,7 +105,7 @@ export default function PriceListsPage() {
       {/* ── TIER OVERVIEW CARDS ────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
         {tiers.map((t) => {
-          const matchingLists = priceLists.filter((p) => p.tier === t);
+          const matchingLists = (allPriceLists.length > 0 ? allPriceLists : priceLists).filter((p) => p.tier === t);
           const itemCount = matchingLists.reduce(
             (acc, l) => acc + (l.items?.length || 0),
             0
