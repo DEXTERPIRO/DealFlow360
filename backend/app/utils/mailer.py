@@ -63,7 +63,11 @@ def trigger_background_email(to_email: str, subject: str, html_content: str, tex
 
 # ─── 1. Magic Link / Customer Portal Access Email ───────────────────────────
 
-def send_magic_link_email(to_email: str, portal_token: str, customer_name: str = "Valued Customer"):
+def send_magic_link_email(to_email: str, portal_token: str, customer_name: str = "Valued Customer", magic_token: str = ""):
+    if magic_token:
+        magic_url = f"{settings.FRONTEND_URL}/login?token={magic_token}"
+    else:
+        magic_url = f"{settings.FRONTEND_URL}/portal/{portal_token}"
     portal_url = f"{settings.FRONTEND_URL}/portal/{portal_token}"
     subject = "Your DealFlow360 Secure Client Portal Access"
 
@@ -93,18 +97,21 @@ def send_magic_link_email(to_email: str, portal_token: str, customer_name: str =
         <div class="body">
           <h2 style="margin-top: 0; color: #ffffff; font-size: 20px; font-weight: 800;">Hello {customer_name},</h2>
           <p style="color: #94a3b8; font-size: 14px;">
-            You requested passwordless access to your secure client quotation portal on DealFlow360.
+            You requested passwordless access to your secure client quotation portal on DealFlow360. Click below to sign in instantly with your magic link:
           </p>
           <div style="text-align: center;">
-            <a href="{portal_url}" class="btn" target="_blank">Launch Client Portal &rarr;</a>
+            <a href="{magic_url}" class="btn" target="_blank">Sign In with Magic Link &rarr;</a>
           </div>
           <p style="color: #94a3b8; font-size: 13px;">
-            Or copy and paste this direct portal link into your browser:
+            Or copy and paste this one-click magic sign-in link into your browser:
           </p>
           <div style="background: #020617; border: 1px solid #1e293b; border-radius: 8px; padding: 12px; font-family: monospace; font-size: 11px; word-break: break-all; color: #38bdf8;">
-            {portal_url}
+            {magic_url}
           </div>
           <p style="color: #64748b; font-size: 12px; margin-top: 20px;">
+            Direct Portal Workspace: <span style="font-family: monospace; color: #94a3b8;">{portal_url}</span>
+          </p>
+          <p style="color: #64748b; font-size: 12px; margin-top: 8px;">
             This link is authenticated with your enterprise account. If you did not request this email, you can safely disregard it.
           </p>
         </div>
@@ -116,7 +123,7 @@ def send_magic_link_email(to_email: str, portal_token: str, customer_name: str =
     </html>
     """
 
-    text = f"Hello {customer_name},\n\nYour DealFlow360 Client Portal link is ready:\n{portal_url}\n\nThank you,\nDealFlow360 Team"
+    text = f"Hello {customer_name},\n\nYour DealFlow360 Magic Sign-In link is ready:\n{magic_url}\n\nDirect Portal Workspace:\n{portal_url}\n\nThank you,\nDealFlow360 Team"
     trigger_background_email(to_email, subject, html, text)
 
 # ─── 2. Quotation Sent to Customer Email ─────────────────────────────────────

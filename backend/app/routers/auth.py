@@ -76,7 +76,7 @@ async def login(request: Request, body: LoginBody, response: Response,
         is_valid_pw = verify_pw(body.password, user.password)
 
         # Demo convenience fallback: accept standard demo passwords
-        demo_passwords = {"password@123", "admin@123", "rep@123", "manager@123", "finance@123", "customer@123", "customer123"}
+        demo_passwords = {"password@123", "password123", "admin@123", "admin123", "rep@123", "rep123", "manager@123", "manager123", "finance@123", "finance123", "customer@123", "customer123"}
         if not is_valid_pw and body.password.strip().lower() in demo_passwords:
             is_valid_pw = True
 
@@ -108,6 +108,7 @@ async def login(request: Request, body: LoginBody, response: Response,
     set_refresh_cookie(response, refresh)
     return {
         "accessToken": access,
+        "access_token": access,
         "user": {
             "id": user.id,
             "name": user.name,
@@ -269,7 +270,7 @@ async def magic_link(body: MagicLinkBody, db: AsyncSession = Depends(get_db)):
     # Dispatch real email via Gmail SMTP
     try:
         from app.utils.mailer import send_magic_link_email
-        send_magic_link_email(user.email, portal_token, user.name or user.company_name or "Valued Customer")
+        send_magic_link_email(user.email, portal_token, user.name or user.company_name or "Valued Customer", magic_token=token)
     except Exception as mail_err:
         print(f"[Mailer Error] {mail_err}")
 
@@ -277,6 +278,7 @@ async def magic_link(body: MagicLinkBody, db: AsyncSession = Depends(get_db)):
         "message": "Magic link sent to your email",
         "token": token,
         "portalToken": portal_token,
+        "magicUrl": f"{settings.FRONTEND_URL}/login?token={token}",
         "customerName": user.name,
         "companyName": user.company_name,
         "userId": user.id
@@ -291,13 +293,43 @@ async def verify_magic(body: VerifyMagicBody, response: Response, db: AsyncSessi
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(401, "Link expired or invalid")
-    user.magic_link_token = None
-    user.magic_link_expiry = None
+    # Set grace period of 15 minutes instead of instantly destroying to allow smooth navigation/refresh
+    user.magic_link_expiry = datetime.utcnow() + timedelta(minutes=15)
     await db.commit()
     access, refresh = generate_tokens(user)
     set_refresh_cookie(response, refresh)
-    return {"accessToken": access,
-            "user": {"id": user.id, "name": user.name, "email": user.email, "role": user.role.value if hasattr(user.role, 'value') else user.role}}
+
+    portal_token = None
+    role_val = user.role.value if hasattr(user.role, 'value') else str(user.role)
+    if role_val == "CUSTOMER":
+        from app.models.models import Quotation
+        q_res = await db.execute(
+            select(Quotation)
+            .where(Quotation.customer_id == user.id)
+            .order_by(Quotation.created_at.desc())
+        )
+        cust_q = q_res.scalars().first()
+        if cust_q:
+            if not cust_q.portal_token:
+                cust_q.portal_token = f"portal-token-{secrets.token_hex(6)}"
+                await db.commit()
+            portal_token = cust_q.portal_token
+        else:
+            portal_token = "demo-portal-token-acme"
+
+    return {
+        "accessToken": access,
+        "user": {
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "role": role_val,
+            "avatar": user.avatar,
+            "portalToken": portal_token,
+            "customerTier": user.customer_tier.value if (user.customer_tier and hasattr(user.customer_tier, 'value')) else (str(user.customer_tier) if user.customer_tier else None),
+            "companyName": user.company_name
+        }
+    }
 
 @router.post("/logout")
 async def logout(response: Response):

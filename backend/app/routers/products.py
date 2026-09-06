@@ -47,6 +47,7 @@ class PriceListCreate(BaseModel):
 # Product Categories Endpoints
 # ---------------------------------------------------------------------------
 
+@router.get("/categories")
 @router.get("/categories/all")
 async def get_all_categories(
     user: dict = Depends(verify_token),
@@ -199,7 +200,10 @@ async def update_discount_tier(
 # Price Lists Endpoints
 # ---------------------------------------------------------------------------
 
+@router.get("/pricelists")
 @router.get("/pricelists/all")
+@router.get("/price-lists")
+@router.get("/price-lists/all")
 async def get_all_pricelists(
     search: Optional[str] = Query(None),
     tier: Optional[str] = Query(None),
@@ -259,6 +263,7 @@ async def get_all_pricelists(
 
 
 @router.post("/pricelists", status_code=status.HTTP_201_CREATED)
+@router.post("/price-lists", status_code=status.HTTP_201_CREATED)
 async def create_pricelist(
     body: PriceListCreate,
     user: dict = Depends(require_roles("ADMIN", "SALES_MANAGER")),

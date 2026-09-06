@@ -17,6 +17,8 @@ router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 
 @router.get("/metrics")
+@router.get("/stats")
+@router.get("/analytics")
 async def get_dashboard_metrics(
     period: str = Query("month"),
     rep_id: str = Query(None),
@@ -211,7 +213,8 @@ async def get_approval_queue(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Returns pending quotations for Sales Manager & Finance approval with full line & risk details.
+    Returns pending quotations for Sales Manager & Finance approval with full line & risk details,
+    along with historical approvals and summary counts.
     """
     stmt = (
         select(Quotation)
@@ -228,6 +231,37 @@ async def get_approval_queue(
     result = await db.execute(stmt)
     pending_quotations = result.scalars().all()
 
+    # Also fetch all quotations that went through discount approval
+    all_stmt = (
+        select(Quotation)
+        .where(
+            or_(
+                Quotation.status.in_([
+                    QuotationStatus.PENDING_MANAGER,
+                    QuotationStatus.PENDING_FINANCE,
+                    QuotationStatus.APPROVED,
+                    QuotationStatus.REJECTED
+                ]),
+                Quotation.approvals.any()
+            )
+        )
+        .options(
+            selectinload(Quotation.rep),
+            selectinload(Quotation.customer),
+            selectinload(Quotation.lines).selectinload(QuotationLine.product).selectinload(Product.category),
+            selectinload(Quotation.approvals).selectinload(Approval.approver),
+            selectinload(Quotation.audit_logs).selectinload(AuditLog.user)
+        )
+        .order_by(Quotation.created_at.desc())
+        .limit(100)
+    )
+    all_res = await db.execute(all_stmt)
+    all_approvals = all_res.scalars().all()
+
+    pending_count = len(pending_quotations)
+    returned_count = sum(1 for q in all_approvals if any(a.action == "RETURNED" for a in q.approvals) or any(l.action == AuditAction.RETURNED for l in q.audit_logs))
+    approved_count = sum(1 for q in all_approvals if q.status == QuotationStatus.APPROVED)
+
     # Also fetch recent audit trail actions for approvals
     audit_stmt = (
         select(AuditLog)
@@ -239,8 +273,359 @@ async def get_approval_queue(
     audit_res = await db.execute(audit_stmt)
     audit_trail = audit_res.scalars().all()
 
+    def serialize_approval_quote(q: Quotation) -> dict:
+        cust = q.customer
+        r_user = q.rep
+        return {
+            "id": q.id,
+            "quotation_number": q.quotation_number,
+            "quotationNumber": q.quotation_number,
+            "status": q.status.value if hasattr(q.status, "value") else str(q.status),
+            "customer_id": q.customer_id,
+            "customerId": q.customer_id,
+            "customer_tier": q.customer_tier.value if hasattr(q.customer_tier, "value") else str(q.customer_tier or "BRONZE"),
+            "customerTier": q.customer_tier.value if hasattr(q.customer_tier, "value") else str(q.customer_tier or "BRONZE"),
+            "customer": {
+                "id": cust.id,
+                "name": cust.name,
+                "email": cust.email,
+                "company_name": cust.company_name,
+                "customer_tier": cust.customer_tier.value if hasattr(cust.customer_tier, "value") else str(cust.customer_tier or "BRONZE")
+            } if cust else None,
+            "customerName": cust.name if (cust and cust.name) else (cust.company_name if cust else "Valued Customer"),
+            "rep": {
+                "id": r_user.id,
+                "name": r_user.name,
+                "email": r_user.email,
+            } if r_user else None,
+            "repName": r_user.name if (r_user and r_user.name) else "Sales Team",
+            "blended_risk_score": float(q.blended_risk_score or 0.0),
+            "blendedRiskScore": float(q.blended_risk_score or 0.0),
+            "subtotal": float(q.subtotal or 0.0),
+            "tax_amount": float(q.tax_amount or 0.0),
+            "taxAmount": float(q.tax_amount or 0.0),
+            "discount_amount": float(q.discount_amount or 0.0),
+            "discountAmount": float(q.discount_amount or 0.0),
+            "total": float(q.total or 0.0),
+            "margin": float(q.margin or 0.0) if q.margin is not None else None,
+            "rep_notes": q.rep_notes,
+            "repNotes": q.rep_notes,
+            "customer_notes": q.customer_notes,
+            "customerNotes": q.customer_notes,
+            "portal_token": q.portal_token,
+            "portalToken": q.portal_token,
+            "expiry_date": q.expiry_date.isoformat() if q.expiry_date else None,
+            "expiryDate": q.expiry_date.isoformat() if q.expiry_date else None,
+            "created_at": q.created_at.isoformat() if q.created_at else None,
+            "createdAt": q.created_at.isoformat() if q.created_at else None,
+            "updated_at": q.updated_at.isoformat() if q.updated_at else None,
+            "updatedAt": q.updated_at.isoformat() if q.updated_at else None,
+            "lines": [
+                {
+                    "id": line.id,
+                    "product_id": line.product_id,
+                    "productId": line.product_id,
+                    "product_name": line.product.name if line.product else "Product",
+                    "productName": line.product.name if line.product else "Product",
+                    "quantity": line.quantity,
+                    "unit_price": float(line.unit_price or 0.0),
+                    "unitPrice": float(line.unit_price or 0.0),
+                    "discount": float(line.discount or 0.0),
+                    "discount_percent": float(line.discount or 0.0),
+                    "discountPercent": float(line.discount or 0.0),
+                    "line_total": float(line.line_total or 0.0),
+                    "total_price": float(line.line_total or 0.0),
+                    "totalPrice": float(line.line_total or 0.0),
+                    "line_type": line.line_type.value if hasattr(line.line_type, "value") else str(line.line_type or "ONE_TIME"),
+                    "product": {
+                        "id": line.product.id,
+                        "name": line.product.name,
+                        "sku": line.product.sku,
+                        "category": line.product.category.name if (line.product and line.product.category) else None
+                    } if line.product else None
+                }
+                for line in (q.lines or [])
+            ],
+            "approvals": [
+                {
+                    "id": a.id,
+                    "level": a.level,
+                    "stage": "STAGE_2_FINANCE" if a.level == 2 else "STAGE_1_MANAGER",
+                    "action": a.action,
+                    "reason": a.reason,
+                    "approver_id": a.approver_id,
+                    "approver": {
+                        "id": a.approver.id,
+                        "name": a.approver.name,
+                        "email": a.approver.email,
+                        "role": a.approver.role.value if hasattr(a.approver.role, "value") else str(a.approver.role)
+                    } if a.approver else None,
+                    "decided_at": a.decided_at.isoformat() if a.decided_at else None,
+                    "created_at": a.created_at.isoformat() if a.created_at else None
+                }
+                for a in (q.approvals or [])
+            ],
+            "audit_logs": [
+                {
+                    "id": l.id,
+                    "action": l.action.value if hasattr(l.action, "value") else str(l.action),
+                    "details": l.details,
+                    "metadata_json": l.metadata_json,
+                    "created_at": l.created_at.isoformat() if l.created_at else None,
+                    "user": {
+                        "id": l.user.id,
+                        "name": l.user.name,
+                        "role": l.user.role.value if hasattr(l.user.role, "value") else str(l.user.role)
+                    } if l.user else None
+                }
+                for l in (q.audit_logs or [])
+            ]
+        }
+
     return {
-        "queue": pending_quotations,
-        "auditTrail": audit_trail
+        "queue": [serialize_approval_quote(q) for q in pending_quotations],
+        "allApprovals": [serialize_approval_quote(q) for q in all_approvals],
+        "counts": {
+            "pending": pending_count,
+            "returned": returned_count,
+            "approved": approved_count,
+            "total": len(all_approvals)
+        },
+        "auditTrail": [
+            {
+                "id": l.id,
+                "action": l.action.value if hasattr(l.action, "value") else str(l.action),
+                "details": l.details,
+                "created_at": l.created_at.isoformat() if l.created_at else None,
+                "quotation_number": l.quotation.quotation_number if l.quotation else None,
+                "quotation_id": l.quotation_id,
+                "user": {
+                    "id": l.user.id,
+                    "name": l.user.name,
+                    "role": l.user.role.value if hasattr(l.user.role, "value") else str(l.user.role)
+                } if l.user else None
+            }
+            for l in audit_trail
+        ]
     }
+
+
+@router.get("/deal-health")
+async def get_deal_health_dashboard(
+    user: dict = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Screen 14: Dedicated Deal Health and Anomaly Dashboard.
+    Returns real-time flags for stalled deals, discount anomalies, and delivery promise slippage.
+    """
+    now = datetime.utcnow()
+    seven_days_ago = now - timedelta(days=7)
+    five_days_ago = now - timedelta(days=5)
+    three_days_future = now + timedelta(days=3)
+
+    # Fetch active quotations with rep, customer, lines, and audit logs
+    stmt = (
+        select(Quotation)
+        .where(Quotation.status.notin_([QuotationStatus.CANCELLED, QuotationStatus.REJECTED]))
+        .options(
+            selectinload(Quotation.rep),
+            selectinload(Quotation.customer),
+            selectinload(Quotation.lines).selectinload(QuotationLine.product),
+            selectinload(Quotation.audit_logs)
+        )
+        .order_by(Quotation.updated_at.desc())
+    )
+    res = await db.execute(stmt)
+    quotations = res.scalars().all()
+
+    alerts = []
+    stalled_count = 0
+    anomaly_count = 0
+    slippage_count = 0
+
+    for q in quotations:
+        customer_name = q.customer.name if q.customer else (q.customer.company_name if q.customer else "Customer")
+        rep_name = q.rep.name if q.rep else "Sales Rep"
+        activity_dt = q.last_activity_at or q.updated_at or q.created_at or now
+        days_idle = (now - activity_dt).days
+
+        # Check recent nudge/escalation actions in audit logs
+        recent_nudge = any("nudged" in (log.details or "").lower() for log in (q.audit_logs or []))
+        recent_escalate = any("escalated" in (log.details or "").lower() for log in (q.audit_logs or []))
+        last_action = "Escalated to Manager" if recent_escalate else ("Nudge sent" if recent_nudge else None)
+
+        # 1. Stalled deals: idle > 5 days and still in active pipeline
+        if q.status not in (QuotationStatus.CONFIRMED,) and days_idle >= 5:
+            stalled_count += 1
+            alerts.append({
+                "id": q.id,
+                "quotationNumber": q.quotation_number,
+                "customer": customer_name,
+                "repName": rep_name,
+                "type": "STALLED",
+                "issue": f"Idle {days_idle} days - no client response or activity",
+                "flaggedDate": activity_dt.strftime("%b %d"),
+                "riskScore": q.blended_risk_score or 0.0,
+                "margin": float(q.margin or 0.0),
+                "total": float(q.total or 0.0),
+                "status": q.status.value,
+                "lastAction": last_action
+            })
+
+        # 2. Discount anomaly: blended risk score > 5.0 or discount given > 18%
+        max_line_discount = max([float(l.discount or 0) for l in (q.lines or [])] or [0.0])
+        if q.blended_risk_score > 5.0 or max_line_discount > 18.0:
+            anomaly_count += 1
+            alerts.append({
+                "id": q.id,
+                "quotationNumber": q.quotation_number,
+                "customer": customer_name,
+                "repName": rep_name,
+                "type": "DISCOUNT_ANOMALY",
+                "issue": f"Discount {int(max_line_discount)}% exceeds historical rep average (Risk: {q.blended_risk_score})",
+                "flaggedDate": (q.created_at or now).strftime("%b %d"),
+                "riskScore": q.blended_risk_score or 0.0,
+                "margin": float(q.margin or 0.0),
+                "total": float(q.total or 0.0),
+                "status": q.status.value,
+                "lastAction": last_action
+            })
+
+        # 3. Delivery promise slippage: quote has target delivery date approaching or expiring soon without confirmation
+        if q.expiry_date and now <= q.expiry_date <= three_days_future and q.status not in (QuotationStatus.CONFIRMED,):
+            slippage_count += 1
+            days_left = max(0, (q.expiry_date - now).days)
+            alerts.append({
+                "id": q.id,
+                "quotationNumber": q.quotation_number,
+                "customer": customer_name,
+                "repName": rep_name,
+                "type": "DELIVERY_SLIPPAGE",
+                "issue": f"Delivery / offer expiry promise at risk ({days_left}d remaining)",
+                "flaggedDate": now.strftime("%b %d"),
+                "riskScore": q.blended_risk_score or 0.0,
+                "margin": float(q.margin or 0.0),
+                "total": float(q.total or 0.0),
+                "status": q.status.value,
+                "lastAction": last_action
+            })
+
+    return {
+        "summary": {
+            "stalledCount": stalled_count,
+            "discountAnomalyCount": anomaly_count,
+            "deliverySlippageCount": slippage_count,
+            "totalAtRisk": len(alerts)
+        },
+        "alerts": alerts
+    }
+
+
+@router.post("/nudge/{quotation_id}")
+async def nudge_sales_rep(
+    quotation_id: str,
+    user: dict = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    """Trigger automated nudge to the sales rep responsible for a stalled deal."""
+    from app.models.models import Notification
+    from app.sockets.server import sio
+
+    q_res = await db.execute(
+        select(Quotation)
+        .options(selectinload(Quotation.rep), selectinload(Quotation.customer))
+        .where(Quotation.id == quotation_id)
+    )
+    quotation = q_res.scalar_one_or_none()
+    if not quotation:
+        return {"success": False, "message": "Quotation not found"}
+
+    target_user_id = quotation.rep_id or user.get("id")
+    notif = Notification(
+        user_id=target_user_id,
+        title="Deal Velocity Nudge",
+        message=f"Quotation {quotation.quotation_number} for {quotation.customer.name if quotation.customer else 'Customer'} is stalled. Please follow up with the client.",
+        link=f"/quotations/{quotation.id}"
+    )
+    db.add(notif)
+
+    audit = AuditLog(
+        quotation_id=quotation.id,
+        user_id=user.get("id"),
+        action=AuditAction.UPDATED,
+        details=f"Sales rep {quotation.rep.name if quotation.rep else ''} was nudged regarding stalled deal momentum."
+    )
+    db.add(audit)
+    await db.commit()
+
+    try:
+        await sio.emit("deal-nudged", {
+            "quotationId": quotation.id,
+            "quotationNumber": quotation.quotation_number,
+            "repName": quotation.rep.name if quotation.rep else "Sales Rep"
+        }, room="dashboard")
+    except Exception:
+        pass
+
+    return {
+        "success": True,
+        "message": f"Nudge sent to {quotation.rep.name if quotation.rep else 'Sales Rep'}!"
+    }
+
+
+@router.post("/escalate/{quotation_id}")
+async def escalate_deal(
+    quotation_id: str,
+    user: dict = Depends(verify_token),
+    db: AsyncSession = Depends(get_db)
+):
+    """Escalate a flagged deal to Sales Management."""
+    from app.models.models import Notification
+    from app.sockets.server import sio
+
+    q_res = await db.execute(
+        select(Quotation)
+        .options(selectinload(Quotation.rep), selectinload(Quotation.customer))
+        .where(Quotation.id == quotation_id)
+    )
+    quotation = q_res.scalar_one_or_none()
+    if not quotation:
+        return {"success": False, "message": "Quotation not found"}
+
+    # Find managers
+    managers_res = await db.execute(select(User).where(User.role.in_([UserRole.SALES_MANAGER, UserRole.ADMIN])))
+    managers = managers_res.scalars().all()
+
+    for m in managers:
+        notif = Notification(
+            user_id=m.id,
+            title="Deal Health Escalation",
+            message=f"Quotation {quotation.quotation_number} ({quotation.customer.name if quotation.customer else 'Customer'}) has been escalated due to risk anomalies.",
+            link=f"/quotations/{quotation.id}"
+        )
+        db.add(notif)
+
+    audit = AuditLog(
+        quotation_id=quotation.id,
+        user_id=user.get("id"),
+        action=AuditAction.UPDATED,
+        details=f"Quotation escalated to Sales Management for executive review."
+    )
+    db.add(audit)
+    await db.commit()
+
+    try:
+        await sio.emit("deal-escalated", {
+            "quotationId": quotation.id,
+            "quotationNumber": quotation.quotation_number
+        }, room="dashboard")
+    except Exception:
+        pass
+
+    return {
+        "success": True,
+        "message": "Deal successfully escalated to Sales Management."
+    }
+
 

@@ -9,8 +9,11 @@ class Settings(BaseSettings):
     EMAIL_USER: str = ""
     EMAIL_PASS: str = ""
     UPLOAD_DIR: str = "./app/uploads"
+    RAZORPAY_KEY_ID: str = ""
+    RAZORPAY_KEY_SECRET: str = ""
 
     class Config:
         env_file = ".env"
+        extra = "ignore"
 
 settings = Settings()

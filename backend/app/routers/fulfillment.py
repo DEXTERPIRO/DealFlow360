@@ -37,7 +37,9 @@ class StockUpdate(BaseModel):
 # Endpoints
 # ---------------------------------------------------------------------------
 
+@router.get("/warehouses")
 @router.get("/warehouses/stock")
+@router.get("/orders")
 async def get_warehouses_stock(
     search: Optional[str] = Query(None),
     warehouse_id: Optional[str] = Query(None),

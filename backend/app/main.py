@@ -50,6 +50,7 @@ app.include_router(negotiations.router)
 app.include_router(dashboard.router)
 app.include_router(notifications.router)
 
+@app.get("/health")
 @app.get("/api/health")
 async def health():
     from datetime import datetime

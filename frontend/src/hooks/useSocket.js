@@ -20,22 +20,22 @@ export const useSocket = () => {
 
     socket.on('connect', () => {
       setIsConnected(true);
-      console.log('⚡ [Socket.io Client] Connected with ID:', socket.id);
+      console.log('[Socket.io Client] Connected with ID:', socket.id);
     });
 
     socket.on('disconnect', () => {
       setIsConnected(false);
-      console.log('🔌 [Socket.io Client] Disconnected');
+      console.log('[Socket.io Client] Disconnected');
     });
 
     socket.on('deal:created', (deal) => {
       addOrUpdateDeal(deal);
-      toast.success(`New Deal Added: ${deal.title}`, { icon: '🚀' });
+      toast.success(`New Deal Added: ${deal.title}`);
     });
 
     socket.on('deal:updated', (deal) => {
       addOrUpdateDeal(deal);
-      toast(`Deal Updated: ${deal.title}`, { icon: '🔄' });
+      toast(`Deal Updated: ${deal.title}`);
     });
 
     socket.on('deal:deleted', ({ id }) => {

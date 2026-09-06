@@ -68,6 +68,8 @@ export const invoicesAPI = {
   create: (d) => api.post('/invoices', d),
   markPaid: (id, d) => api.put(`/invoices/${id}/pay`, d),
   markSent: (id) => api.put(`/invoices/${id}/send`),
+  createRazorpayOrder: (id) => api.post(`/invoices/${id}/razorpay-order`),
+  createPayUOrder: (id) => api.post(`/invoices/${id}/payu-order`),
   downloadPDF: (id) => window.open(`http://localhost:5000/api/invoices/${id}/pdf`, '_blank'),
 };
 
@@ -80,6 +82,10 @@ export const negotiationsAPI = {
 export const dashboardAPI = {
   getMetrics: (params) => api.get('/dashboard/metrics', { params }),
   getApprovalQueue: () => api.get('/dashboard/approval-queue'),
+  getRepLeaderboard: () => api.get('/auth/users', { params: { role: 'SALES_REP' } }),
+  getDealHealth: () => api.get('/dashboard/deal-health'),
+  nudgeRep: (quotationId) => api.post(`/dashboard/nudge/${quotationId}`),
+  escalateDeal: (quotationId) => api.post(`/dashboard/escalate/${quotationId}`),
 };
 
 export const notificationsAPI = {

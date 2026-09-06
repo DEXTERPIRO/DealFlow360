@@ -1,4 +1,5 @@
 import api from './axiosClient';
+import { useAuthStore } from '../store/authStore';
 
 export const dealApi = {
   getDeals: async (params = {}) => {
@@ -26,6 +27,7 @@ export const dealApi = {
     return res.data;
   },
   downloadPdf: (id) => {
-    window.open(`/api/deals/${id}/pdf`, '_blank');
+    const token = useAuthStore.getState().accessToken;
+    window.open(`http://localhost:5000/api/quotations/${id}/pdf?token=${token}`, '_blank');
   },
 };

@@ -873,13 +873,19 @@ async def batch_decision(
 @router.get("/{id}/pdf")
 async def download_quotation_pdf(
     id: str,
-    user: dict = Depends(verify_token),
-    db: AsyncSession = Depends(get_db)
+    token: str | None = None,
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Generates a branded A4 PDF quotation document using ReportLab.
     Streams the PDF directly to the browser as a download.
+    Accepts either:
+      - A JWT Bearer token via `?token=` query param (corporate users)
+      - The quotation's own portal_token via `?token=` (customer portal access)
+    This is necessary because window.open() and <a href> cannot send Authorization headers.
     """
+    from jose import jwt as jose_jwt, JWTError
+    from app.config import settings
     import io
     from fastapi.responses import StreamingResponse
     from reportlab.lib.pagesizes import A4
@@ -892,7 +898,10 @@ async def download_quotation_pdf(
     )
     from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER
 
-    # ── Fetch quotation ────────────────────────────────────────────────────────
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication required: provide ?token=JWT or ?token=portal_token")
+
+    # ── Fetch quotation first (needed for portal token comparison) ─────────────
     stmt = (
         select(Quotation)
         .options(
@@ -910,6 +919,21 @@ async def download_quotation_pdf(
     q = result.scalar_one_or_none()
     if not q:
         raise HTTPException(404, "Quotation not found")
+
+    # ── Verify token: JWT (corporate) OR portal_token (customer) ──────────────
+    is_jwt_valid = False
+    is_portal_valid = q.portal_token and token == q.portal_token
+
+    if not is_portal_valid:
+        try:
+            jose_jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"])
+            is_jwt_valid = True
+        except JWTError:
+            pass
+
+    if not is_jwt_valid and not is_portal_valid:
+        raise HTTPException(status_code=401, detail="Invalid token — provide a valid JWT or the quotation portal token")
+
 
     # ── Build PDF in memory ────────────────────────────────────────────────────
     buf = io.BytesIO()
@@ -1201,8 +1225,12 @@ async def download_quotation_pdf(
         size=7, color=C_LITE, align=TA_CENTER
     ))
 
-    # ── Build ──────────────────────────────────────────────────────────────────
-    doc.build(story)
+    # ── Build PDF in thread pool (ReportLab is synchronous / CPU-bound) ────────
+    import asyncio
+    import functools
+
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, functools.partial(doc.build, story))
     buf.seek(0)
 
     qt_num = (q.quotation_number or f"QT-{q.id[:8]}").replace("/", "-")

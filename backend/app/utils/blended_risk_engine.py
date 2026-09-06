@@ -110,7 +110,9 @@ def compute_order_totals(lines: list[dict]) -> dict:
     return {
         "subtotal": round(subtotal, 2),
         "discountAmount": round(discount_amount, 2),
+        "discount_amount": round(discount_amount, 2),
         "taxAmount": round(tax_amount, 2),
+        "tax": round(tax_amount, 2),
         "total": round(total, 2),
         "margin": round(overall_margin, 2),
     }
