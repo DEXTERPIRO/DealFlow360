@@ -189,19 +189,25 @@ export default function QuotationBuilder() {
   useEffect(() => {
     if (!id) return;
 
+    const cleanId = id.trim().replace(/\s+/g, '-');
+
     const loadQuotation = async () => {
       setLoading(true);
       try {
-        const q = await quotationsAPI.getOne(id);
+        const q = await quotationsAPI.getOne(cleanId);
         setQuotation(q);
         setCustomerId(q.customer_id || q.customerId || q.customer?.id || '');
         setCustomerTier(q.customer_tier || q.customerTier || 'BRONZE');
         setRepNotes(q.rep_notes || q.repNotes || '');
-        setExpiryDate(
-          q.expiry_date || q.expiryDate
-            ? new Date(q.expiry_date || q.expiryDate).toISOString().split('T')[0]
-            : ''
-        );
+        let expStr = '';
+        if (q.expiry_date || q.expiryDate) {
+          try {
+            expStr = new Date(q.expiry_date || q.expiryDate).toISOString().split('T')[0];
+          } catch (e) {
+            expStr = '';
+          }
+        }
+        setExpiryDate(expStr);
 
         // Hydrate lines
         const hydratedLines = (q.lines || []).map((l) => ({

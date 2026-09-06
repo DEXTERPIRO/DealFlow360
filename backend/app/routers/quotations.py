@@ -433,9 +433,14 @@ async def get_quotation(
     user: dict = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
+    clean_id = id.strip().replace(" ", "-").replace("%20", "-")
     stmt = (
         select(Quotation)
-        .where(Quotation.id == id)
+        .where(
+            (cast(Quotation.id, String) == clean_id) |
+            (Quotation.quotation_number.ilike(id.strip())) |
+            (cast(Quotation.id, String).ilike(f"%{clean_id}%"))
+        )
         .options(
             selectinload(Quotation.rep),
             selectinload(Quotation.customer),
