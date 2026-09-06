@@ -59,6 +59,11 @@ async def compute_blended_risk_score(db: AsyncSession, lines: list[dict], custom
             if detail["overage"] > 5:
                 requires_finance = True
 
+    if requires_finance:
+        approval_required = "MANAGER_AND_FINANCE"
+    elif requires_manager:
+        approval_required = "MANAGER_ONLY"
+
     return {
         "blendedScore": round(blended_score, 2),
         "approvalRequired": approval_required,

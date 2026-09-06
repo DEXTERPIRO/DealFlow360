@@ -293,6 +293,15 @@ export default function QuotationBuilder() {
           notes: l.notes || '',
         }));
         setLines(hydratedLines.length ? hydratedLines : [defaultLine()]);
+
+        if (q.blended_risk_score !== undefined && q.blended_risk_score !== null) {
+          const bScore = Number(q.blended_risk_score);
+          setRiskData({
+            blendedRiskScore: bScore,
+            blendedScore: bScore,
+            approvalRequired: (q.approvals && q.approvals.length > 0) || bScore > 0.5 ? 'MANAGER_ONLY' : 'NONE',
+          });
+        }
       } catch (err) {
         toast.error(err.response?.data?.detail || 'Failed to load quotation');
         navigate('/quotations');
@@ -1215,7 +1224,7 @@ export default function QuotationBuilder() {
       </div>
 
       {/* ── LIVE MARGIN & DEAL METRICS PANEL (DOCKED) ───────────────────── */}
-      <LiveMarginBar lines={lines} />
+      <LiveMarginBar lines={lines} riskData={riskData} customerTier={customerTier} />
 
       {/* ── REP NOTES ─────────────────────────────────────────────────────── */}
       <div className="bg-white border-2 border-slate-900 shadow-pop rounded-2xl p-5">

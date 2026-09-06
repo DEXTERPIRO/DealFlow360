@@ -267,7 +267,12 @@ async def compute_risk(
 
     totals = compute_order_totals(raw_lines)
     risk = await compute_blended_risk_score(db, raw_lines, body.customerTier or "BRONZE")
-    return {**risk, "totals": totals}
+    return {
+        **risk,
+        "blendedScore": risk["blendedScore"],
+        "blendedRiskScore": risk["blendedScore"],
+        "totals": totals
+    }
 
 
 @router.get("/portal/{token}")

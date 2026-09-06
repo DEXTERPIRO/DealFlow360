@@ -1,18 +1,20 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { CheckCircle2, AlertTriangle, ShieldAlert, Sparkles, Layers } from 'lucide-react';
 
-export default function LiveMarginBar({ lines = [], sidebarCollapsed = false }) {
+export default function LiveMarginBar({ lines = [], sidebarCollapsed = false, riskData = null, customerTier = 'BRONZE' }) {
   // ── Compute live metrics ──────────────────────────────────────────────────
   const metrics = useMemo(() => {
     let total = 0;
     let cost = 0;
     let totalDiscounts = 0;
+    let validLinesCount = 0;
 
     lines.forEach((line) => {
-      const price = Number(line.price_override ?? line.unit_price ?? 0);
+      if (!line.product_id && !line.product) return;
+      const price = Number(line.price_override ?? line.unit_price ?? line.unitPrice ?? 0);
       const qty = Number(line.quantity || 1);
-      const disc = Number(line.discount_pct || 0);
-      const lineCost = Number(line.product?.cost_price ?? line.cost_price ?? 0);
+      const disc = Number(line.discount ?? line.discount_pct ?? line.discountPct ?? 0);
+      const lineCost = Number(line.product?.cost_price ?? line.cost_price ?? line.costPrice ?? 0);
 
       const discountedPrice = price * (1 - disc / 100);
       const lineTotal = discountedPrice * qty;
@@ -20,35 +22,65 @@ export default function LiveMarginBar({ lines = [], sidebarCollapsed = false }) 
       total += lineTotal;
       cost += lineCost * qty;
       totalDiscounts += disc;
+      validLinesCount++;
     });
 
     const margin = total > 0 ? ((total - cost) / total) * 100 : 0;
-    const avgDiscount = lines.length ? totalDiscounts / lines.length : 0;
+    const avgDiscount = validLinesCount ? totalDiscounts / validLinesCount : 0;
 
-    // Simple CPQ Risk Score:
-    const discountRisk = Math.min((avgDiscount / 30) * 10, 10);
-    const marginRisk = margin < 15 ? 5 : margin < 25 ? 3 : 0;
-    const riskScore = Math.min(+(discountRisk + marginRisk).toFixed(1), 15);
+    // Prefer backend risk engine score when available, otherwise compute accurate local estimate
+    let riskScore = 0;
+    const tierMax = customerTier === 'GOLD' ? 15 : customerTier === 'SILVER' ? 10 : 5;
+
+    if (riskData && (riskData.blendedRiskScore !== undefined || riskData.blendedScore !== undefined)) {
+      riskScore = Number(riskData.blendedRiskScore ?? riskData.blendedScore ?? 0);
+    } else {
+      // Local CPQ Risk Engine computation:
+      const overage = Math.max(0, avgDiscount - tierMax);
+      const discountRisk = (avgDiscount / 30) * 10;
+      const marginRisk = margin < 15 ? 5 : margin < 25 ? 3 : 0;
+      riskScore = Math.min(+(discountRisk + marginRisk + overage).toFixed(1), 15);
+    }
+
+    const approvalRequired = riskData?.approvalRequired || (
+      riskScore > 10 ? 'MANAGER_AND_FINANCE' :
+      riskScore > 0.5 || avgDiscount > tierMax ? 'MANAGER_ONLY' : 'NONE'
+    );
 
     // "What if" delta to next approval tier
     let discountToNextTier = null;
-    if (avgDiscount < 5) {
-      discountToNextTier = { threshold: 5, label: 'Manager Approval', remaining: +(5 - avgDiscount).toFixed(1) };
-    } else if (avgDiscount < 10) {
-      discountToNextTier = { threshold: 10, label: 'Finance Approval', remaining: +(10 - avgDiscount).toFixed(1) };
+    if (avgDiscount < tierMax) {
+      discountToNextTier = {
+        threshold: tierMax,
+        label: 'Manager Approval',
+        remaining: +(tierMax - avgDiscount).toFixed(1),
+      };
+    } else if (avgDiscount < tierMax + 5) {
+      discountToNextTier = {
+        threshold: tierMax + 5,
+        label: 'Finance Approval',
+        remaining: +(tierMax + 5 - avgDiscount).toFixed(1),
+      };
     }
 
-    return { total, margin, riskScore, discountToNextTier };
-  }, [lines]);
+    return { total, margin, riskScore, approvalRequired, discountToNextTier, avgDiscount };
+  }, [lines, riskData, customerTier]);
 
-  const { total, margin, riskScore, discountToNextTier } = metrics;
+  const { total, margin, riskScore, approvalRequired, discountToNextTier, avgDiscount } = metrics;
 
   // ── Color & Badge helpers ─────────────────────────────────────────────────
   const isHighMargin = margin >= 30;
   const isMedMargin = margin >= 15;
   const marginColor = isHighMargin ? '#10b981' : isMedMargin ? '#f59e0b' : '#f43f5e';
 
-  const riskStatus = riskScore < 5 ? 'low' : riskScore < 10 ? 'medium' : 'high';
+  const riskStatus =
+    approvalRequired === 'MANAGER_AND_FINANCE' || riskScore >= 10
+      ? 'high'
+      : approvalRequired === 'MANAGER_ONLY' || riskScore > 0.5 || avgDiscount > (customerTier === 'GOLD' ? 15 : 10)
+      ? 'medium'
+      : 'low';
+
+  const riskColor = riskStatus === 'low' ? '#10b981' : riskStatus === 'medium' ? '#f59e0b' : '#f43f5e';
 
   const approvalConfig = {
     low: {
@@ -156,7 +188,7 @@ export default function LiveMarginBar({ lines = [], sidebarCollapsed = false }) 
         <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border-2 border-slate-900 font-mono font-bold text-xs shadow-pop-sm bg-slate-50 text-slate-900">
           <span
             className="w-2 h-2 rounded-full border border-slate-900 shrink-0"
-            style={{ backgroundColor: marginColor }}
+            style={{ backgroundColor: riskColor }}
           />
           <span>{Number(riskScore || 0).toFixed(1)} / 15</span>
         </div>
