@@ -72,7 +72,7 @@ export default function QuotationsList() {
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(5);
 
   const isManagerOrAdmin = ['ADMIN', 'SALES_MANAGER', 'FINANCE'].includes(user?.role);
 

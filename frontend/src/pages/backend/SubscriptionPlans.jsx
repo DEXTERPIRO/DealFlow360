@@ -69,7 +69,7 @@ export default function SubscriptionPlans() {
 
   // Pagination
   const [planPage, setPlanPage] = useState(1);
-  const [pageSize, setPageSize] = useState(6);
+  const [pageSize, setPageSize] = useState(5);
 
   const filteredPlans = useMemo(() => {
     return plans.filter((plan) => {

@@ -76,14 +76,14 @@ export default function PriceListsPage() {
 
   // Pagination for outer price list cards
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(4);
+  const [pageSize, setPageSize] = useState(5);
 
   // Pagination for items inside each price list
   const [itemPages, setItemPages] = useState({});
   const [itemPageSizes, setItemPageSizes] = useState({});
 
   const getItemPage = (id) => itemPages[id] || 1;
-  const getItemPageSize = (id) => itemPageSizes[id] || 10;
+  const getItemPageSize = (id) => itemPageSizes[id] || 5;
 
   useEffect(() => {
     setPage(1);

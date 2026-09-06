@@ -37,7 +37,7 @@ export default function UsersPage() {
   // Pagination
   const [internalPage, setInternalPage] = useState(1);
   const [customerPage, setCustomerPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(5);
 
   // Add User State
   const [showAddModal, setShowAddModal] = useState(false);

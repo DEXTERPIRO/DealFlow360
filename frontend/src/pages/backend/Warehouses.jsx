@@ -283,7 +283,7 @@ export default function Warehouses() {
   const [facilityViewMode, setFacilityViewMode] = useState('grid');
   const [facilitySearch, setFacilitySearch] = useState('');
   const [facilityPage, setFacilityPage] = useState(1);
-  const [facilityPageSize, setFacilityPageSize] = useState(6);
+  const [facilityPageSize, setFacilityPageSize] = useState(5);
 
   useEffect(() => {
     setFacilityPage(1);
@@ -306,7 +306,7 @@ export default function Warehouses() {
 
   // Stock Pagination
   const [stockPage, setStockPage] = useState(1);
-  const [stockPageSize, setStockPageSize] = useState(10);
+  const [stockPageSize, setStockPageSize] = useState(5);
 
   useEffect(() => {
     setStockPage(1);

@@ -74,7 +74,7 @@ export default function ApprovalQueue() {
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(5);
 
   // Live timer tick
   const [, setTimeTick] = useState(Date.now());

@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 
 export default function Pagination({
-  currentPage,
+  currentPage = 1,
   totalItems,
-  pageSize,
+  pageSize = 5,
   onPageChange,
   onPageSizeChange,
   pageSizeOptions = [5, 10, 25, 50, 100, 200],

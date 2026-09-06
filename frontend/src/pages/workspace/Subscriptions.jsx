@@ -322,7 +322,7 @@ export default function Subscriptions() {
 
   // Pagination for Subscriptions Table
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(5);
 
   // Active Subscription for the Billing Detail Modal
   const [activeDetailSub, setActiveDetailSub] = useState(null);

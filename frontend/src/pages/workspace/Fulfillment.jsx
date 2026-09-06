@@ -374,7 +374,7 @@ export default function Fulfillment() {
 
   // Pagination for Orders Table
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(5);
 
   // Collapsible live stock section
   const [showLiveStock, setShowLiveStock] = useState(true);

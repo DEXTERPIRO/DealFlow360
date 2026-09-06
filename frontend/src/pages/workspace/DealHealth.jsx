@@ -42,7 +42,7 @@ export default function DealHealth() {
 
   // Pagination state
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(5);
 
   // 1. Fetch Deal Health Data
   const loadDealHealth = useCallback(async () => {

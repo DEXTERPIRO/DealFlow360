@@ -148,7 +148,7 @@ export default function UpsellRules() {
 
   // Pagination
   const [rulePage, setRulePage] = useState(1);
-  const [rulePageSize, setRulePageSize] = useState(10);
+  const [rulePageSize, setRulePageSize] = useState(5);
 
   // Promoted products list from rules
   const promotedRules = useMemo(() => {
@@ -157,7 +157,7 @@ export default function UpsellRules() {
 
   // Pagination for Promoted Rules
   const [promotedPage, setPromotedPage] = useState(1);
-  const [promotedPageSize, setPromotedPageSize] = useState(6);
+  const [promotedPageSize, setPromotedPageSize] = useState(5);
 
   useEffect(() => {
     setRulePage(1);
