@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { CheckCircle2, AlertTriangle, ShieldAlert, Sparkles, Layers } from 'lucide-react';
 
 export default function LiveMarginBar({ lines = [], sidebarCollapsed = false }) {
