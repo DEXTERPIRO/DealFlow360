@@ -33,6 +33,7 @@ import {
 import { io } from 'socket.io-client';
 import { quotationsAPI, negotiationsAPI } from '../../api';
 import { useAuthStore } from '../../store/authStore';
+import { formatDate, formatRelativeTime, parseUTCDate } from '../../utils/formatters';
 import toast from 'react-hot-toast';
 
 // ─── Formatting Helpers ───────────────────────────────────────────────────
@@ -44,34 +45,7 @@ const formatINR = (n) =>
     maximumFractionDigits: 0,
   }).format(n ?? 0);
 
-const formatDate = (d) => {
-  if (!d) return '—';
-  try {
-    return new Date(d).toLocaleDateString('en-IN', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    });
-  } catch {
-    return String(d);
-  }
-};
-
-const getRelativeTime = (dateStr) => {
-  if (!dateStr) return '';
-  const date = new Date(dateStr);
-  const now = new Date();
-  const diffSec = Math.floor((now.getTime() - date.getTime()) / 1000);
-  if (diffSec < 60) return 'Just now';
-  const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHours = Math.floor(diffMin / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffDays === 1) return 'Yesterday';
-  if (diffDays < 30) return `${diffDays} days ago`;
-  return formatDate(dateStr);
-};
+const getRelativeTime = (dateStr) => formatRelativeTime(dateStr);
 
 // ─── Status Badge Metadata ────────────────────────────────────────────────
 
@@ -352,14 +326,59 @@ export default function CustomerPortal() {
 
   useEffect(() => {
     if (!token) return;
-    const socket = io('http://localhost:5000');
+    const socket = io('http://localhost:5000', {
+      transports: ['websocket', 'polling'],
+    });
 
     socket.emit('join_portal', token);
+    if (quotation?.id) {
+      socket.emit('join_quotation', quotation.id);
+    }
+
+    // Silent background sync without full-page spinner
+    const silentSync = async () => {
+      try {
+        const res = await quotationsAPI.getPortal(token);
+        if (res?.hasQuotation === false || (res?.quotation === null && !res?.id)) {
+          return;
+        }
+        const q = res?.quotation || res;
+        setQuotation(q);
+        setNegotiations(q.negotiations || []);
+        setPortalCustomer(q.customer || null);
+      } catch (err) {
+        console.error('[Socket Portal Sync Error]:', err);
+      }
+    };
 
     socket.on('quotation-updated', (data) => {
-      if (data?.status) {
-        setQuotation((prev) => (prev ? { ...prev, status: data.status } : prev));
+      silentSync();
+    });
+
+    socket.on('audit-created', (newAudit) => {
+      if (newAudit) {
+        setQuotation((prev) => {
+          if (!prev) return prev;
+          const currentLogs = prev.audit_logs || prev.auditLogs || [];
+          const exists = currentLogs.some(
+            (l) => l.id === newAudit.id || (l.details === newAudit.details && l.action === newAudit.action)
+          );
+          if (exists) return prev;
+          return {
+            ...prev,
+            audit_logs: [...currentLogs, newAudit],
+          };
+        });
       }
+      silentSync();
+    });
+
+    socket.on('quotation-confirmed', () => {
+      silentSync();
+    });
+
+    socket.on('approval-decision', () => {
+      silentSync();
     });
 
     socket.on('negotiation-message', (newNeg) => {
@@ -370,13 +389,14 @@ export default function CustomerPortal() {
         }
         return [newNeg, ...prev];
       });
+      silentSync();
       toast.success('New negotiation update received from your sales rep!');
     });
 
     return () => {
       socket.disconnect();
     };
-  }, [token]);
+  }, [token, quotation?.id]);
 
   // ── 3. Live Countdown Timer (Ticks Every 1s) ──────────────────────────────
 
@@ -509,8 +529,10 @@ export default function CustomerPortal() {
 
   const auditEvents = useMemo(() => {
     const raw = quotation?.audit_logs || quotation?.auditLogs || [];
-    // Sort chronological: oldest to newest
-    return [...raw].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    // Sort chronological: oldest to newest using UTC parsing
+    return [...raw].sort(
+      (a, b) => parseUTCDate(a.created_at).getTime() - parseUTCDate(b.created_at).getTime()
+    );
   }, [quotation]);
 
   const currentStatus = (quotation?.status || 'SENT_TO_CUSTOMER').toUpperCase();

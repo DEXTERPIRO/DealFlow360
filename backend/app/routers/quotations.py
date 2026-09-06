@@ -17,7 +17,7 @@ from app.models.models import (
     Product, AuditLog, AuditAction, User, CustomerTier, LineType, UserRole
 )
 from app.utils.blended_risk_engine import compute_blended_risk_score, compute_order_totals
-from app.sockets.server import sio
+from app.sockets.server import sio, broadcast_audit_event, broadcast_quotation_update
 
 router = APIRouter(prefix="/api/quotations", tags=["quotations"])
 
@@ -715,6 +715,12 @@ async def update_quotation(
     res = await db.execute(reload_stmt)
     updated_quotation = res.scalar_one()
 
+    try:
+        await broadcast_audit_event(updated_quotation, audit)
+        await broadcast_quotation_update(updated_quotation, {"riskScore": risk_result["blendedScore"]})
+    except Exception as e:
+        print(f"[Socket Error] update_quotation broadcast: {e}")
+
     return {
         "quotation": updated_quotation,
         "riskAnalysis": risk_result
@@ -779,8 +785,10 @@ async def submit_quotation(
     db.add(audit)
     await db.commit()
 
-    # Emit "approval-needed" to "approvers" room
+    # Emit "approval-needed" and broadcast audit / quotation updates
     try:
+        await broadcast_audit_event(quotation, audit)
+        await broadcast_quotation_update(quotation, {"riskScore": risk_result["blendedScore"], "status": new_status.value})
         await sio.emit(
             "approval-needed",
             {
@@ -868,8 +876,10 @@ async def decide_quotation(
 
     await db.commit()
 
-    # Emit "approval-decision" to "dashboard" room
+    # Emit "approval-decision" and broadcast real-time audit & quotation updates
     try:
+        await broadcast_audit_event(quotation, audit)
+        await broadcast_quotation_update(quotation, {"action": action, "newStatus": new_status.value})
         await sio.emit(
             "approval-decision",
             {
@@ -917,6 +927,12 @@ async def send_quotation(
     )
     db.add(audit)
     await db.commit()
+
+    try:
+        await broadcast_audit_event(quotation, audit)
+        await broadcast_quotation_update(quotation, {"status": quotation.status.value, "portalToken": quotation.portal_token})
+    except Exception as e:
+        print(f"[Socket Error] send_quotation broadcast: {e}")
 
     portal_url = f"{settings.FRONTEND_URL}/portal/{quotation.portal_token}"
 
@@ -985,9 +1001,10 @@ async def update_quotation_status(
     await db.commit()
 
     try:
-        await sio.emit("quotation-updated", {"id": quotation.id, "status": target_status}, room="dashboard")
-    except Exception:
-        pass
+        await broadcast_audit_event(quotation, audit)
+        await broadcast_quotation_update(quotation, {"status": target_status})
+    except Exception as e:
+        print(f"[Socket Error] change_quotation_status broadcast: {e}")
 
     return {"message": "Status updated", "status": target_status}
 

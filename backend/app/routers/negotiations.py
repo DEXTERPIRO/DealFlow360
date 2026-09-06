@@ -13,7 +13,7 @@ from app.models.models import (
     Approval, AuditLog, AuditAction, User, UserRole
 )
 from app.utils.blended_risk_engine import compute_blended_risk_score, compute_order_totals
-from app.sockets.server import sio
+from app.sockets.server import sio, broadcast_audit_event, broadcast_quotation_update
 
 router = APIRouter(prefix="/api/negotiations", tags=["negotiations"])
 
@@ -108,6 +108,8 @@ async def create_negotiation(
         "createdAt": negotiation.created_at.isoformat()
     }
     try:
+        await broadcast_audit_event(quotation, audit)
+        await broadcast_quotation_update(quotation, {"status": "UNDER_NEGOTIATION"})
         await sio.emit("negotiation-message", payload, room=f"portal-{quotation.portal_token}")
         await sio.emit("negotiation-message", payload, room="dashboard")
         await sio.emit("quotation-updated", {"id": target_qid, "status": "UNDER_NEGOTIATION"}, room="dashboard")
@@ -202,6 +204,8 @@ async def decide_negotiation(
             "createdAt": neg.created_at.isoformat() if neg.created_at else None
         }
         try:
+            await broadcast_audit_event(quotation, audit)
+            await broadcast_quotation_update(quotation, {"status": quotation.status.value})
             if quotation.portal_token:
                 await sio.emit("negotiation-message", payload, room=f"portal-{quotation.portal_token}")
             await sio.emit("negotiation-message", payload, room="dashboard")
@@ -342,6 +346,8 @@ async def confirm_quotation_portal(
 
     # Emit socket events
     try:
+        await broadcast_audit_event(quotation, audit)
+        await broadcast_quotation_update(quotation, {"status": quotation.status.value, "needsReapproval": needs_reapproval})
         status_val = quotation.status.value
         await sio.emit("quotation-updated", {"id": quotation.id, "status": status_val}, room="dashboard")
         await sio.emit("quotation-updated", {"id": quotation.id, "status": status_val}, room=f"portal-{quotation.portal_token}")

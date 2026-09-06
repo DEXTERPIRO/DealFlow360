@@ -32,6 +32,7 @@ import {
 import Portal from '../../components/ui/Portal';
 import { io } from 'socket.io-client';
 import { dashboardAPI, quotationsAPI } from '../../api';
+import { formatDate, formatRelativeTime } from '../../utils/formatters';
 import toast from 'react-hot-toast';
 import Pagination from '../../components/ui/Pagination';
 
@@ -1132,7 +1133,7 @@ export default function ApprovalQueue() {
                             </span>
                           </td>
                           <td className="p-3 text-slate-600 font-mono text-[11px] font-medium">
-                            {l.created_at ? new Date(l.created_at).toLocaleDateString() : 'Recent'}
+                            {l.created_at ? `${formatRelativeTime(l.created_at)} · ${formatDate(l.created_at)}` : 'Recent'}
                           </td>
                           <td className="p-3 text-slate-700 text-[11px] font-medium">{l.details || '—'}</td>
                         </tr>

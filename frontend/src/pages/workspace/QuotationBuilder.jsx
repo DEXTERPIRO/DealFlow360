@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { productsAPI, quotationsAPI, usersAPI, negotiationsAPI } from '../../api';
 import { useAuthStore } from '../../store/authStore';
+import { parseUTCDate, formatRelativeTime } from '../../utils/formatters';
 import toast from 'react-hot-toast';
 import LiveMarginBar from '../../components/ui/LiveMarginBar';
 
@@ -46,9 +47,9 @@ const formatINR = (n) =>
 
 const formatTimeAgo = (timestamp) => {
   if (!timestamp) return '';
-  const date = new Date(timestamp);
+  const date = parseUTCDate(timestamp);
   const now = new Date();
-  const diffSec = Math.floor((now - date) / 1000);
+  const diffSec = Math.max(0, Math.floor((now - date) / 1000));
   if (diffSec < 45) return 'just now';
   const diffMin = Math.floor(diffSec / 60);
   if (diffMin < 60) return `${diffMin}m ago`;

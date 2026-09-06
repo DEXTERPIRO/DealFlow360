@@ -13,24 +13,11 @@ import {
   PartyPopper
 } from 'lucide-react';
 import { notificationsAPI } from '../../api';
+import { formatRelativeTime } from '../../utils/formatters';
 
 // Helper for relative time
 function formatTimeAgo(dateString) {
-  if (!dateString) return 'Just now';
-  const now = new Date();
-  const past = new Date(dateString);
-  const elapsedSec = Math.floor((now - past) / 1000);
-
-  if (elapsedSec < 30) return 'Just now';
-  if (elapsedSec < 60) return `${elapsedSec}s ago`;
-  const elapsedMin = Math.floor(elapsedSec / 60);
-  if (elapsedMin < 60) return `${elapsedMin}m ago`;
-  const elapsedHours = Math.floor(elapsedMin / 60);
-  if (elapsedHours < 24) return `${elapsedHours}h ago`;
-  const elapsedDays = Math.floor(elapsedHours / 24);
-  if (elapsedDays === 1) return 'Yesterday';
-  if (elapsedDays < 30) return `${elapsedDays}d ago`;
-  return past.toLocaleDateString();
+  return formatRelativeTime(dateString) || 'Just now';
 }
 
 // Icon helper using Lucide Icons (Zero emojis)
