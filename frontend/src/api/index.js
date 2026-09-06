@@ -77,6 +77,7 @@ export const invoicesAPI = {
 };
 
 export const negotiationsAPI = {
+  getAll: (quotationId) => api.get(`/negotiations/${quotationId}`),
   submit: (quotationId, d) => api.post(`/negotiations/${quotationId}/negotiate`, d),
   respond: (id, d) => api.put(`/negotiations/${id}/respond`, d),
   confirm: (quotationId, d) => api.post(`/negotiations/${quotationId}/confirm-portal`, d),

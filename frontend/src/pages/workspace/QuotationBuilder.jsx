@@ -26,8 +26,10 @@ import {
   Sparkles,
   ArrowRight,
   ShieldAlert,
+  MessageSquare,
+  Check,
 } from 'lucide-react';
-import { productsAPI, quotationsAPI, usersAPI } from '../../api';
+import { productsAPI, quotationsAPI, usersAPI, negotiationsAPI } from '../../api';
 import { useAuthStore } from '../../store/authStore';
 import toast from 'react-hot-toast';
 import LiveMarginBar from '../../components/ui/LiveMarginBar';
@@ -165,6 +167,12 @@ export default function QuotationBuilder() {
   const [riskData, setRiskData] = useState(null);
   const [computingRisk, setComputingRisk] = useState(false);
 
+  // Negotiation thread state
+  const [negotiations, setNegotiations] = useState([]);
+  const [replyMessage, setReplyMessage] = useState('');
+  const [sendingReply, setSendingReply] = useState(false);
+  const [actioningNegId, setActioningNegId] = useState(null);
+
   // Sidebar collapsed state (from AppLayout)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
@@ -196,6 +204,7 @@ export default function QuotationBuilder() {
       try {
         const q = await quotationsAPI.getOne(cleanId);
         setQuotation(q);
+        setNegotiations(q.negotiations || []);
         setCustomerId(q.customer_id || q.customerId || q.customer?.id || '');
         setCustomerTier(q.customer_tier || q.customerTier || 'BRONZE');
         setRepNotes(q.rep_notes || q.repNotes || '');
@@ -381,6 +390,68 @@ export default function QuotationBuilder() {
       toast.error(err.response?.data?.detail || 'Failed to submit quotation');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleNegotiationDecision = async (negId, decisionStatus, discountVal) => {
+    setActioningNegId(negId);
+    try {
+      await negotiationsAPI.respond(negId, {
+        status: decisionStatus,
+        notes: `${decisionStatus === 'ACCEPTED' ? 'Accepted' : 'Declined'} by sales operations.`
+      });
+      toast.success(`Negotiation counter-offer ${decisionStatus.toLowerCase()}!`);
+      // Update local negotiation status
+      setNegotiations((prev) =>
+        prev.map((n) => (n.id === negId ? { ...n, status: decisionStatus } : n))
+      );
+      // If accepted with a counter discount, apply to line items
+      if (decisionStatus === 'ACCEPTED' && discountVal !== undefined && discountVal !== null) {
+        setLines((prev) =>
+          prev.map((l) => ({
+            ...l,
+            discount: Number(discountVal),
+          }))
+        );
+      }
+      // Refresh quotation data from database
+      if (id) {
+        const cleanId = id.trim().replace(/\s+/g, '-');
+        const updated = await quotationsAPI.getOne(cleanId);
+        setQuotation(updated);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to update negotiation');
+    } finally {
+      setActioningNegId(null);
+    }
+  };
+
+  const handleSendReply = async (e) => {
+    e.preventDefault();
+    if (!replyMessage.trim() || !id) return;
+    setSendingReply(true);
+    const cleanId = id.trim().replace(/\s+/g, '-');
+    try {
+      const payload = {
+        message: replyMessage.trim(),
+        requestedBy: 'SALES_REP',
+      };
+      await negotiationsAPI.submit(quotation?.id || cleanId, payload);
+      toast.success('Response sent to customer portal!');
+      setReplyMessage('');
+      try {
+        const negRes = await negotiationsAPI.getAll(quotation?.id || cleanId);
+        const list = Array.isArray(negRes) ? negRes : (negRes?.data || []);
+        setNegotiations(list);
+      } catch {
+        const q = await quotationsAPI.getOne(cleanId);
+        setNegotiations(q.negotiations || []);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to send message');
+    } finally {
+      setSendingReply(false);
     }
   };
 
@@ -615,6 +686,148 @@ export default function QuotationBuilder() {
           )}
         </div>
       </div>
+
+      {/* ── CUSTOMER PORTAL NEGOTIATION ROOM ────────────────────────────── */}
+      {negotiations && negotiations.length > 0 && (
+        <div className="bg-white border-2 border-slate-900 shadow-pop rounded-2xl overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between px-6 py-4 border-b-2 border-slate-900 bg-amber-50 gap-3">
+            <div className="flex items-center gap-2.5">
+              <span className="w-8 h-8 rounded-xl bg-amber-200 border-2 border-slate-900 flex items-center justify-center text-amber-900 shadow-pop-xs">
+                <MessageSquare className="w-4 h-4" strokeWidth={2.5} />
+              </span>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-extrabold text-slate-900 font-heading">
+                    Customer Portal Negotiation Room
+                  </h2>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-black bg-amber-300 text-amber-950 border border-slate-900 shadow-pop-xs">
+                    {negotiations.length} {negotiations.length === 1 ? 'Message' : 'Messages'}
+                  </span>
+                  {(quotation?.status === 'UNDER_NEGOTIATION' || negotiations.some((n) => (n.status || '').toUpperCase() === 'PENDING')) && (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-heading font-black bg-purple-600 text-white border border-slate-900 shadow-pop-xs flex items-center gap-1.5 animate-pulse">
+                      <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
+                      Pending Counter-Offer
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] font-medium text-slate-600">
+                  Live counter-offers, requested line additions, and discount proposals from the client portal
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Negotiation Items List */}
+          <div className="p-5 space-y-3 bg-slate-50/50">
+            {negotiations.map((neg, idx) => {
+              const isPending = (neg.status || '').toUpperCase() === 'PENDING';
+              const isAccepted = (neg.status || '').toUpperCase() === 'ACCEPTED';
+              const isCustomer = (neg.requested_by || '').toUpperCase().includes('CUSTOMER');
+
+              return (
+                <div
+                  key={neg.id || idx}
+                  className="bg-white border-2 border-slate-900 rounded-2xl p-4 shadow-pop-sm flex flex-col md:flex-row md:items-start justify-between gap-4"
+                >
+                  <div className="space-y-2 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`px-2.5 py-0.5 rounded-md text-[11px] font-heading font-black border border-slate-900 ${
+                          isCustomer ? 'bg-indigo-100 text-indigo-900' : 'bg-emerald-100 text-emerald-900'
+                        }`}
+                      >
+                        {isCustomer ? 'Customer Request' : 'Sales Team Response'}
+                      </span>
+
+                      {neg.counter_discount !== null && neg.counter_discount !== undefined && (
+                        <span className="px-2.5 py-0.5 rounded-md text-[11px] font-mono font-extrabold bg-purple-100 text-purple-900 border border-slate-900">
+                          Requested Discount: {neg.counter_discount}%
+                        </span>
+                      )}
+
+                      <span className="text-[11px] font-mono text-slate-500">
+                        {neg.created_at
+                          ? new Date(neg.created_at).toLocaleString('en-IN', {
+                              dateStyle: 'medium',
+                              timeStyle: 'short',
+                            })
+                          : ''}
+                      </span>
+                    </div>
+
+                    <div className="text-xs font-heading font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-xl p-3 leading-relaxed">
+                      {neg.message}
+                    </div>
+                  </div>
+
+                  {/* Status & Decision Actions */}
+                  <div className="flex flex-col sm:flex-row md:flex-col items-end gap-2 shrink-0">
+                    {isPending ? (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleNegotiationDecision(neg.id, 'ACCEPTED', neg.counter_discount)}
+                          disabled={actioningNegId === neg.id}
+                          className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white border-2 border-slate-900 shadow-pop-xs text-xs font-heading font-black flex items-center gap-1.5 transition-all disabled:opacity-50"
+                          title="Accept customer proposal"
+                        >
+                          {actioningNegId === neg.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Check className="w-3.5 h-3.5" strokeWidth={3} />
+                          )}
+                          <span>Accept</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleNegotiationDecision(neg.id, 'REJECTED')}
+                          disabled={actioningNegId === neg.id}
+                          className="px-3 py-1.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white border-2 border-slate-900 shadow-pop-xs text-xs font-heading font-black flex items-center gap-1.5 transition-all disabled:opacity-50"
+                          title="Decline counter proposal"
+                        >
+                          <X className="w-3.5 h-3.5" strokeWidth={3} />
+                          <span>Decline</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-heading font-black border-2 border-slate-900 shadow-pop-xs ${
+                          isAccepted
+                            ? 'bg-emerald-100 text-emerald-900'
+                            : 'bg-rose-100 text-rose-900'
+                        }`}
+                      >
+                        {neg.status}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Quick Reply Box to Portal */}
+          <div className="p-4 bg-white border-t-2 border-slate-900">
+            <form onSubmit={handleSendReply} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              <input
+                type="text"
+                value={replyMessage}
+                onChange={(e) => setReplyMessage(e.target.value)}
+                placeholder="Reply directly to customer portal (e.g., 'Added Mechanical Keyboard and approved 17% discount')..."
+                className="flex-1 bg-slate-50 border-2 border-slate-900 rounded-xl px-3.5 py-2 text-xs font-heading font-bold text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:shadow-pop-sm transition-all"
+              />
+              <button
+                type="submit"
+                disabled={sendingReply || !replyMessage.trim()}
+                className="btn-candy px-5 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-heading font-black flex items-center justify-center gap-1.5 border-2 border-slate-900 shadow-pop transition-all disabled:opacity-50 shrink-0"
+              >
+                {sendingReply ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" strokeWidth={2.5} />}
+                <span>Send to Portal</span>
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* ── ORDER LINES ──────────────────────────────────────────────────── */}
       <div className="bg-white border-2 border-slate-900 shadow-pop rounded-2xl overflow-hidden">
