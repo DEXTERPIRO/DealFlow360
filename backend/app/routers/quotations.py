@@ -93,8 +93,9 @@ class QuotationUpdate(BaseModel):
 
 
 class DecisionBody(BaseModel):
-    action: str  # APPROVED, REJECTED, RETURNED
+    action: str  # APPROVED, REJECTED, RETURNED (also accepts APPROVE, REJECT, RETURN)
     reason: Optional[str] = None
+    comments: Optional[str] = None
 
 
 class ComputeRiskBody(BaseModel):
@@ -806,15 +807,30 @@ async def decide_quotation(
     user: dict = Depends(require_roles("SALES_MANAGER", "FINANCE", "ADMIN")),
     db: AsyncSession = Depends(get_db)
 ):
-    action = body.action.upper()
-    if action not in ("APPROVED", "REJECTED", "RETURNED"):
+    action_map = {
+        "APPROVE": "APPROVED",
+        "APPROVED": "APPROVED",
+        "REJECT": "REJECTED",
+        "REJECTED": "REJECTED",
+        "RETURN": "RETURNED",
+        "RETURNED": "RETURNED",
+    }
+    raw_action = (body.action or "").strip().upper()
+    action = action_map.get(raw_action)
+    if not action:
         raise HTTPException(status_code=400, detail="Invalid action. Must be APPROVED, REJECTED, or RETURNED")
 
-    stmt = select(Quotation).where(Quotation.id == id)
+    clean_id = id.strip().replace(" ", "-").replace("%20", "-")
+    stmt = select(Quotation).where(
+        (cast(Quotation.id, String) == clean_id) |
+        (Quotation.quotation_number.ilike(id.strip()))
+    )
     result = await db.execute(stmt)
     quotation = result.scalar_one_or_none()
     if not quotation:
         raise HTTPException(status_code=404, detail="Quotation not found")
+
+    decision_reason = body.reason or body.comments
 
     if action == "APPROVED":
         new_status = QuotationStatus.APPROVED
@@ -833,19 +849,19 @@ async def decide_quotation(
         approver_id=user["id"],
         level=approval_level,
         action=action,
-        reason=body.reason,
-        decided_at=datetime.now(timezone.utc)
+        reason=decision_reason,
+        decided_at=datetime.utcnow()
     )
     db.add(approval)
 
     quotation.status = new_status
-    quotation.last_activity_at = datetime.now(timezone.utc)
+    quotation.last_activity_at = datetime.utcnow()
 
     audit = AuditLog(
         quotation_id=quotation.id,
         user_id=user["id"],
         action=audit_action,
-        details=body.reason or f"{action} by {user.get('role')}",
+        details=decision_reason or f"{action} by {user.get('role')}",
         metadata_json={"action": action, "role": user.get("role")}
     )
     db.add(audit)
@@ -891,7 +907,7 @@ async def send_quotation(
         quotation.portal_token = f"portal-token-{secrets.token_hex(6)}"
 
     quotation.status = QuotationStatus.SENT_TO_CUSTOMER
-    quotation.last_activity_at = datetime.now(timezone.utc)
+    quotation.last_activity_at = datetime.utcnow()
 
     audit = AuditLog(
         quotation_id=quotation.id,
@@ -957,7 +973,7 @@ async def update_quotation_status(
         raise HTTPException(status_code=400, detail="Cannot transition directly from REJECTED to CONFIRMED")
 
     quotation.status = new_status_enum
-    quotation.last_activity_at = datetime.now(timezone.utc)
+    quotation.last_activity_at = datetime.utcnow()
 
     audit = AuditLog(
         quotation_id=quotation.id,
@@ -978,7 +994,7 @@ async def update_quotation_status(
 
 class BatchDecisionBody(BaseModel):
     quotationIds: List[str]
-    action: str  # APPROVED, REJECTED
+    action: str  # APPROVED, REJECTED, APPROVE, REJECT
     reason: Optional[str] = None
 
 
@@ -988,8 +1004,9 @@ async def batch_decision(
     user: dict = Depends(require_roles("SALES_MANAGER", "FINANCE", "ADMIN")),
     db: AsyncSession = Depends(get_db)
 ):
-    action = body.action.upper()
-    if action not in ("APPROVED", "REJECTED"):
+    action_map = {"APPROVE": "APPROVED", "APPROVED": "APPROVED", "REJECT": "REJECTED", "REJECTED": "REJECTED"}
+    action = action_map.get(body.action.strip().upper())
+    if not action:
         raise HTTPException(status_code=400, detail="Action must be APPROVED or REJECTED")
 
     new_status = QuotationStatus.APPROVED if action == "APPROVED" else QuotationStatus.REJECTED
@@ -1003,7 +1020,7 @@ async def batch_decision(
         q = res.scalar_one_or_none()
         if q:
             q.status = new_status
-            q.last_activity_at = datetime.now(timezone.utc)
+            q.last_activity_at = datetime.utcnow()
 
             approval = Approval(
                 quotation_id=q.id,
@@ -1011,7 +1028,7 @@ async def batch_decision(
                 level=approval_level,
                 action=action,
                 reason=body.reason or f"Bulk {action}",
-                decided_at=datetime.now(timezone.utc)
+                decided_at=datetime.utcnow()
             )
             db.add(approval)
 

@@ -141,9 +141,11 @@ export default function QuotationsList() {
     e.stopPropagation();
     setApprovingId(q.id);
     try {
+      const note = `Quick approved by ${user?.name || 'Manager'} from Quotations List`;
       await quotationsAPI.decision(q.id, {
-        action: 'APPROVE',
-        comments: `Quick approved by ${user?.name || 'Manager'} from Quotations List`,
+        action: 'APPROVED',
+        reason: note,
+        comments: note,
       });
       toast.success(`Quotation ${q.quotation_number || q.id} approved!`);
       // Update local state

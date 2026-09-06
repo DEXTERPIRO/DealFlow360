@@ -151,18 +151,21 @@ export default function PipelineKanban() {
   const handleQuickApprove = async (quotationId, action) => {
     setSubmittingDecision(true);
     try {
+      const isApprove = action === 'APPROVED' || action === 'APPROVE';
+      const canonicalAction = isApprove ? 'APPROVED' : 'REJECTED';
+
       await quotationsAPI.decision(quotationId, {
-        action,
+        action: canonicalAction,
         reason: approvalNotes?.trim() || `Decision submitted via Pipeline quick-action`
       });
 
-      const nextStatus = action === 'APPROVE' ? 'APPROVED' : 'REJECTED';
+      const nextStatus = isApprove ? 'APPROVED' : 'REJECTED';
       setQuotations((prev) =>
         prev.map((q) => (q.id === quotationId ? { ...q, status: nextStatus } : q))
       );
 
       toast.success(
-        action === 'APPROVE'
+        isApprove
           ? `Quotation approved and moved to Approved stage!`
           : `Quotation rejected.`
       );
@@ -845,14 +848,14 @@ export default function PipelineKanban() {
             <div className="flex items-center justify-end gap-2.5 pt-2 border-t-2 border-slate-900/10">
               <button
                 disabled={submittingDecision}
-                onClick={() => handleQuickApprove(quickApprovalQuote.id, 'REJECT')}
+                onClick={() => handleQuickApprove(quickApprovalQuote.id, 'REJECTED')}
                 className="btn-candy bg-rose-400 hover:bg-rose-500 text-white text-xs px-4 py-2 shadow-pop-sm"
               >
                 Reject
               </button>
               <button
                 disabled={submittingDecision}
-                onClick={() => handleQuickApprove(quickApprovalQuote.id, 'APPROVE')}
+                onClick={() => handleQuickApprove(quickApprovalQuote.id, 'APPROVED')}
                 className="btn-candy bg-pop-mint hover:bg-[#10B981] text-slate-900 text-xs px-5 py-2 shadow-pop"
               >
                 {submittingDecision ? 'Submitting...' : 'Approve Deal'}
