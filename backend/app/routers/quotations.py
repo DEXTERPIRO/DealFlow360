@@ -592,7 +592,15 @@ async def update_quotation(
     user: dict = Depends(require_roles("SALES_REP", "SALES_MANAGER", "ADMIN")),
     db: AsyncSession = Depends(get_db)
 ):
-    stmt = select(Quotation).where(Quotation.id == id).options(selectinload(Quotation.lines))
+    clean_id = id.strip().replace(" ", "-").replace("%20", "-")
+    stmt = (
+        select(Quotation)
+        .where(
+            (cast(Quotation.id, String) == clean_id) |
+            (Quotation.quotation_number.ilike(id.strip()))
+        )
+        .options(selectinload(Quotation.lines))
+    )
     result = await db.execute(stmt)
     quotation = result.scalar_one_or_none()
     if not quotation:
@@ -651,8 +659,11 @@ async def update_quotation(
         db.add(q_line)
 
     # Update quotation header
-    if body.customerId is not None:
-        quotation.customer_id = body.customerId
+    if body.customerId:
+        try:
+            quotation.customer_id = uuid.UUID(str(body.customerId))
+        except Exception:
+            pass
     quotation.customer_tier = tier_enum
     quotation.blended_risk_score = risk_result["blendedScore"]
     quotation.subtotal = Decimal(str(totals["subtotal"]))
@@ -663,11 +674,11 @@ async def update_quotation(
     if body.repNotes is not None:
         quotation.rep_notes = body.repNotes
     quotation.status = QuotationStatus.DRAFT
-    quotation.last_activity_at = datetime.now(timezone.utc)
+    quotation.last_activity_at = datetime.utcnow()
 
     if body.expiryDate:
         try:
-            quotation.expiry_date = datetime.fromisoformat(body.expiryDate.replace("Z", "+00:00"))
+            quotation.expiry_date = datetime.fromisoformat(body.expiryDate.replace("Z", "")).replace(tzinfo=None)
         except Exception:
             pass
 
@@ -686,7 +697,10 @@ async def update_quotation(
     # Reload full quotation
     reload_stmt = (
         select(Quotation)
-        .where(Quotation.id == id)
+        .where(
+            (cast(Quotation.id, String) == clean_id) |
+            (Quotation.quotation_number.ilike(id.strip()))
+        )
         .options(
             selectinload(Quotation.lines).selectinload(QuotationLine.product),
             selectinload(Quotation.rep),
@@ -708,9 +722,13 @@ async def submit_quotation(
     user: dict = Depends(require_roles("SALES_REP", "SALES_MANAGER", "ADMIN")),
     db: AsyncSession = Depends(get_db)
 ):
+    clean_id = id.strip().replace(" ", "-").replace("%20", "-")
     stmt = (
         select(Quotation)
-        .where(Quotation.id == id)
+        .where(
+            (cast(Quotation.id, String) == clean_id) |
+            (Quotation.quotation_number.ilike(id.strip()))
+        )
         .options(
             selectinload(Quotation.lines).selectinload(QuotationLine.product).selectinload(Product.category)
         )
@@ -744,7 +762,7 @@ async def submit_quotation(
 
     quotation.status = new_status
     quotation.blended_risk_score = risk_result["blendedScore"]
-    quotation.last_activity_at = datetime.now(timezone.utc)
+    quotation.last_activity_at = datetime.utcnow()
 
     audit = AuditLog(
         quotation_id=quotation.id,
@@ -761,7 +779,7 @@ async def submit_quotation(
         await sio.emit(
             "approval-needed",
             {
-                "quotationId": quotation.id,
+                "quotationId": str(quotation.id),
                 "quotationNumber": quotation.quotation_number,
                 "status": new_status.value,
                 "riskScore": risk_result["blendedScore"]
