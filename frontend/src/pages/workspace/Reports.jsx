@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { dashboardAPI, quotationsAPI, productsAPI } from '../../api';
+import Pagination from '../../components/ui/Pagination';
 
 export default function Reports() {
   const [loading, setLoading] = useState(true);
@@ -223,6 +224,29 @@ export default function Reports() {
         : 0,
     }));
   }, [filteredQuotes]);
+
+  // Pagination for Categories Breakdown
+  const [categoryPage, setCategoryPage] = useState(1);
+  const [categoryPageSize, setCategoryPageSize] = useState(5);
+
+  // Pagination for Sales Rep Performance
+  const [repPage, setRepPage] = useState(1);
+  const [repPageSize, setRepPageSize] = useState(5);
+
+  useEffect(() => {
+    setCategoryPage(1);
+    setRepPage(1);
+  }, [period, selectedRep, approvalStatus, selectedCategory, searchQuery]);
+
+  const pagedCategories = useMemo(() => {
+    const start = (categoryPage - 1) * categoryPageSize;
+    return categoryAnalytics.slice(start, start + categoryPageSize);
+  }, [categoryAnalytics, categoryPage, categoryPageSize]);
+
+  const pagedReps = useMemo(() => {
+    const start = (repPage - 1) * repPageSize;
+    return repPerformance.slice(start, start + repPageSize);
+  }, [repPerformance, repPage, repPageSize]);
 
   // 6. Export to CSV / XLS
   const handleExportCSV = () => {
@@ -492,7 +516,7 @@ export default function Reports() {
                     </td>
                   </tr>
                 ) : (
-                  categoryAnalytics.map((cat, idx) => (
+                  pagedCategories.map((cat, idx) => (
                     <tr key={idx} className="hover:bg-amber-50/40">
                       <td className="p-3 font-heading font-bold text-slate-900">
                         {cat.category}
@@ -512,6 +536,20 @@ export default function Reports() {
               </tbody>
             </table>
           </div>
+
+          {/* Category Pagination */}
+          {categoryAnalytics.length > 0 && (
+            <div className="p-3 border-t-2 border-slate-900 bg-slate-50">
+              <Pagination
+                currentPage={categoryPage}
+                totalItems={categoryAnalytics.length}
+                pageSize={categoryPageSize}
+                onPageChange={setCategoryPage}
+                onPageSizeChange={setCategoryPageSize}
+                pageSizeOptions={[5, 10, 25, 50]}
+              />
+            </div>
+          )}
         </div>
 
         {/* Sales Rep Performance Breakdown */}
@@ -546,7 +584,7 @@ export default function Reports() {
                     </td>
                   </tr>
                 ) : (
-                  repPerformance.map((rep, idx) => (
+                  pagedReps.map((rep, idx) => (
                     <tr key={idx} className="hover:bg-amber-50/40">
                       <td className="p-3 font-heading font-bold text-slate-900">
                         {rep.name}
@@ -566,6 +604,20 @@ export default function Reports() {
               </tbody>
             </table>
           </div>
+
+          {/* Sales Rep Pagination */}
+          {repPerformance.length > 0 && (
+            <div className="p-3 border-t-2 border-slate-900 bg-slate-50">
+              <Pagination
+                currentPage={repPage}
+                totalItems={repPerformance.length}
+                pageSize={repPageSize}
+                onPageChange={setRepPage}
+                onPageSizeChange={setRepPageSize}
+                pageSizeOptions={[5, 10, 25, 50]}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>

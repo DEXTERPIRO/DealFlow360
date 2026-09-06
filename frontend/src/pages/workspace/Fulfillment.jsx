@@ -553,6 +553,19 @@ export default function Fulfillment() {
     return rows;
   }, [warehouses]);
 
+  // Live stock pagination
+  const [stockPage, setStockPage] = useState(1);
+  const [stockPageSize, setStockPageSize] = useState(5);
+
+  useEffect(() => {
+    setStockPage(1);
+  }, [warehouses]);
+
+  const pagedStockRows = useMemo(() => {
+    const start = (stockPage - 1) * stockPageSize;
+    return flattenedStockRows.slice(start, start + stockPageSize);
+  }, [flattenedStockRows, stockPage, stockPageSize]);
+
   // Filtered orders list
   const filteredOrders = useMemo(() => {
     let list = quotations;
@@ -774,7 +787,7 @@ export default function Fulfillment() {
         {showLiveStock && (
           <>
             {/* Desktop / Tablet Table View */}
-            <div className="hidden md:block overflow-x-auto max-h-72 overflow-y-auto">
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="border-b-2 border-slate-900 bg-slate-100 text-[11px] uppercase font-heading font-black text-slate-700 font-mono sticky top-0 z-10">
@@ -794,7 +807,7 @@ export default function Fulfillment() {
                       </td>
                     </tr>
                   ) : (
-                    flattenedStockRows.map((row, idx) => (
+                    pagedStockRows.map((row, idx) => (
                       <tr key={`${row.warehouseId}-${row.productId}-${idx}`} className="hover:bg-amber-50/40 transition-colors">
                         <td className="p-3.5 font-heading font-bold text-slate-900 flex items-center gap-2">
                           <span className="w-2.5 h-2.5 rounded-full bg-blue-600 border border-slate-900" />
@@ -827,13 +840,13 @@ export default function Fulfillment() {
             </div>
 
             {/* Mobile Cards View */}
-            <div className="md:hidden divide-y divide-slate-200 max-h-80 overflow-y-auto">
+            <div className="md:hidden divide-y divide-slate-200">
               {flattenedStockRows.length === 0 ? (
                 <div className="p-6 text-center text-slate-500 font-heading font-bold text-xs">
                   No warehouse stock records found.
                 </div>
               ) : (
-                flattenedStockRows.map((row, idx) => (
+                pagedStockRows.map((row, idx) => (
                   <div key={`${row.warehouseId}-${row.productId}-${idx}`} className="p-3.5 space-y-2 hover:bg-amber-50/40 transition-colors">
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
@@ -865,6 +878,20 @@ export default function Fulfillment() {
                 ))
               )}
             </div>
+
+            {/* Live Stock Pagination */}
+            {flattenedStockRows.length > 0 && (
+              <div className="p-3 border-t-2 border-slate-900 bg-slate-50">
+                <Pagination
+                  currentPage={stockPage}
+                  totalItems={flattenedStockRows.length}
+                  pageSize={stockPageSize}
+                  onPageChange={setStockPage}
+                  onPageSizeChange={setStockPageSize}
+                  pageSizeOptions={[5, 10, 25, 50, 100]}
+                />
+              </div>
+            )}
           </>
         )}
       </div>
