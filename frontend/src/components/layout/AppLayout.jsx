@@ -29,7 +29,8 @@ import {
   Plus,
   Sparkles,
   Activity,
-  BarChart3
+  BarChart3,
+  Clock,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { io } from 'socket.io-client';
@@ -70,6 +71,14 @@ export default function AppLayout() {
   // Real-time states
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   const [socket, setSocket] = useState(null);
+
+  // Live real-time clock state
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Close popovers on click outside
   useEffect(() => {
@@ -433,6 +442,28 @@ export default function AppLayout() {
               </span>
               <span className="text-[10px] font-mono font-black text-slate-800 tracking-wide uppercase">
                 CPQ Live
+              </span>
+            </div>
+
+            {/* Real-time Date and Live Clock Widget */}
+            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full border-2 border-slate-900 bg-white shadow-pop-xs">
+              <Clock className="w-3.5 h-3.5 text-violet-700 animate-spin" style={{ animationDuration: '10s' }} />
+              <span className="text-xs font-heading font-extrabold text-slate-800 tracking-tight">
+                {currentTime.toLocaleDateString('en-IN', {
+                  weekday: 'short',
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                })}
+              </span>
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
+              <span className="text-xs font-mono font-black text-violet-800 px-2 py-0.5 bg-violet-100 border border-slate-900 rounded-full shadow-pop-xs">
+                {currentTime.toLocaleTimeString('en-IN', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                  hour12: true,
+                })}
               </span>
             </div>
 

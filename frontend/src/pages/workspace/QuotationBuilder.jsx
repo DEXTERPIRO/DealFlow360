@@ -28,6 +28,7 @@ import {
   ShieldAlert,
   MessageSquare,
   Check,
+  Clock,
 } from 'lucide-react';
 import { productsAPI, quotationsAPI, usersAPI, negotiationsAPI } from '../../api';
 import { useAuthStore } from '../../store/authStore';
@@ -43,6 +44,20 @@ const formatINR = (n) =>
     maximumFractionDigits: 0,
   }).format(n ?? 0);
 
+const formatTimeAgo = (timestamp) => {
+  if (!timestamp) return '';
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diffSec = Math.floor((now - date) / 1000);
+  if (diffSec < 45) return 'just now';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}d ago`;
+};
+
 const genId = () => `tmp-${Math.random().toString(36).slice(2, 9)}`;
 
 const defaultLine = (product = null) => ({
@@ -57,6 +72,44 @@ const defaultLine = (product = null) => ({
   tax: product ? Number(product.tax || 18) : 18,
   notes: '',
 });
+
+// ── Detect products mentioned in customer negotiation requests ─────────────
+const detectProductInNegotiation = (msg, productList) => {
+  if (!msg || !productList || !productList.length) return null;
+  const lower = msg.toLowerCase();
+
+  // 1. Direct or alias match against product catalog
+  for (const prod of productList) {
+    if (!prod?.name) continue;
+    const pName = prod.name.toLowerCase();
+    const pSku = (prod.sku || '').toLowerCase();
+    if (lower.includes(pName) || (pSku && lower.includes(pSku))) {
+      let qty = 1;
+      const qtyMatch = msg.match(/(\d+)\s*(?:x|unit|piece|pcs|qty)/i) || msg.match(/add\s+(\d+)/i);
+      if (qtyMatch && qtyMatch[1]) {
+        const parsed = parseInt(qtyMatch[1], 10);
+        if (!isNaN(parsed) && parsed > 0) qty = parsed;
+      }
+      return { product: prod, quantity: qty };
+    }
+  }
+
+  // 2. Fallback aliases for catalog items
+  if (lower.includes('keyboard')) {
+    const found = productList.find((p) => p.name.toLowerCase().includes('keyboard'));
+    if (found) return { product: found, quantity: 1 };
+  }
+  if (lower.includes('monitor')) {
+    const found = productList.find((p) => p.name.toLowerCase().includes('monitor'));
+    if (found) return { product: found, quantity: 1 };
+  }
+  if (lower.includes('cabling') || lower.includes('onsite') || lower.includes('deployment') || lower.includes('setup')) {
+    const found = productList.find((p) => p.name.toLowerCase().includes('setup') || p.name.toLowerCase().includes('deployment'));
+    if (found) return { product: found, quantity: 1 };
+  }
+
+  return null;
+};
 
 // ─── ProductPicker Dropdown ────────────────────────────────────────────────
 function ProductPicker({ products: initialProducts, onSelect, onClose }) {
@@ -172,6 +225,14 @@ export default function QuotationBuilder() {
   const [replyMessage, setReplyMessage] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
   const [actioningNegId, setActioningNegId] = useState(null);
+
+  // Real-time Clock state for live updates
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Sidebar collapsed state (from AppLayout)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -393,7 +454,64 @@ export default function QuotationBuilder() {
     }
   };
 
-  const handleNegotiationDecision = async (negId, decisionStatus, discountVal) => {
+  const handleAddNegotiatedProduct = async (detected, discountVal, autoSave = true) => {
+    if (!detected || !detected.product) return;
+    const { product: prod, quantity: qty } = detected;
+
+    const disc = discountVal !== undefined && discountVal !== null ? Number(discountVal) : 0;
+    const newLine = {
+      _id: genId(),
+      product_id: prod.id,
+      product: prod,
+      line_type: prod.is_subscription ? 'RECURRING' : 'ONE_TIME',
+      quantity: Number(qty || 1),
+      unit_price: Number(prod.base_price || 0),
+      cost_price: Number(prod.cost_price || 0),
+      discount: disc,
+      tax: Number(prod.tax || 18),
+      notes: 'Added via accepted customer negotiation request',
+    };
+
+    const existingValid = lines.filter((l) => l.product_id);
+    const adjustedExisting = discountVal !== undefined && discountVal !== null
+      ? existingValid.map((l) => ({ ...l, discount: Number(discountVal) }))
+      : existingValid;
+    const updatedLines = [...adjustedExisting, newLine];
+    setLines(updatedLines);
+
+    if (autoSave && id) {
+      try {
+        const cleanId = id.trim().replace(/\s+/g, '-');
+        const savePayload = {
+          customerId,
+          customerTier,
+          expiryDate: expiryDate ? new Date(expiryDate).toISOString() : null,
+          repNotes,
+          lines: updatedLines.map((l) => ({
+            productId: l.product_id,
+            lineType: l.line_type,
+            quantity: Number(l.quantity),
+            unitPrice: Number(l.unit_price),
+            costPrice: Number(l.cost_price),
+            discount: Number(l.discount),
+            tax: Number(l.tax),
+            notes: l.notes || null,
+          })),
+        };
+        await quotationsAPI.update(cleanId, savePayload);
+        const refreshed = await quotationsAPI.getOne(cleanId);
+        setQuotation(refreshed);
+        toast.success(`Added ${qty}x ${prod.name} to order lines & saved!`);
+      } catch (err) {
+        console.error('Failed to auto-save added product line:', err);
+        toast.success(`Added ${qty}x ${prod.name} to order lines (click Save Draft to commit)`);
+      }
+    } else {
+      toast.success(`Added ${qty}x ${prod.name} to order lines!`);
+    }
+  };
+
+  const handleNegotiationDecision = async (negId, decisionStatus, discountVal, detectedProduct = null) => {
     setActioningNegId(negId);
     try {
       await negotiationsAPI.respond(negId, {
@@ -405,8 +523,12 @@ export default function QuotationBuilder() {
       setNegotiations((prev) =>
         prev.map((n) => (n.id === negId ? { ...n, status: decisionStatus } : n))
       );
-      // If accepted with a counter discount, apply to line items
-      if (decisionStatus === 'ACCEPTED' && discountVal !== undefined && discountVal !== null) {
+
+      // If accepted and customer requested a product, automatically add it into order lines!
+      if (decisionStatus === 'ACCEPTED' && detectedProduct) {
+        await handleAddNegotiatedProduct(detectedProduct, discountVal, true);
+      } else if (decisionStatus === 'ACCEPTED' && discountVal !== undefined && discountVal !== null) {
+        // If accepted discount only, apply discount to line items
         setLines((prev) =>
           prev.map((l) => ({
             ...l,
@@ -414,6 +536,7 @@ export default function QuotationBuilder() {
           }))
         );
       }
+
       // Refresh quotation data from database
       if (id) {
         const cleanId = id.trim().replace(/\s+/g, '-');
@@ -478,8 +601,9 @@ export default function QuotationBuilder() {
 
   const status = quotation?.status;
   const isDraft = !status || status === 'DRAFT';
-  const canEdit = isDraft;
-  const canSubmit = isDraft && lines.filter((l) => l.product_id).length > 0;
+  const isNegotiating = status === 'UNDER_NEGOTIATION' || status === 'NEGOTIATING';
+  const canEdit = isDraft || isNegotiating || status === 'REJECTED';
+  const canSubmit = (isDraft || isNegotiating) && lines.filter((l) => l.product_id).length > 0;
   const canDownloadPDF = status && status !== 'DRAFT';
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -715,6 +839,28 @@ export default function QuotationBuilder() {
                 </p>
               </div>
             </div>
+
+            {/* Real-time Live Date & Clock */}
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border-2 border-slate-900 bg-white shadow-pop-xs">
+              <Clock className="w-3.5 h-3.5 text-violet-700 animate-spin" style={{ animationDuration: '10s' }} />
+              <span className="text-[11px] font-heading font-extrabold text-slate-800">
+                {currentTime.toLocaleDateString('en-IN', {
+                  weekday: 'short',
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                })}
+              </span>
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
+              <span className="text-[11px] font-mono font-black text-violet-800 px-2 py-0.5 bg-violet-100 border border-slate-900 rounded-full">
+                {currentTime.toLocaleTimeString('en-IN', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                  hour12: true,
+                })}
+              </span>
+            </div>
           </div>
 
           {/* Negotiation Items List */}
@@ -723,6 +869,8 @@ export default function QuotationBuilder() {
               const isPending = (neg.status || '').toUpperCase() === 'PENDING';
               const isAccepted = (neg.status || '').toUpperCase() === 'ACCEPTED';
               const isCustomer = (neg.requested_by || '').toUpperCase().includes('CUSTOMER');
+              const detected = detectProductInNegotiation(neg.message, products);
+              const isAlreadyInLines = detected && lines.some((l) => l.product_id === detected.product.id);
 
               return (
                 <div
@@ -745,13 +893,33 @@ export default function QuotationBuilder() {
                         </span>
                       )}
 
-                      <span className="text-[11px] font-mono text-slate-500">
-                        {neg.created_at
-                          ? new Date(neg.created_at).toLocaleString('en-IN', {
-                              dateStyle: 'medium',
-                              timeStyle: 'short',
-                            })
-                          : ''}
+                      {detected && (
+                        <span className="px-2.5 py-0.5 rounded-md text-[11px] font-heading font-black bg-amber-100 text-amber-900 border border-slate-900 flex items-center gap-1.5 shadow-pop-xs">
+                          <ShoppingBag className="w-3 h-3 text-amber-800" strokeWidth={2.5} />
+                          <span>Add-on: {detected.quantity}x {detected.product.name} ({formatINR(detected.product.base_price)})</span>
+                          {isAlreadyInLines && (
+                            <span className="text-[10px] text-emerald-800 bg-emerald-100 px-1.5 py-0.2 rounded border border-emerald-800 font-bold ml-1 flex items-center gap-0.5">
+                              <CheckCircle2 size={10} strokeWidth={3} /> In Order Lines
+                            </span>
+                          )}
+                        </span>
+                      )}
+
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-mono font-bold bg-white text-slate-800 border border-slate-900 shadow-pop-xs">
+                        <Clock className="w-3 h-3 text-violet-700" strokeWidth={2.5} />
+                        <span>
+                          {neg.created_at
+                            ? new Date(neg.created_at).toLocaleString('en-IN', {
+                                dateStyle: 'medium',
+                                timeStyle: 'short',
+                              })
+                            : ''}
+                        </span>
+                        {neg.created_at && (
+                          <span className="text-violet-700 font-black ml-0.5">
+                            • {formatTimeAgo(neg.created_at)}
+                          </span>
+                        )}
                       </span>
                     </div>
 
@@ -766,23 +934,23 @@ export default function QuotationBuilder() {
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => handleNegotiationDecision(neg.id, 'ACCEPTED', neg.counter_discount)}
+                          onClick={() => handleNegotiationDecision(neg.id, 'ACCEPTED', neg.counter_discount, detected)}
                           disabled={actioningNegId === neg.id}
-                          className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white border-2 border-slate-900 shadow-pop-xs text-xs font-heading font-black flex items-center gap-1.5 transition-all disabled:opacity-50"
-                          title="Accept customer proposal"
+                          className="px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white border-2 border-slate-900 shadow-pop-xs text-xs font-heading font-black flex items-center gap-1.5 transition-all disabled:opacity-50 cursor-pointer"
+                          title={detected ? `Accept proposal and add ${detected.product.name} to order lines` : 'Accept customer proposal'}
                         >
                           {actioningNegId === neg.id ? (
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
                           ) : (
                             <Check className="w-3.5 h-3.5" strokeWidth={3} />
                           )}
-                          <span>Accept</span>
+                          <span>{detected ? `Accept & Add ${detected.product.name}` : 'Accept'}</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => handleNegotiationDecision(neg.id, 'REJECTED')}
                           disabled={actioningNegId === neg.id}
-                          className="px-3 py-1.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white border-2 border-slate-900 shadow-pop-xs text-xs font-heading font-black flex items-center gap-1.5 transition-all disabled:opacity-50"
+                          className="px-3 py-1.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white border-2 border-slate-900 shadow-pop-xs text-xs font-heading font-black flex items-center gap-1.5 transition-all disabled:opacity-50 cursor-pointer"
                           title="Decline counter proposal"
                         >
                           <X className="w-3.5 h-3.5" strokeWidth={3} />
@@ -790,15 +958,29 @@ export default function QuotationBuilder() {
                         </button>
                       </div>
                     ) : (
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-heading font-black border-2 border-slate-900 shadow-pop-xs ${
-                          isAccepted
-                            ? 'bg-emerald-100 text-emerald-900'
-                            : 'bg-rose-100 text-rose-900'
-                        }`}
-                      >
-                        {neg.status}
-                      </span>
+                      <div className="flex flex-col items-end gap-2">
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-heading font-black border-2 border-slate-900 shadow-pop-xs ${
+                            isAccepted
+                              ? 'bg-emerald-100 text-emerald-900'
+                              : 'bg-rose-100 text-rose-900'
+                          }`}
+                        >
+                          {neg.status}
+                        </span>
+
+                        {detected && !isAlreadyInLines && (
+                          <button
+                            type="button"
+                            onClick={() => handleAddNegotiatedProduct(detected, neg.counter_discount, true)}
+                            className="px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white border-2 border-slate-900 shadow-pop-xs text-xs font-heading font-black flex items-center gap-1.5 transition-all cursor-pointer"
+                            title={`Add ${detected.product.name} to order lines`}
+                          >
+                            <Plus className="w-3.5 h-3.5" strokeWidth={3} />
+                            <span>+ Add {detected.product.name} to Order</span>
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>

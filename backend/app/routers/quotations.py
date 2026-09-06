@@ -606,8 +606,8 @@ async def update_quotation(
     if not quotation:
         raise HTTPException(status_code=404, detail="Quotation not found")
 
-    if quotation.status not in (QuotationStatus.DRAFT, QuotationStatus.REJECTED):
-        raise HTTPException(status_code=400, detail="Only DRAFT or RETURNED quotations can be edited")
+    if quotation.status not in (QuotationStatus.DRAFT, QuotationStatus.REJECTED, QuotationStatus.UNDER_NEGOTIATION):
+        raise HTTPException(status_code=400, detail="Only DRAFT, UNDER_NEGOTIATION or RETURNED quotations can be edited")
 
     raw_lines = [line.to_dict() for line in body.lines]
 
