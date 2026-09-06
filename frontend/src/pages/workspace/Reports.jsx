@@ -296,7 +296,7 @@ export default function Reports() {
         </div>
 
         {/* Export Buttons */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <button
             type="button"
             onClick={handleExportPDF}

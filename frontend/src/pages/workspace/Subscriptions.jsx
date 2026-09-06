@@ -594,9 +594,10 @@ export default function Subscriptions() {
         </div>
       </div>
 
-      {/* ── SUBSCRIPTIONS HIGH-DENSITY LIST TABLE ── */}
+      {/* ── SUBSCRIPTIONS HIGH-DENSITY LIST (DESKTOP TABLE + MOBILE CARDS) ── */}
       <div className="bg-white border-2 border-slate-900 rounded-3xl overflow-hidden shadow-pop">
-        <div className="overflow-x-auto">
+        {/* Desktop / Tablet Table View */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b-2 border-slate-900 bg-slate-100/90 text-[10px] uppercase font-mono font-black text-slate-800 tracking-wider">
@@ -730,6 +731,112 @@ export default function Subscriptions() {
           </table>
         </div>
 
+        {/* Mobile Cards View */}
+        <div className="md:hidden divide-y-2 divide-slate-100">
+          {loading ? (
+            <div className="p-8 text-center text-slate-600 font-bold">
+              <div className="w-6 h-6 border-3 border-slate-900 border-t-pop-violet rounded-full animate-spin mx-auto mb-2" />
+              Loading subscriptions...
+            </div>
+          ) : paginatedSubscriptions.length === 0 ? (
+            <div className="p-8 text-center text-slate-500 font-medium text-xs">
+              No subscriptions found matching the filter "{statusFilter}".
+            </div>
+          ) : (
+            paginatedSubscriptions.map((sub) => {
+              const statusKey = (sub.status || 'ACTIVE').toUpperCase();
+              const cycleInfo = CYCLE_BADGES[sub.plan?.billing_cycle] || CYCLE_BADGES.MONTHLY;
+
+              return (
+                <div
+                  key={sub.id}
+                  onClick={() => setActiveDetailSub(sub)}
+                  className="p-4 space-y-3 cursor-pointer hover:bg-amber-50/40 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="font-heading font-extrabold text-slate-900 text-sm">
+                        {sub.quotation?.customer?.name || sub.quotation?.customer?.company_name || 'Customer'}
+                      </div>
+                      <div className="text-[11px] text-slate-500 font-mono flex items-center gap-1.5 mt-0.5">
+                        <span className="font-bold">Order: {sub.quotation?.quotation_number || 'QT'}</span>
+                        <span
+                          className={`px-1.5 py-0.2 rounded text-[9px] uppercase font-bold ${getTierBadge(
+                            sub.quotation?.customer_tier
+                          )}`}
+                        >
+                          {sub.quotation?.customer_tier || 'BRONZE'}
+                        </span>
+                      </div>
+                    </div>
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-xl text-[10px] font-mono font-black border-2 border-slate-900 shadow-pop-sm shrink-0 ${
+                        statusKey === 'ACTIVE'
+                          ? 'bg-pop-mint text-slate-900'
+                          : statusKey === 'PAUSED'
+                          ? 'bg-pop-yellow text-slate-900'
+                          : 'bg-pop-pink text-slate-900'
+                      }`}
+                    >
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full border border-slate-900 ${
+                          statusKey === 'ACTIVE'
+                            ? 'bg-emerald-600 animate-pulse'
+                            : statusKey === 'PAUSED'
+                            ? 'bg-amber-600'
+                            : 'bg-rose-600'
+                        }`}
+                      />
+                      <span>{statusKey === 'ACTIVE' ? 'Active' : statusKey === 'PAUSED' ? 'Paused' : 'Cancelled'}</span>
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 bg-paper p-2.5 rounded-xl border border-slate-300 text-xs">
+                    <div>
+                      <span className="text-[10px] text-slate-500 font-bold uppercase block">Plan</span>
+                      <span className="font-bold text-slate-800 text-xs">{sub.plan?.name || 'Care Plan'}</span>
+                      <span className="text-[10px] text-slate-500 block font-mono">
+                        Qty: {sub.quantity} seat{sub.quantity === 1 ? '' : 's'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-500 font-bold uppercase block">Billing Cycle</span>
+                      <span className={`inline-block px-2 py-0.5 rounded-xl text-[10px] font-mono font-black mt-0.5 ${cycleInfo.bg}`}>
+                        {cycleInfo.label}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-500 font-bold uppercase block">Recurring Rate</span>
+                      <span className="font-mono font-black text-slate-900 text-sm">
+                        {formatINR(sub.unit_price * (sub.quantity || 1))}
+                        <span className="text-[10px] text-slate-500 font-normal ml-1">
+                          /{sub.plan?.billing_cycle === 'YEARLY' ? 'yr' : sub.plan?.billing_cycle === 'QUARTERLY' ? 'qtr' : 'mo'}
+                        </span>
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-500 font-bold uppercase block">Next Bill</span>
+                      <span className="text-slate-700 font-mono font-semibold text-xs mt-0.5 flex items-center gap-1">
+                        {statusKey === 'CANCELLED' ? '—' : formatDate(sub.next_billing_date)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end pt-1" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => setActiveDetailSub(sub)}
+                      className="btn-candy bg-white hover:bg-slate-100 text-slate-900 font-bold text-xs px-3.5 py-1.5 rounded-xl border-2 border-slate-900 shadow-pop-sm flex items-center gap-1"
+                    >
+                      <Eye size={12} className="stroke-[2.5]" />
+                      <span>View Billing & History</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
         {/* Pagination Footer */}
         {filteredSubscriptions.length > 0 && (
           <div className="border-t-2 border-slate-900 p-3 bg-paper">
@@ -739,7 +846,7 @@ export default function Subscriptions() {
               pageSize={pageSize}
               onPageChange={setCurrentPage}
               onPageSizeChange={setPageSize}
-              pageSizeOptions={[10, 25, 50, 100]}
+              pageSizeOptions={[5, 10, 25, 50, 100, 200]}
             />
           </div>
         )}

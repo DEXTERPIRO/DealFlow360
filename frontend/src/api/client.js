@@ -1,8 +1,13 @@
 import axios from 'axios';
 import { useAuthStore } from '../store/authStore';
 
+const rawBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+export const API_BASE_URL = rawBaseUrl.endsWith('/api')
+  ? rawBaseUrl
+  : `${rawBaseUrl.replace(/\/+$/, '')}/api`;
+
 const api = axios.create({
-  baseURL: 'http://localhost:5000/api',
+  baseURL: API_BASE_URL,
   withCredentials: true,
 });
 
@@ -23,7 +28,7 @@ api.interceptors.response.use(
       original._retry = true;
       try {
         const res = await axios.post(
-          'http://localhost:5000/api/auth/refresh',
+          `${API_BASE_URL}/auth/refresh`,
           {}, { withCredentials: true }
         );
         _token = res.data.accessToken;
@@ -35,7 +40,11 @@ api.interceptors.response.use(
         window.location.href = '/login';
       }
     }
-    return Promise.reject(error.response?.data || error);
+    const rejectedError = error.response?.data || error;
+    if (rejectedError && typeof rejectedError === 'object' && !rejectedError.response && error.response) {
+      rejectedError.response = error.response;
+    }
+    return Promise.reject(rejectedError);
   }
 );
 

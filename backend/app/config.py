@@ -1,3 +1,4 @@
+from pathlib import Path
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
@@ -13,7 +14,10 @@ class Settings(BaseSettings):
     RAZORPAY_KEY_SECRET: str = ""
 
     class Config:
-        env_file = ".env"
+        env_file = [
+            str(Path(__file__).resolve().parent.parent / ".env"),
+            ".env"
+        ]
         extra = "ignore"
 
 settings = Settings()

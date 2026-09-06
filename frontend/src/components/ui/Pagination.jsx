@@ -7,7 +7,7 @@ export default function Pagination({
   pageSize,
   onPageChange,
   onPageSizeChange,
-  pageSizeOptions = [10, 25, 50, 100],
+  pageSizeOptions = [5, 10, 25, 50, 100, 200],
   className = '',
 }) {
   const [jumpPage, setJumpPage] = useState('');

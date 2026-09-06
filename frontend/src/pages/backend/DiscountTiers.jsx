@@ -436,7 +436,7 @@ export default function DiscountTiers() {
                 <tr className="border-b-2 border-slate-900 text-slate-600 font-heading font-bold uppercase tracking-wider">
                   <th className="py-2.5">Category</th>
                   <th className="py-2.5 text-center">Max Discount</th>
-                  <th className="py-2.5 text-center">Override Tier Max?</th>
+                  <th className="py-2.5 text-center hidden sm:table-cell">Override Tier Max?</th>
                   <th className="py-2.5 text-right">Action</th>
                 </tr>
               </thead>
@@ -454,7 +454,7 @@ export default function DiscountTiers() {
                       <td className="py-3 text-center font-mono font-extrabold text-slate-900 text-sm">
                         {c.maxDiscount ?? c.max_discount ?? 15}%
                       </td>
-                      <td className="py-3 text-center text-slate-600 font-medium">
+                      <td className="py-3 text-center text-slate-600 font-medium hidden sm:table-cell">
                         <span className="px-2.5 py-0.5 rounded-lg bg-slate-100 border border-slate-300 text-[11px] font-bold">
                           Capped by Tier
                         </span>

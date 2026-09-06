@@ -20,6 +20,7 @@ import {
 import { io } from 'socket.io-client';
 import toast from 'react-hot-toast';
 import { dashboardAPI } from '../../api';
+import Pagination from '../../components/ui/Pagination';
 
 export default function DealHealth() {
   const navigate = useNavigate();
@@ -38,6 +39,10 @@ export default function DealHealth() {
   const [activeFilter, setActiveFilter] = useState('ALL'); // 'ALL' | 'STALLED' | 'DISCOUNT_ANOMALY' | 'DELIVERY_SLIPPAGE'
   const [searchQuery, setSearchQuery] = useState('');
   const [actionLoading, setActionLoading] = useState({});
+
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // 1. Fetch Deal Health Data
   const loadDealHealth = useCallback(async () => {
@@ -145,6 +150,15 @@ export default function DealHealth() {
 
     return list;
   }, [data.alerts, activeFilter, searchQuery]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [activeFilter, searchQuery]);
+
+  const pagedAlerts = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredAlerts.slice(start, start + pageSize);
+  }, [filteredAlerts, page, pageSize]);
 
   return (
     <div className="space-y-6 antialiased pb-16">
@@ -368,7 +382,7 @@ export default function DealHealth() {
                   </td>
                 </tr>
               ) : (
-                filteredAlerts.map((alert) => (
+                pagedAlerts.map((alert) => (
                   <tr key={`${alert.type}_${alert.id}`} className="hover:bg-amber-50/40 transition-colors">
                     {/* Quotation Number */}
                     <td className="p-3.5">
@@ -500,6 +514,18 @@ export default function DealHealth() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* ── Pagination Footer ── */}
+        <div className="p-4 bg-slate-50/90 border-t-2 border-slate-900 rounded-b-3xl">
+          <Pagination
+            currentPage={page}
+            totalItems={filteredAlerts.length}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+            pageSizeOptions={[5, 10, 25, 50, 100, 200]}
+          />
         </div>
       </div>
     </div>

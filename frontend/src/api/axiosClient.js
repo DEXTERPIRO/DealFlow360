@@ -1,7 +1,9 @@
 import axios from 'axios';
+import { API_BASE_URL } from './client';
+import { useAuthStore } from '../store/authStore';
 
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: API_BASE_URL,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
@@ -10,7 +12,7 @@ const api = axios.create({
 
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('df360_access_token');
+    const token = useAuthStore.getState().accessToken || localStorage.getItem('df360_access_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }

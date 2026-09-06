@@ -433,9 +433,9 @@ export default function SubscriptionPlans() {
                 <tr className="border-b-2 border-slate-900 bg-slate-100 text-[10px] uppercase font-mono font-black text-slate-800 tracking-wider">
                   <th className="py-3 px-4">Plan Name</th>
                   <th className="py-3 px-4">Billing Cadence</th>
-                  <th className="py-3 px-4 text-center">Proration Formula</th>
-                  <th className="py-3 px-4 text-center">Partial Refund</th>
-                  <th className="py-3 px-4">Cancellation Policy</th>
+                  <th className="py-3 px-4 text-center hidden md:table-cell">Proration Formula</th>
+                  <th className="py-3 px-4 text-center hidden md:table-cell">Partial Refund</th>
+                  <th className="py-3 px-4 hidden sm:table-cell">Cancellation Policy</th>
                   <th className="py-3 px-4 text-center">Actions</th>
                 </tr>
               </thead>
@@ -454,7 +454,7 @@ export default function SubscriptionPlans() {
                           {theme.label}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-center">
+                      <td className="py-3 px-4 text-center hidden md:table-cell">
                         <button
                           onClick={() => handleQuickToggleProrate(plan)}
                           className={`px-2.5 py-0.5 rounded-lg text-[10px] font-mono font-black border border-slate-900 shadow-pop-xs transition-transform active:translate-y-0.5 cursor-pointer ${
@@ -466,7 +466,7 @@ export default function SubscriptionPlans() {
                           {plan.prorate_on_change ? '✔ ENABLED' : '✖ DISABLED'}
                         </button>
                       </td>
-                      <td className="py-3 px-4 text-center">
+                      <td className="py-3 px-4 text-center hidden md:table-cell">
                         <button
                           onClick={() => handleQuickToggleRefund(plan)}
                           className={`px-2.5 py-0.5 rounded-lg text-[10px] font-mono font-black border border-slate-900 shadow-pop-xs transition-transform active:translate-y-0.5 cursor-pointer ${
@@ -478,7 +478,7 @@ export default function SubscriptionPlans() {
                           {plan.partial_refund ? '✔ ENABLED' : '✖ DISABLED'}
                         </button>
                       </td>
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-4 hidden sm:table-cell">
                         <span
                           className="font-medium text-slate-600 line-clamp-1 max-w-xs text-[11px]"
                           title={plan.cancel_policy || 'Immediate cancel, no penalty.'}
@@ -526,7 +526,7 @@ export default function SubscriptionPlans() {
               setPageSize(s);
               setPlanPage(1);
             }}
-            pageSizeOptions={[6, 12, 24, 48, 100]}
+            pageSizeOptions={[5, 6, 12, 24, 48, 100, 200]}
           />
         </div>
       )}

@@ -445,15 +445,18 @@ async def get_deal_health_dashboard(
     slippage_count = 0
 
     for q in quotations:
-        customer_name = q.customer.name if q.customer else (q.customer.company_name if q.customer else "Customer")
+        customer_name = q.customer.name if q.customer else (q.customer.company_name if (q.customer and hasattr(q.customer, "company_name")) else "Customer")
         rep_name = q.rep.name if q.rep else "Sales Rep"
         activity_dt = q.last_activity_at or q.updated_at or q.created_at or now
-        days_idle = (now - activity_dt).days
+        if hasattr(activity_dt, "tzinfo") and activity_dt.tzinfo is not None:
+            activity_dt = activity_dt.replace(tzinfo=None)
+        days_idle = max(0, (now - activity_dt).days)
 
         # Check recent nudge/escalation actions in audit logs
         recent_nudge = any("nudged" in (log.details or "").lower() for log in (q.audit_logs or []))
         recent_escalate = any("escalated" in (log.details or "").lower() for log in (q.audit_logs or []))
         last_action = "Escalated to Manager" if recent_escalate else ("Nudge sent" if recent_nudge else None)
+        risk_score = float(q.blended_risk_score or 0.0)
 
         # 1. Stalled deals: idle > 5 days and still in active pipeline
         if q.status not in (QuotationStatus.CONFIRMED,) and days_idle >= 5:
@@ -466,7 +469,7 @@ async def get_deal_health_dashboard(
                 "type": "STALLED",
                 "issue": f"Idle {days_idle} days - no client response or activity",
                 "flaggedDate": activity_dt.strftime("%b %d"),
-                "riskScore": q.blended_risk_score or 0.0,
+                "riskScore": risk_score,
                 "margin": float(q.margin or 0.0),
                 "total": float(q.total or 0.0),
                 "status": q.status.value,
@@ -475,7 +478,7 @@ async def get_deal_health_dashboard(
 
         # 2. Discount anomaly: blended risk score > 5.0 or discount given > 18%
         max_line_discount = max([float(l.discount or 0) for l in (q.lines or [])] or [0.0])
-        if q.blended_risk_score > 5.0 or max_line_discount > 18.0:
+        if risk_score > 5.0 or max_line_discount > 18.0:
             anomaly_count += 1
             alerts.append({
                 "id": q.id,
@@ -483,9 +486,9 @@ async def get_deal_health_dashboard(
                 "customer": customer_name,
                 "repName": rep_name,
                 "type": "DISCOUNT_ANOMALY",
-                "issue": f"Discount {int(max_line_discount)}% exceeds historical rep average (Risk: {q.blended_risk_score})",
+                "issue": f"Discount {int(max_line_discount)}% exceeds historical rep average (Risk: {risk_score})",
                 "flaggedDate": (q.created_at or now).strftime("%b %d"),
-                "riskScore": q.blended_risk_score or 0.0,
+                "riskScore": risk_score,
                 "margin": float(q.margin or 0.0),
                 "total": float(q.total or 0.0),
                 "status": q.status.value,
@@ -493,9 +496,12 @@ async def get_deal_health_dashboard(
             })
 
         # 3. Delivery promise slippage: quote has target delivery date approaching or expiring soon without confirmation
-        if q.expiry_date and now <= q.expiry_date <= three_days_future and q.status not in (QuotationStatus.CONFIRMED,):
+        expiry_dt = q.expiry_date
+        if expiry_dt and hasattr(expiry_dt, "tzinfo") and expiry_dt.tzinfo is not None:
+            expiry_dt = expiry_dt.replace(tzinfo=None)
+        if expiry_dt and now <= expiry_dt <= three_days_future and q.status not in (QuotationStatus.CONFIRMED,):
             slippage_count += 1
-            days_left = max(0, (q.expiry_date - now).days)
+            days_left = max(0, (expiry_dt - now).days)
             alerts.append({
                 "id": q.id,
                 "quotationNumber": q.quotation_number,
@@ -504,7 +510,7 @@ async def get_deal_health_dashboard(
                 "type": "DELIVERY_SLIPPAGE",
                 "issue": f"Delivery / offer expiry promise at risk ({days_left}d remaining)",
                 "flaggedDate": now.strftime("%b %d"),
-                "riskScore": q.blended_risk_score or 0.0,
+                "riskScore": risk_score,
                 "margin": float(q.margin or 0.0),
                 "total": float(q.total or 0.0),
                 "status": q.status.value,

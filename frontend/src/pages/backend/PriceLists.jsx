@@ -74,12 +74,20 @@ export default function PriceListsPage() {
   // Database-queried price lists
   const filteredLists = priceLists;
 
-  // Pagination
+  // Pagination for outer price list cards
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
+  const [pageSize, setPageSize] = useState(4);
+
+  // Pagination for items inside each price list
+  const [itemPages, setItemPages] = useState({});
+  const [itemPageSizes, setItemPageSizes] = useState({});
+
+  const getItemPage = (id) => itemPages[id] || 1;
+  const getItemPageSize = (id) => itemPageSizes[id] || 10;
 
   useEffect(() => {
     setPage(1);
+    setItemPages({});
   }, [selectedTier, search]);
 
   const pagedLists = filteredLists.slice((page - 1) * pageSize, page * pageSize);
@@ -237,21 +245,30 @@ export default function PriceListsPage() {
                   <thead>
                     <tr className="border-b-2 border-slate-900 bg-slate-100/90 text-[10px] uppercase font-mono font-black text-slate-800 tracking-wider">
                       <th className="py-3 px-4">Product Name</th>
-                      <th className="py-3 px-4">SKU</th>
-                      <th className="py-3 px-4 text-right">Standard Base Price</th>
+                      <th className="py-3 px-4 hidden sm:table-cell">SKU</th>
+                      <th className="py-3 px-4 text-right hidden md:table-cell">Standard Base Price</th>
                       <th className="py-3 px-4 text-right">Contracted Tier Price</th>
                       <th className="py-3 px-4 text-center">Discount Off Base</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y-2 divide-slate-100">
-                    {pl.items?.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="py-8 text-center text-slate-500 font-medium text-xs">
-                          No customized SKU prices in this price list
-                        </td>
-                      </tr>
-                    ) : (
-                      pl.items?.map((item) => {
+                    {(() => {
+                      const plPage = getItemPage(pl.id);
+                      const plPageSize = getItemPageSize(pl.id);
+                      const allItems = pl.items || [];
+                      const pagedItems = allItems.slice((plPage - 1) * plPageSize, plPage * plPageSize);
+
+                      if (allItems.length === 0) {
+                        return (
+                          <tr>
+                            <td colSpan={5} className="py-8 text-center text-slate-500 font-medium text-xs">
+                              No customized SKU prices in this price list
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      return pagedItems.map((item) => {
                         const standardPrice = Number(item.product?.basePrice ?? item.product?.base_price ?? item.product?.unit_price) || 0;
                         const contractPrice = Number(item.price) || 0;
                         const discountPct =
@@ -262,12 +279,15 @@ export default function PriceListsPage() {
                         return (
                           <tr key={item.id} className="hover:bg-amber-50/40 transition-colors">
                             <td className="py-3 px-4 font-bold text-slate-900">
-                              {item.product?.name || 'Product'}
+                              <div>{item.product?.name || 'Product'}</div>
+                              <div className="sm:hidden text-[10px] font-mono text-pop-violet font-bold mt-0.5">
+                                {item.product?.sku || 'SKU'}
+                              </div>
                             </td>
-                            <td className="py-3 px-4 font-mono font-bold text-pop-violet">
+                            <td className="py-3 px-4 font-mono font-bold text-pop-violet hidden sm:table-cell">
                               {item.product?.sku || 'SKU'}
                             </td>
-                            <td className="py-3 px-4 text-right font-mono text-slate-500 line-through">
+                            <td className="py-3 px-4 text-right font-mono text-slate-500 line-through hidden md:table-cell">
                               ₹{standardPrice.toLocaleString()}
                             </td>
                             <td className="py-3 px-4 text-right font-mono font-black text-slate-900 text-sm">
@@ -280,24 +300,45 @@ export default function PriceListsPage() {
                             </td>
                           </tr>
                         );
-                      })
-                    )}
+                      });
+                    })()}
                   </tbody>
                 </table>
               </div>
+
+              {/* Items Pagination Footer */}
+              {(pl.items?.length || 0) > 0 && (
+                <div className="p-4 border-t-2 border-slate-900 bg-slate-50">
+                  <Pagination
+                    currentPage={getItemPage(pl.id)}
+                    totalItems={pl.items?.length || 0}
+                    pageSize={getItemPageSize(pl.id)}
+                    onPageChange={(newPage) =>
+                      setItemPages((prev) => ({ ...prev, [pl.id]: newPage }))
+                    }
+                    onPageSizeChange={(newSize) => {
+                      setItemPageSizes((prev) => ({ ...prev, [pl.id]: newSize }));
+                      setItemPages((prev) => ({ ...prev, [pl.id]: 1 }));
+                    }}
+                    pageSizeOptions={[5, 10, 25, 50, 100, 200]}
+                  />
+                </div>
+              )}
             </div>
           ))}
 
-          <div className="bg-white border-2 border-slate-900 rounded-3xl p-4 shadow-pop">
-            <Pagination
-              currentPage={page}
-              totalItems={filteredLists.length}
-              pageSize={pageSize}
-              onPageChange={setPage}
-              onPageSizeChange={setPageSize}
-              pageSizeOptions={[5, 10, 25, 50, 100]}
-            />
-          </div>
+          {filteredLists.length > 0 && (
+            <div className="bg-white border-2 border-slate-900 rounded-3xl p-4 shadow-pop">
+              <Pagination
+                currentPage={page}
+                totalItems={filteredLists.length}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                onPageSizeChange={setPageSize}
+                pageSizeOptions={[1, 2, 4, 5, 10]}
+              />
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -32,12 +32,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def api_prefix_fallback(request: Request, call_next):
+    # Transparently route requests sent either with or without /api prefix
+    path = request.scope.get("path", "")
+    non_api_prefixes = (
+        "/api", "/uploads", "/socket.io", "/health", "/docs", "/openapi.json", "/redoc"
+    )
+    if path and not any(path.startswith(p) for p in non_api_prefixes):
+        request.scope["path"] = f"/api{path}"
+    return await call_next(request)
+
+from pathlib import Path
+
 # Ensure upload directory exists
-os.makedirs("app/uploads/products", exist_ok=True)
-os.makedirs("app/uploads/logos", exist_ok=True)
+uploads_dir = Path(__file__).resolve().parent / "uploads"
+(uploads_dir / "products").mkdir(parents=True, exist_ok=True)
+(uploads_dir / "logos").mkdir(parents=True, exist_ok=True)
 
 # Serve uploaded files (equivalent to express.static)
-app.mount("/uploads", StaticFiles(directory="app/uploads"), name="uploads")
+app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
 
 # Route wiring (equivalent to app.use('/api/...', require('./routes/...')))
 app.include_router(auth.router)

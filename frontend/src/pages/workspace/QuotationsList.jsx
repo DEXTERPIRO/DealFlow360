@@ -641,13 +641,13 @@ export default function QuotationsList() {
                 <tr>
                   <th className="py-3.5 px-4">QT#</th>
                   <th className="py-3.5 px-4">Customer</th>
-                  <th className="py-3.5 px-4">Tier</th>
-                  <th className="py-3.5 px-4">Rep</th>
+                  <th className="py-3.5 px-4 hidden sm:table-cell">Tier</th>
+                  <th className="py-3.5 px-4 hidden lg:table-cell">Rep</th>
                   <th className="py-3.5 px-4 text-right">Total</th>
-                  <th className="py-3.5 px-4 text-center">Margin %</th>
-                  <th className="py-3.5 px-4 text-center">Risk Score</th>
+                  <th className="py-3.5 px-4 text-center hidden md:table-cell">Margin %</th>
+                  <th className="py-3.5 px-4 text-center hidden lg:table-cell">Risk Score</th>
                   <th className="py-3.5 px-4 text-center">Status</th>
-                  <th className="py-3.5 px-4 text-center">Expiry</th>
+                  <th className="py-3.5 px-4 text-center hidden sm:table-cell">Expiry</th>
                   <th className="py-3.5 px-4 text-right">Actions</th>
                 </tr>
               </thead>
@@ -690,7 +690,7 @@ export default function QuotationsList() {
                       </td>
 
                       {/* Tier Badge */}
-                      <td className="py-3.5 px-4">
+                      <td className="py-3.5 px-4 hidden sm:table-cell">
                         <span
                           className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-heading font-extrabold uppercase ${getTierBadge(
                             tier
@@ -701,7 +701,7 @@ export default function QuotationsList() {
                       </td>
 
                       {/* Rep Name */}
-                      <td className="py-3.5 px-4">
+                      <td className="py-3.5 px-4 hidden lg:table-cell">
                         <span className="text-slate-700 font-heading font-bold flex items-center gap-1">
                           <User className="w-3.5 h-3.5 text-slate-400" strokeWidth={2.5} />
                           {repName}
@@ -716,14 +716,14 @@ export default function QuotationsList() {
                       </td>
 
                       {/* Margin % */}
-                      <td className="py-3.5 px-4 text-center">
+                      <td className="py-3.5 px-4 text-center hidden md:table-cell">
                         <span className={`font-mono font-extrabold ${getMarginColor(margin)}`}>
                           {Number(margin).toFixed(1)}%
                         </span>
                       </td>
 
                       {/* Risk Score Chip */}
-                      <td className="py-3.5 px-4 text-center">
+                      <td className="py-3.5 px-4 text-center hidden lg:table-cell">
                         {getRiskChip(riskScore)}
                       </td>
 
@@ -737,7 +737,7 @@ export default function QuotationsList() {
                       </td>
 
                       {/* Expiry */}
-                      <td className="py-3.5 px-4 text-center font-mono text-[11px] font-bold">
+                      <td className="py-3.5 px-4 text-center font-mono text-[11px] font-bold hidden sm:table-cell">
                         {q.valid_until ? (
                           <span
                             className={

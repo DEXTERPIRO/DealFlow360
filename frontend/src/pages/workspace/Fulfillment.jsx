@@ -772,57 +772,100 @@ export default function Fulfillment() {
         </div>
 
         {showLiveStock && (
-          <div className="overflow-x-auto max-h-72 overflow-y-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b-2 border-slate-900 bg-slate-100 text-[11px] uppercase font-heading font-black text-slate-700 font-mono sticky top-0 z-10">
-                  <th className="p-3.5">Warehouse</th>
-                  <th className="p-3.5">Product</th>
-                  <th className="p-3.5 text-center">In Stock</th>
-                  <th className="p-3.5 text-center">Reserved</th>
-                  <th className="p-3.5 text-center">Available</th>
-                  {isAdminOrManager && <th className="p-3.5 text-right">Action</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {flattenedStockRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="p-6 text-center text-slate-500 font-heading font-bold text-xs">
-                      No warehouse stock records found.
-                    </td>
+          <>
+            {/* Desktop / Tablet Table View */}
+            <div className="hidden md:block overflow-x-auto max-h-72 overflow-y-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b-2 border-slate-900 bg-slate-100 text-[11px] uppercase font-heading font-black text-slate-700 font-mono sticky top-0 z-10">
+                    <th className="p-3.5">Warehouse</th>
+                    <th className="p-3.5">Product</th>
+                    <th className="p-3.5 text-center">In Stock</th>
+                    <th className="p-3.5 text-center">Reserved</th>
+                    <th className="p-3.5 text-center">Available</th>
+                    {isAdminOrManager && <th className="p-3.5 text-right">Action</th>}
                   </tr>
-                ) : (
-                  flattenedStockRows.map((row, idx) => (
-                    <tr key={`${row.warehouseId}-${row.productId}-${idx}`} className="hover:bg-amber-50/40 transition-colors">
-                      <td className="p-3.5 font-heading font-bold text-slate-900 flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-blue-600 border border-slate-900" />
-                        <span>{row.warehouseName}</span>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {flattenedStockRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="p-6 text-center text-slate-500 font-heading font-bold text-xs">
+                        No warehouse stock records found.
                       </td>
-                      <td className="p-3.5 font-medium text-slate-800">{row.productName}</td>
-                      <td className="p-3.5 text-center font-mono font-black text-slate-900">{row.inStock}</td>
-                      <td className="p-3.5 text-center font-mono text-amber-700 font-black">{row.reserved}</td>
-                      <td className="p-3.5 text-center">
-                        <span className={`inline-block px-2.5 py-0.5 rounded-lg text-xs font-mono font-black ${getStockBadgeStyle(row.available)}`}>
-                          {row.available}
-                        </span>
-                      </td>
-                      {isAdminOrManager && (
-                        <td className="p-3.5 text-right">
-                          <button
-                            onClick={() => setStockModalEntry(row)}
-                            className="px-3.5 py-1.5 rounded-xl bg-pop-violet hover:bg-violet-700 text-white text-xs font-heading font-black border-2 border-slate-900 shadow-pop-xs hover:shadow-pop hover:-translate-y-0.5 transition-all active:translate-x-0.5 active:translate-y-0.5 cursor-pointer"
-                            title="Adjust In-Stock Quantity"
-                          >
-                            Edit Stock
-                          </button>
-                        </td>
-                      )}
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  ) : (
+                    flattenedStockRows.map((row, idx) => (
+                      <tr key={`${row.warehouseId}-${row.productId}-${idx}`} className="hover:bg-amber-50/40 transition-colors">
+                        <td className="p-3.5 font-heading font-bold text-slate-900 flex items-center gap-2">
+                          <span className="w-2.5 h-2.5 rounded-full bg-blue-600 border border-slate-900" />
+                          <span>{row.warehouseName}</span>
+                        </td>
+                        <td className="p-3.5 font-medium text-slate-800">{row.productName}</td>
+                        <td className="p-3.5 text-center font-mono font-black text-slate-900">{row.inStock}</td>
+                        <td className="p-3.5 text-center font-mono text-amber-700 font-black">{row.reserved}</td>
+                        <td className="p-3.5 text-center">
+                          <span className={`inline-block px-2.5 py-0.5 rounded-lg text-xs font-mono font-black ${getStockBadgeStyle(row.available)}`}>
+                            {row.available}
+                          </span>
+                        </td>
+                        {isAdminOrManager && (
+                          <td className="p-3.5 text-right">
+                            <button
+                              onClick={() => setStockModalEntry(row)}
+                              className="px-3.5 py-1.5 rounded-xl bg-pop-violet hover:bg-violet-700 text-white text-xs font-heading font-black border-2 border-slate-900 shadow-pop-xs hover:shadow-pop hover:-translate-y-0.5 transition-all active:translate-x-0.5 active:translate-y-0.5 cursor-pointer"
+                              title="Adjust In-Stock Quantity"
+                            >
+                              Edit Stock
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Cards View */}
+            <div className="md:hidden divide-y divide-slate-200 max-h-80 overflow-y-auto">
+              {flattenedStockRows.length === 0 ? (
+                <div className="p-6 text-center text-slate-500 font-heading font-bold text-xs">
+                  No warehouse stock records found.
+                </div>
+              ) : (
+                flattenedStockRows.map((row, idx) => (
+                  <div key={`${row.warehouseId}-${row.productId}-${idx}`} className="p-3.5 space-y-2 hover:bg-amber-50/40 transition-colors">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-blue-600 border border-slate-900 shrink-0" />
+                        <span className="font-heading font-bold text-slate-900 text-xs">{row.warehouseName}</span>
+                      </div>
+                      <span className={`inline-block px-2 py-0.5 rounded-lg text-xs font-mono font-black ${getStockBadgeStyle(row.available)}`}>
+                        {row.available} avail
+                      </span>
+                    </div>
+                    <div className="font-medium text-slate-800 text-xs">
+                      {row.productName}
+                    </div>
+                    <div className="flex items-center justify-between pt-1 text-xs">
+                      <div className="flex items-center gap-3 text-slate-600 font-mono text-[11px]">
+                        <span>In Stock: <strong className="text-slate-900">{row.inStock}</strong></span>
+                        <span>Reserved: <strong className="text-amber-700">{row.reserved}</strong></span>
+                      </div>
+                      {isAdminOrManager && (
+                        <button
+                          onClick={() => setStockModalEntry(row)}
+                          className="px-3 py-1 rounded-xl bg-pop-violet hover:bg-violet-700 text-white text-xs font-heading font-black border-2 border-slate-900 shadow-pop-xs active:translate-x-0.5 active:translate-y-0.5"
+                        >
+                          Edit Stock
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </>
         )}
       </div>
 
@@ -881,7 +924,8 @@ export default function Fulfillment() {
             </span>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="border-b-2 border-slate-900 bg-slate-100 text-[11px] uppercase font-heading font-black text-slate-700 font-mono">
@@ -990,6 +1034,87 @@ export default function Fulfillment() {
             </table>
           </div>
 
+          {/* Mobile Cards View */}
+          <div className="md:hidden divide-y divide-slate-200">
+            {loadingQuotations ? (
+              <div className="p-8 text-center text-slate-500 font-heading font-bold">
+                <div className="w-7 h-7 border-3 border-slate-900 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                Loading fulfillment orders...
+              </div>
+            ) : paginatedOrders.length === 0 ? (
+              <div className="p-8 text-center text-slate-500 font-heading font-bold text-xs">
+                No orders awaiting fulfillment matching the criteria.
+              </div>
+            ) : (
+              paginatedOrders.map((q) => {
+                const statusMeta = getOrderStatus(q);
+                const units = getPhysicalUnits(q);
+                const isPureSubscription = units === 0;
+
+                return (
+                  <div
+                    key={q.id}
+                    onClick={() => setActiveDetailItem(q)}
+                    className="p-4 space-y-3 cursor-pointer hover:bg-amber-50/40 transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="font-mono font-black text-violet-700 text-xs">
+                          {q.quotationNumber || q.quotation_number || 'QT-Deal'}
+                        </div>
+                        <div className="font-heading font-bold text-slate-900 text-sm mt-0.5">
+                          {q.customer?.name || q.customer?.company_name || 'Customer'}
+                        </div>
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded text-[9px] font-mono font-bold uppercase mt-1 ${getTierBadge(
+                            q.customerTier || q.customer_tier
+                          )}`}
+                        >
+                          {q.customerTier || q.customer_tier || 'BRONZE'}
+                        </span>
+                      </div>
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono font-bold shrink-0 ${statusMeta.badgeClass}`}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${statusMeta.dotClass}`} />
+                        <span>{statusMeta.label}</span>
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 bg-[#FFFDF5] p-2.5 rounded-xl border border-slate-300 text-xs">
+                      <div>
+                        <span className="text-[10px] text-slate-500 font-bold uppercase block">Units / Total</span>
+                        <span className="font-mono font-black text-slate-900 text-sm">{formatINR(q.total)}</span>
+                        <span className="text-[10px] text-slate-500 block font-mono">
+                          {units} unit{units === 1 ? '' : 's'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-500 font-bold uppercase block">Warehouse Route</span>
+                        <span className="font-heading font-bold text-slate-800 text-xs block mt-0.5">
+                          {isPureSubscription ? 'Subscription Only' : warehouses.length > 1 ? 'Multi-Warehouse' : 'Main Warehouse'}
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-mono block">
+                          {q.created_at ? new Date(q.created_at).toLocaleDateString() : 'Recent'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end pt-1" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => setActiveDetailItem(q)}
+                        className="px-3.5 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-heading font-black text-xs transition-all border-2 border-slate-900 shadow-pop-xs flex items-center gap-1.5 active:translate-x-0.5 active:translate-y-0.5"
+                      >
+                        <Eye className="w-3.5 h-3.5" strokeWidth={2.5} />
+                        <span>View Split</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
           {/* Pagination Footer */}
           {filteredOrders.length > 0 && (
             <div className="border-t-2 border-slate-900 p-3 bg-slate-50">
@@ -999,7 +1124,7 @@ export default function Fulfillment() {
                 pageSize={pageSize}
                 onPageChange={setCurrentPage}
                 onPageSizeChange={setPageSize}
-                pageSizeOptions={[10, 25, 50, 100]}
+                pageSizeOptions={[5, 10, 25, 50, 100, 200]}
               />
             </div>
           )}

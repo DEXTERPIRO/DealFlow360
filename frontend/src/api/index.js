@@ -1,4 +1,4 @@
-import api from './client';
+import api, { API_BASE_URL } from './client';
 
 export const authAPI = {
   login: (d) => api.post('/auth/login', d),
@@ -70,7 +70,9 @@ export const invoicesAPI = {
   markSent: (id) => api.put(`/invoices/${id}/send`),
   createRazorpayOrder: (id) => api.post(`/invoices/${id}/razorpay-order`),
   createPayUOrder: (id) => api.post(`/invoices/${id}/payu-order`),
-  downloadPDF: (id) => window.open(`http://localhost:5000/api/invoices/${id}/pdf`, '_blank'),
+  downloadPDF: (id) => {
+    window.open(`${API_BASE_URL}/invoices/${id}/pdf`, '_blank');
+  },
 };
 
 export const negotiationsAPI = {

@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy import select, func, or_
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, aliased
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -49,9 +49,11 @@ async def get_invoices(
     user: dict = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
-    """List invoices, optionally filtered by status and searched in database."""
+    CustomerUser = aliased(User)
     stmt = (
         select(Invoice)
+        .outerjoin(Quotation, Invoice.quotation_id == Quotation.id)
+        .outerjoin(CustomerUser, Quotation.customer_id == CustomerUser.id)
         .options(
             selectinload(Invoice.quotation).selectinload(Quotation.customer),
             selectinload(Invoice.quotation).selectinload(Quotation.rep)
@@ -68,13 +70,13 @@ async def get_invoices(
 
     if search and search.strip():
         search_pattern = f"%{search.strip()}%"
-        stmt = stmt.outerjoin(Invoice.quotation).outerjoin(Quotation.customer).where(
+        stmt = stmt.where(
             or_(
                 Invoice.invoice_number.ilike(search_pattern),
                 Quotation.quotation_number.ilike(search_pattern),
-                User.name.ilike(search_pattern),
-                User.company_name.ilike(search_pattern),
-                User.email.ilike(search_pattern)
+                CustomerUser.name.ilike(search_pattern),
+                CustomerUser.company_name.ilike(search_pattern),
+                CustomerUser.email.ilike(search_pattern)
             )
         )
 

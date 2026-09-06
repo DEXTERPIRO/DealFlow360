@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -131,9 +132,83 @@ async def decide_negotiation(
     if not neg:
         raise HTTPException(status_code=404, detail="Negotiation not found")
 
-    neg.status = body.status.upper()
+    decision_status = body.status.upper()
+    neg.status = decision_status
+
+    # Also load quotation to update terms if accepted and emit socket events
+    q_res = await db.execute(
+        select(Quotation)
+        .options(
+            selectinload(Quotation.customer),
+            selectinload(Quotation.lines).selectinload(QuotationLine.product).selectinload(Product.category)
+        )
+        .where(Quotation.id == neg.quotation_id)
+    )
+    quotation = q_res.scalar_one_or_none()
+
+    if quotation:
+        if decision_status == "ACCEPTED" and neg.counter_discount is not None:
+            # Update quotation lines discount
+            for line in quotation.lines:
+                if not neg.line_id or line.id == neg.line_id:
+                    line.discount = Decimal(str(neg.counter_discount))
+
+            # Recompute totals and risk
+            tier_str = quotation.customer_tier.value.upper() if quotation.customer_tier else "BRONZE"
+            raw_lines = [
+                {
+                    "productId": l.product_id,
+                    "quantity": l.quantity,
+                    "unitPrice": float(l.unit_price),
+                    "discount": float(l.discount or 0),
+                    "costPrice": float(l.cost_price or 0),
+                    "tax": float(l.tax or 18)
+                }
+                for l in quotation.lines
+            ]
+            totals = compute_order_totals(raw_lines)
+            quotation.subtotal = Decimal(str(totals["subtotal"]))
+            quotation.discount_amount = Decimal(str(totals["discountAmount"]))
+            quotation.tax_amount = Decimal(str(totals["taxAmount"]))
+            quotation.total = Decimal(str(totals["total"]))
+            quotation.margin = totals["margin"]
+
+            risk_result = await compute_blended_risk_score(db, raw_lines, tier_str)
+            quotation.blended_risk_score = risk_result["blendedScore"]
+
+        user_name = user.get("name", "Sales Rep")
+        audit = AuditLog(
+            quotation_id=neg.quotation_id,
+            user_id=user["id"],
+            action=AuditAction.UPDATED,
+            details=f"{user_name} {decision_status.lower()} negotiation proposal: {body.notes or neg.message}",
+            metadata_json={"negotiationId": neg.id, "status": decision_status, "notes": body.notes}
+        )
+        db.add(audit)
+
     await db.commit()
     await db.refresh(neg)
+
+    # Emit socket events to portal and dashboard rooms
+    if quotation:
+        payload = {
+            "id": neg.id,
+            "quotationId": neg.quotation_id,
+            "message": neg.message,
+            "counterDiscount": neg.counter_discount,
+            "requestedBy": neg.requested_by,
+            "status": neg.status,
+            "notes": body.notes,
+            "createdAt": neg.created_at.isoformat() if neg.created_at else None
+        }
+        try:
+            if quotation.portal_token:
+                await sio.emit("negotiation-message", payload, room=f"portal-{quotation.portal_token}")
+            await sio.emit("negotiation-message", payload, room="dashboard")
+            await sio.emit("quotation-updated", {"id": quotation.id, "status": quotation.status.value}, room="dashboard")
+        except Exception as e:
+            print(f"[Socket Error] negotiation decision: {e}")
+
     return neg
 
 

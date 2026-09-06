@@ -150,8 +150,18 @@ export default function UpsellRules() {
   const [rulePage, setRulePage] = useState(1);
   const [rulePageSize, setRulePageSize] = useState(10);
 
+  // Promoted products list from rules
+  const promotedRules = useMemo(() => {
+    return rules.filter((r) => r.is_promoted);
+  }, [rules]);
+
+  // Pagination for Promoted Rules
+  const [promotedPage, setPromotedPage] = useState(1);
+  const [promotedPageSize, setPromotedPageSize] = useState(6);
+
   useEffect(() => {
     setRulePage(1);
+    setPromotedPage(1);
   }, [searchQuery]);
 
   const pagedRules = useMemo(() => {
@@ -159,10 +169,10 @@ export default function UpsellRules() {
     return filteredRules.slice(start, start + rulePageSize);
   }, [filteredRules, rulePage, rulePageSize]);
 
-  // Promoted products list from rules
-  const promotedRules = useMemo(() => {
-    return rules.filter((r) => r.is_promoted);
-  }, [rules]);
+  const pagedPromotedRules = useMemo(() => {
+    const start = (promotedPage - 1) * promotedPageSize;
+    return promotedRules.slice(start, start + promotedPageSize);
+  }, [promotedRules, promotedPage, promotedPageSize]);
 
   return (
     <div className="space-y-8 pb-12 antialiased">
@@ -217,37 +227,60 @@ export default function UpsellRules() {
 
       {/* ── Promotion Tags Section ───────────────────────────────────────── */}
       {promotedRules.length > 0 && (
-        <div className="space-y-3">
-          <h3 className="text-sm font-heading font-black text-slate-900 flex items-center gap-2">
-            <Star size={16} className="text-amber-500 fill-amber-500" strokeWidth={2.5} />
-            Currently Promoted Recommendations
-          </h3>
+        <div className="space-y-4 bg-amber-50/40 border-2 border-slate-900 p-6 rounded-3xl shadow-pop">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <h3 className="text-sm font-heading font-black text-slate-900 flex items-center gap-2">
+              <Star size={16} className="text-amber-500 fill-amber-500" strokeWidth={2.5} />
+              Currently Promoted Recommendations ({promotedRules.length})
+            </h3>
+            <span className="text-[11px] font-mono font-bold text-slate-600">
+              High-priority suggestions pinned to top of quote builder
+            </span>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            {promotedRules.map((pr) => (
+            {pagedPromotedRules.map((pr) => (
               <div
                 key={pr.id}
-                className="rounded-3xl border-2 border-slate-900 bg-amber-50/70 p-5 flex items-center justify-between shadow-pop-xs"
+                className="rounded-2xl border-2 border-slate-900 bg-white p-4 flex items-center justify-between shadow-pop-xs hover:-translate-y-0.5 transition-all"
               >
-                <div className="space-y-1 min-w-0">
-                  <span className="px-2 py-0.5 rounded text-[10px] font-mono font-black bg-amber-200 text-slate-900 border border-slate-900">
-                    PROMOTED
-                  </span>
-                  <p className="text-sm font-heading font-bold text-slate-900 truncate mt-1">
+                <div className="space-y-1 min-w-0 pr-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono font-black bg-amber-200 text-slate-900 border border-slate-900">
+                      PROMOTED
+                    </span>
+                    <span className="text-[11px] font-mono font-bold text-purple-700">
+                      Score {pr.score}
+                    </span>
+                  </div>
+                  <p className="text-xs sm:text-sm font-heading font-bold text-slate-900 truncate mt-1">
                     {pr.target_product?.name || 'Target Product'}
                   </p>
-                  <p className="text-xs text-slate-600 truncate font-medium">
-                    When buying: {pr.source_product?.name}
+                  <p className="text-[11px] text-slate-600 truncate font-medium">
+                    When buying: <span className="font-bold text-slate-800">{pr.source_product?.name}</span>
                   </p>
                 </div>
                 <button
                   onClick={() => handleTogglePromoted(pr)}
                   title="Demote Recommendation"
-                  className="px-3 py-1 rounded-xl bg-white hover:bg-slate-100 text-slate-900 text-xs font-heading font-bold border-2 border-slate-900 shadow-pop-xs flex-shrink-0"
+                  className="px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-900 text-xs font-heading font-bold border-2 border-slate-900 shadow-pop-xs flex-shrink-0 cursor-pointer"
                 >
                   Demote
                 </button>
               </div>
             ))}
+          </div>
+
+          {/* Promoted Pagination */}
+          <div className="bg-white border-2 border-slate-900 rounded-2xl p-3 shadow-pop-xs">
+            <Pagination
+              currentPage={promotedPage}
+              totalItems={promotedRules.length}
+              pageSize={promotedPageSize}
+              onPageChange={setPromotedPage}
+              onPageSizeChange={setPromotedPageSize}
+              pageSizeOptions={[3, 5, 6, 9, 12, 24, 75]}
+            />
           </div>
         </div>
       )}
@@ -283,8 +316,8 @@ export default function UpsellRules() {
                   <th className="py-3.5 px-3 font-black text-center">Suggests</th>
                   <th className="py-3.5 px-4 font-black">Target Product</th>
                   <th className="py-3.5 px-4 font-black text-center">Score</th>
-                  <th className="py-3.5 px-4 font-black text-center">Promoted</th>
-                  <th className="py-3.5 px-4 font-black text-center">Min Margin</th>
+                  <th className="py-3.5 px-4 font-black text-center hidden sm:table-cell">Promoted</th>
+                  <th className="py-3.5 px-4 font-black text-center hidden md:table-cell">Min Margin</th>
                   <th className="py-3.5 px-6 font-black text-right">Actions</th>
                 </tr>
               </thead>
@@ -335,7 +368,7 @@ export default function UpsellRules() {
                         </td>
 
                         {/* Promoted Toggle */}
-                        <td className="py-4 px-4 text-center">
+                        <td className="py-4 px-4 text-center hidden sm:table-cell">
                           <button
                             onClick={() => handleTogglePromoted(rule)}
                             className={`px-3 py-1 rounded-full text-xs font-mono font-bold border-2 border-slate-900 transition-all inline-flex items-center gap-1.5 shadow-pop-xs ${
@@ -356,7 +389,7 @@ export default function UpsellRules() {
                         </td>
 
                         {/* Min Margin */}
-                        <td className="py-4 px-4 text-center font-mono font-black text-slate-900 text-xs">
+                        <td className="py-4 px-4 text-center font-mono font-black text-slate-900 text-xs hidden md:table-cell">
                           {rule.min_margin}%
                         </td>
 
@@ -402,7 +435,7 @@ export default function UpsellRules() {
               pageSize={rulePageSize}
               onPageChange={setRulePage}
               onPageSizeChange={setRulePageSize}
-              pageSizeOptions={[10, 25, 50, 100]}
+              pageSizeOptions={[5, 10, 25, 50, 100, 200]}
             />
           </div>
         </div>

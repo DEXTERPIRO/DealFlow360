@@ -72,15 +72,26 @@ export default function LiveMarginBar({ lines = [], sidebarCollapsed = false }) 
   }[riskStatus];
 
   const ApprovalIcon = approvalConfig.icon;
-  const sidebarWidth = sidebarCollapsed ? 80 : 256;
+
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== 'undefined' ? window.innerWidth < 1024 : false
+  );
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 1024);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const effectiveLeft = isMobile ? 0 : (sidebarCollapsed ? 80 : 256);
 
   if (!lines.length) return null;
 
   return (
     <aside
       aria-label="Live quotation margin and risk metrics"
-      style={{ left: sidebarWidth }}
-      className="fixed bottom-0 right-0 z-40 bg-white border-t-2 border-slate-900 px-6 py-2.5 flex items-center gap-6 shadow-[0_-4px_16px_rgba(30,41,59,0.08)] transition-[left] duration-300 min-h-[64px]"
+      style={{ left: effectiveLeft }}
+      className="fixed bottom-0 right-0 z-40 bg-white border-t-2 border-slate-900 px-3 sm:px-6 py-2 sm:py-2.5 flex items-center gap-3 sm:gap-6 shadow-[0_-4px_16px_rgba(30,41,59,0.08)] transition-[left] duration-300 min-h-[56px] sm:min-h-[64px] overflow-x-auto scrollbar-thin"
     >
       {/* ── TOTAL ─────────────────────────────────── */}
       <div className="shrink-0">

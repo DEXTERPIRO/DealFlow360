@@ -612,11 +612,11 @@ export default function ApprovalQueue() {
                   </th>
                   <th className="p-3 font-heading font-extrabold">Quotation</th>
                   <th className="p-3 font-heading font-extrabold">Customer</th>
-                  <th className="p-3 font-heading font-extrabold text-center">Blended Risk</th>
-                  <th className="p-3 font-heading font-extrabold">Stage</th>
-                  <th className="p-3 font-heading font-extrabold">Assigned To</th>
+                  <th className="p-3 font-heading font-extrabold text-center hidden md:table-cell">Blended Risk</th>
+                  <th className="p-3 font-heading font-extrabold hidden sm:table-cell">Stage</th>
+                  <th className="p-3 font-heading font-extrabold hidden lg:table-cell">Assigned To</th>
                   <th className="p-3 font-heading font-extrabold text-right">Amount</th>
-                  <th className="p-3 font-heading font-extrabold">Waiting</th>
+                  <th className="p-3 font-heading font-extrabold hidden sm:table-cell">Waiting</th>
                   <th className="p-3 font-heading font-extrabold text-right">Action</th>
                 </tr>
               </thead>
@@ -670,7 +670,7 @@ export default function ApprovalQueue() {
                       </td>
 
                       {/* Blended Risk */}
-                      <td className="p-3 text-center">
+                      <td className="p-3 text-center hidden md:table-cell">
                         <span
                           className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-mono font-bold ${risk.chipClass}`}
                         >
@@ -682,7 +682,7 @@ export default function ApprovalQueue() {
                       </td>
 
                       {/* Stage */}
-                      <td className="p-3">
+                      <td className="p-3 hidden sm:table-cell">
                         <span
                           className={`font-heading font-bold text-xs ${
                             item.status === 'PENDING_MANAGER'
@@ -699,7 +699,7 @@ export default function ApprovalQueue() {
                       </td>
 
                       {/* Assigned To */}
-                      <td className="p-3">
+                      <td className="p-3 hidden lg:table-cell">
                         <div className="flex items-center gap-1.5 text-slate-700 font-medium">
                           <User className="w-3.5 h-3.5 text-slate-400" strokeWidth={2.5} />
                           <span>{item.rep?.name || 'Sales Rep'}</span>
@@ -712,7 +712,7 @@ export default function ApprovalQueue() {
                       </td>
 
                       {/* Waiting Time */}
-                      <td className="p-3 text-slate-600 text-[11px] font-mono whitespace-nowrap">
+                      <td className="p-3 text-slate-600 text-[11px] font-mono whitespace-nowrap hidden sm:table-cell">
                         <div className="flex items-center gap-1 text-amber-900 font-bold">
                           <Clock className="w-3.5 h-3.5 text-amber-700" strokeWidth={2.5} />
                           <span>{getWaitingTime(item.created_at || item.createdAt)}</span>
@@ -758,7 +758,7 @@ export default function ApprovalQueue() {
                 pageSize={pageSize}
                 onPageChange={setCurrentPage}
                 onPageSizeChange={setPageSize}
-                pageSizeOptions={[10, 25, 50, 100]}
+                pageSizeOptions={[5, 10, 25, 50, 100, 200]}
               />
             </div>
           )}
@@ -815,7 +815,7 @@ export default function ApprovalQueue() {
               pageSize={pageSize}
               onPageChange={setCurrentPage}
               onPageSizeChange={setPageSize}
-              pageSizeOptions={[10, 25, 50, 100]}
+              pageSizeOptions={[5, 10, 25, 50, 100, 200]}
             />
           </div>
         </div>

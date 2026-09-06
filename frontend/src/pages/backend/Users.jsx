@@ -351,10 +351,10 @@ export default function UsersPage() {
               <thead className="bg-slate-100 border-b-2 border-slate-900 text-[11px] font-mono font-black text-slate-700 uppercase tracking-wider">
                 <tr>
                   <th className="py-3.5 px-4 font-black">Name</th>
-                  <th className="py-3.5 px-4 font-black">Email</th>
+                  <th className="py-3.5 px-4 font-black hidden sm:table-cell">Email</th>
                   <th className="py-3.5 px-4 text-center font-black">Role</th>
-                  <th className="py-3.5 px-4 text-center font-black">Status</th>
-                  <th className="py-3.5 px-4 text-center font-black">Created</th>
+                  <th className="py-3.5 px-4 text-center font-black hidden sm:table-cell">Status</th>
+                  <th className="py-3.5 px-4 text-center font-black hidden md:table-cell">Created</th>
                   <th className="py-3.5 px-4 text-right font-black">Actions</th>
                 </tr>
               </thead>
@@ -389,20 +389,25 @@ export default function UsersPage() {
                               {u.name ? u.name[0].toUpperCase() : 'U'}
                             </div>
                             <div>
-                              <span className="font-heading font-bold text-slate-900">
-                                {u.name}
-                              </span>
-                              {isSelf && (
-                                <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] bg-blue-100 text-blue-900 border border-slate-900 font-mono font-bold">
-                                  You
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-heading font-bold text-slate-900">
+                                  {u.name}
                                 </span>
-                              )}
+                                {isSelf && (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] bg-blue-100 text-blue-900 border border-slate-900 font-mono font-bold">
+                                    You
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[10px] text-slate-500 font-mono sm:hidden mt-0.5">
+                                {u.email}
+                              </div>
                             </div>
                           </div>
                         </td>
 
                         {/* Email */}
-                        <td className="py-3.5 px-4 text-slate-600 font-mono text-xs font-bold">
+                        <td className="py-3.5 px-4 text-slate-600 font-mono text-xs font-bold hidden sm:table-cell">
                           {u.email}
                         </td>
 
@@ -419,7 +424,7 @@ export default function UsersPage() {
                         </td>
 
                         {/* Status */}
-                        <td className="py-3.5 px-4 text-center">
+                        <td className="py-3.5 px-4 text-center hidden sm:table-cell">
                           <span
                             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono font-bold border-2 border-slate-900 shadow-pop-xs ${
                               u.is_active
@@ -437,7 +442,7 @@ export default function UsersPage() {
                         </td>
 
                         {/* Created */}
-                        <td className="py-3.5 px-4 text-center text-slate-600 font-mono text-xs">
+                        <td className="py-3.5 px-4 text-center text-slate-600 font-mono text-xs hidden md:table-cell">
                           {u.created_at
                             ? new Date(u.created_at).toLocaleDateString()
                             : '—'}
@@ -520,7 +525,7 @@ export default function UsersPage() {
               pageSize={pageSize}
               onPageChange={setInternalPage}
               onPageSizeChange={setPageSize}
-              pageSizeOptions={[10, 20, 50, 100]}
+              pageSizeOptions={[5, 10, 20, 50, 100, 200]}
             />
           </div>
         </div>
@@ -545,8 +550,8 @@ export default function UsersPage() {
                 <tr>
                   <th className="py-3.5 px-4 font-black">Company Name</th>
                   <th className="py-3.5 px-4 text-center font-black">Tier</th>
-                  <th className="py-3.5 px-4 font-black">Contact Email</th>
-                  <th className="py-3.5 px-4 text-center font-black">Linked Quotations</th>
+                  <th className="py-3.5 px-4 font-black hidden sm:table-cell">Contact Email</th>
+                  <th className="py-3.5 px-4 text-center font-black hidden md:table-cell">Linked Quotations</th>
                   <th className="py-3.5 px-4 text-right font-black">Portal Access</th>
                 </tr>
               </thead>
@@ -578,6 +583,9 @@ export default function UsersPage() {
                             <span className="text-xs text-slate-500 pl-5 font-medium">
                               Contact: {c.name}
                             </span>
+                            <span className="text-[10px] text-slate-500 font-mono sm:hidden pl-5">
+                              {c.email}
+                            </span>
                           </div>
                         </td>
 
@@ -593,12 +601,12 @@ export default function UsersPage() {
                         </td>
 
                         {/* Email */}
-                        <td className="py-3.5 px-4 text-slate-600 font-mono text-xs font-bold">
+                        <td className="py-3.5 px-4 text-slate-600 font-mono text-xs font-bold hidden sm:table-cell">
                           {c.email}
                         </td>
 
                         {/* Linked Quotations Count */}
-                        <td className="py-3.5 px-4 text-center">
+                        <td className="py-3.5 px-4 text-center hidden md:table-cell">
                           <span className="px-3 py-1 rounded-xl bg-blue-50 font-mono text-xs font-black text-blue-900 border-2 border-slate-900 shadow-pop-xs">
                             {c.quotations_count || 0} Quotes
                           </span>
@@ -649,7 +657,7 @@ export default function UsersPage() {
               pageSize={pageSize}
               onPageChange={setCustomerPage}
               onPageSizeChange={setPageSize}
-              pageSizeOptions={[10, 20, 50, 100]}
+              pageSizeOptions={[5, 10, 20, 50, 100, 200]}
             />
           </div>
         </div>

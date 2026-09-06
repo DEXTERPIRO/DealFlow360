@@ -544,10 +544,10 @@ export default function Warehouses() {
                 <thead>
                   <tr className="border-b-2 border-slate-900 bg-slate-100 text-[10px] uppercase font-mono font-black text-slate-800 tracking-wider">
                     <th className="py-3 px-4">Facility Name</th>
-                    <th className="py-3 px-4">Location</th>
-                    <th className="py-3 px-4 text-center">SKUs</th>
+                    <th className="py-3 px-4 hidden sm:table-cell">Location</th>
+                    <th className="py-3 px-4 text-center hidden md:table-cell">SKUs</th>
                     <th className="py-3 px-4 text-right">Total Units</th>
-                    <th className="py-3 px-4 text-right">Standard Shipping</th>
+                    <th className="py-3 px-4 text-right hidden sm:table-cell">Standard Shipping</th>
                     <th className="py-3 px-4 text-center">Status</th>
                     <th className="py-3 px-4 text-center">Actions</th>
                   </tr>
@@ -568,16 +568,22 @@ export default function Warehouses() {
                             <div className="w-7 h-7 rounded-lg bg-pop-sky/30 border border-slate-900 text-slate-900 flex items-center justify-center shrink-0">
                               <WarehouseIcon size={14} strokeWidth={2.5} />
                             </div>
-                            <span className="font-heading font-black text-slate-900">{wh.name}</span>
+                            <div>
+                              <span className="font-heading font-black text-slate-900">{wh.name}</span>
+                              <div className="sm:hidden text-[10px] text-slate-500 flex items-center gap-1 font-medium mt-0.5">
+                                <MapPin size={10} className="text-slate-400 shrink-0" />
+                                {wh.location || '—'}
+                              </div>
+                            </div>
                           </div>
                         </td>
-                        <td className="py-3 px-4">
+                        <td className="py-3 px-4 hidden sm:table-cell">
                           <span className="font-medium text-slate-600 flex items-center gap-1">
                             <MapPin size={12} className="text-slate-400 shrink-0" />
                             {wh.location || '—'}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-center">
+                        <td className="py-3 px-4 text-center hidden md:table-cell">
                           <span className="inline-block px-2 py-0.5 rounded-md font-mono text-[11px] font-black bg-sky-100 text-sky-900 border border-sky-300">
                             {skuCount}
                           </span>
@@ -585,7 +591,7 @@ export default function Warehouses() {
                         <td className="py-3 px-4 text-right font-mono font-black text-emerald-700 text-sm">
                           {totalUnits.toLocaleString('en-IN')}
                         </td>
-                        <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
+                        <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 hidden sm:table-cell">
                           ₹{Number(wh.shipping_cost || 0).toLocaleString('en-IN')}
                         </td>
                         <td className="py-3 px-4 text-center">
@@ -634,7 +640,7 @@ export default function Warehouses() {
               currentPage={facilityPage}
               totalItems={filteredWarehouses.length}
               pageSize={facilityPageSize}
-              pageSizeOptions={[6, 12, 24, 48, 100]}
+              pageSizeOptions={[5, 6, 12, 24, 48, 100, 200]}
               onPageChange={setFacilityPage}
               onPageSizeChange={(s) => {
                 setFacilityPageSize(s);
@@ -726,9 +732,9 @@ export default function Warehouses() {
                 <tr className="border-b-2 border-slate-900 bg-slate-100/90 text-slate-800 text-[10px] uppercase font-mono font-black tracking-wider">
                   <th className="py-3.5 px-6">Warehouse</th>
                   <th className="py-3.5 px-4">Product</th>
-                  <th className="py-3.5 px-4 font-mono">SKU</th>
-                  <th className="py-3.5 px-4 text-center">In Stock</th>
-                  <th className="py-3.5 px-4 text-center">Reserved</th>
+                  <th className="py-3.5 px-4 font-mono hidden sm:table-cell">SKU</th>
+                  <th className="py-3.5 px-4 text-center hidden md:table-cell">In Stock</th>
+                  <th className="py-3.5 px-4 text-center hidden md:table-cell">Reserved</th>
                   <th className="py-3.5 px-4 text-center">Available</th>
                   <th className="py-3.5 px-6 text-right">Action</th>
                 </tr>
@@ -753,15 +759,16 @@ export default function Warehouses() {
                           {row.warehouseName}
                         </td>
                         <td className="py-4 px-4 font-bold text-slate-800">
-                          {row.productName}
+                          <div>{row.productName}</div>
+                          <div className="sm:hidden text-[10px] font-mono text-pop-violet font-bold mt-0.5">{row.sku}</div>
                         </td>
-                        <td className="py-4 px-4 font-mono font-bold text-pop-violet">
+                        <td className="py-4 px-4 font-mono font-bold text-pop-violet hidden sm:table-cell">
                           {row.sku}
                         </td>
-                        <td className="py-4 px-4 text-center font-mono font-bold text-slate-800">
+                        <td className="py-4 px-4 text-center font-mono font-bold text-slate-800 hidden md:table-cell">
                           {row.quantity}
                         </td>
-                        <td className="py-4 px-4 text-center font-mono font-bold text-slate-500">
+                        <td className="py-4 px-4 text-center font-mono font-bold text-slate-500 hidden md:table-cell">
                           {row.reserved}
                         </td>
                         <td className="py-4 px-4 text-center">
@@ -795,7 +802,7 @@ export default function Warehouses() {
               pageSize={stockPageSize}
               onPageChange={setStockPage}
               onPageSizeChange={setStockPageSize}
-              pageSizeOptions={[10, 25, 50, 100]}
+              pageSizeOptions={[5, 10, 25, 50, 100, 200]}
             />
           </div>
         </div>

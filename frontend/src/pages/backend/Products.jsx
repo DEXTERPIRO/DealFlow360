@@ -70,7 +70,16 @@ export default function ProductsPage() {
         productsAPI.getAll(params),
         productsAPI.getCategories()
       ]);
-      setProducts(prodsRes || []);
+      const normalizedProds = (prodsRes || []).map((p) => ({
+        ...p,
+        isSubscription: Boolean(p.isSubscription ?? p.is_subscription),
+        basePrice: p.basePrice ?? p.base_price ?? 0,
+        costPrice: p.costPrice ?? p.cost_price ?? 0,
+        billingCycle: p.billingCycle ?? p.billing_cycle ?? 'MONTHLY',
+        categoryId: p.categoryId ?? p.category_id ?? (p.category?.id || ''),
+        warehouseStocks: p.warehouseStocks ?? p.warehouse_stocks ?? [],
+      }));
+      setProducts(normalizedProds);
       setCategories(catsRes || []);
     } catch (err) {
       console.error('Failed to load products:', err);
@@ -87,7 +96,7 @@ export default function ProductsPage() {
     return () => clearTimeout(timer);
   }, [search, selectedCategory, subscriptionFilter]);
 
-  // Products returned directly from PostgreSQL database query
+  // Products returned directly from database query
   const filteredProducts = useMemo(() => {
     return products;
   }, [products]);
@@ -152,13 +161,13 @@ export default function ProductsPage() {
       name: product.name,
       sku: product.sku,
       description: product.description || '',
-      categoryId: product.categoryId,
-      basePrice: product.basePrice,
-      costPrice: product.costPrice || '0',
+      categoryId: product.categoryId || product.category_id || (product.category?.id || ''),
+      basePrice: product.basePrice ?? product.base_price ?? '',
+      costPrice: product.costPrice ?? product.cost_price ?? '0',
       tax: product.tax || '18',
       unit: product.unit || 'piece',
-      isSubscription: Boolean(product.isSubscription),
-      billingCycle: product.billingCycle || 'MONTHLY'
+      isSubscription: Boolean(product.isSubscription ?? product.is_subscription),
+      billingCycle: product.billingCycle || product.billing_cycle || 'MONTHLY'
     });
     setIsModalOpen(true);
   };
@@ -378,11 +387,11 @@ export default function ProductsPage() {
                 <tr className="border-b-2 border-slate-900 bg-slate-100/90 text-[10px] uppercase font-mono font-black text-slate-800 tracking-wider">
                   <th className="py-3 px-4">Product & SKU</th>
                   <th className="py-3 px-4">Category</th>
-                  <th className="py-3 px-4 text-center">Type</th>
+                  <th className="py-3 px-4 text-center hidden sm:table-cell">Type</th>
                   <th className="py-3 px-4 text-right">Base Price</th>
-                  <th className="py-3 px-4 text-right">Cost Price</th>
+                  <th className="py-3 px-4 text-right hidden sm:table-cell">Cost Price</th>
                   <th className="py-3 px-4 text-center">Margin</th>
-                  <th className="py-3 px-4 text-center">Tax</th>
+                  <th className="py-3 px-4 text-center hidden md:table-cell">Tax</th>
                   <th className="py-3 px-4">Warehouse Stock</th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
@@ -417,7 +426,7 @@ export default function ProductsPage() {
                       </td>
 
                       {/* Subscription or One-Time */}
-                      <td className="py-3 px-4 text-center">
+                      <td className="py-3 px-4 text-center hidden sm:table-cell">
                         {p.isSubscription ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-xl text-[10px] font-mono font-black bg-pop-violet text-white border-2 border-slate-900 shadow-pop-sm">
                             <RefreshCw className="w-2.5 h-2.5 stroke-[2.5]" />
@@ -436,7 +445,7 @@ export default function ProductsPage() {
                       </td>
 
                       {/* Cost Price */}
-                      <td className="py-3 px-4 text-right font-mono font-semibold text-slate-600">
+                      <td className="py-3 px-4 text-right font-mono font-semibold text-slate-600 hidden sm:table-cell">
                         ₹{cost.toLocaleString()}
                       </td>
 
@@ -456,7 +465,7 @@ export default function ProductsPage() {
                       </td>
 
                       {/* Tax */}
-                      <td className="py-3 px-4 text-center font-mono font-bold text-slate-700">
+                      <td className="py-3 px-4 text-center font-mono font-bold text-slate-700 hidden md:table-cell">
                         {p.tax}%
                       </td>
 

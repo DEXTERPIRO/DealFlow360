@@ -542,61 +542,61 @@ export default function InvoicesPage() {
       </div>
 
       {/* ── 4 Stats Cards (Color-Coded for Easy Differentiation) ───────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-gradient-to-br from-violet-50 to-purple-50 border-2 border-slate-900 rounded-3xl p-5 shadow-pop hover:shadow-pop-lg hover:-translate-y-1 transition-all flex items-center justify-between group">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="bg-gradient-to-br from-violet-50 to-purple-50 border-2 border-slate-900 rounded-3xl p-4 sm:p-5 shadow-pop hover:shadow-pop-lg hover:-translate-y-1 transition-all flex items-center justify-between group">
           <div>
             <p className="text-[11px] uppercase tracking-wider text-violet-600 font-heading font-black">
               Total Invoiced
             </p>
-            <p className="text-2xl font-heading font-black text-slate-900 mt-1 font-mono">
+            <p className="text-xl sm:text-2xl font-heading font-black text-slate-900 mt-1 font-mono">
               {formatINR(stats.totalInvoiced)}
             </p>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-pop-violet text-white border-2 border-slate-900 shadow-pop-xs flex items-center justify-center group-hover:scale-110 transition-transform">
-            <FileText size={22} strokeWidth={2.5} />
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-pop-violet text-white border-2 border-slate-900 shadow-pop-xs flex items-center justify-center group-hover:scale-110 transition-transform">
+            <FileText size={20} strokeWidth={2.5} />
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-emerald-50 to-green-50 border-2 border-slate-900 rounded-3xl p-5 shadow-pop hover:shadow-pop-lg hover:-translate-y-1 transition-all flex items-center justify-between group">
+        <div className="bg-gradient-to-br from-emerald-50 to-green-50 border-2 border-slate-900 rounded-3xl p-4 sm:p-5 shadow-pop hover:shadow-pop-lg hover:-translate-y-1 transition-all flex items-center justify-between group">
           <div>
             <p className="text-[11px] uppercase tracking-wider text-emerald-600 font-heading font-black">
               Total Collected
             </p>
-            <p className="text-2xl font-heading font-black text-emerald-700 mt-1 font-mono">
+            <p className="text-xl sm:text-2xl font-heading font-black text-emerald-700 mt-1 font-mono">
               {formatINR(stats.totalCollected)}
             </p>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-pop-mint text-slate-900 border-2 border-slate-900 shadow-pop-xs flex items-center justify-center group-hover:scale-110 transition-transform">
-            <CheckCircle2 size={22} strokeWidth={2.5} />
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-pop-mint text-slate-900 border-2 border-slate-900 shadow-pop-xs flex items-center justify-center group-hover:scale-110 transition-transform">
+            <CheckCircle2 size={20} strokeWidth={2.5} />
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-slate-900 rounded-3xl p-5 shadow-pop hover:shadow-pop-lg hover:-translate-y-1 transition-all flex items-center justify-between group">
+        <div className="bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-slate-900 rounded-3xl p-4 sm:p-5 shadow-pop hover:shadow-pop-lg hover:-translate-y-1 transition-all flex items-center justify-between group">
           <div>
             <p className="text-[11px] uppercase tracking-wider text-amber-600 font-heading font-black">
               Outstanding Due
             </p>
-            <p className="text-2xl font-heading font-black text-amber-700 mt-1 font-mono">
+            <p className="text-xl sm:text-2xl font-heading font-black text-amber-700 mt-1 font-mono">
               {formatINR(stats.outstanding)}
             </p>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-900 border-2 border-slate-900 shadow-pop-xs flex items-center justify-center group-hover:scale-110 transition-transform">
-            <Clock size={22} strokeWidth={2.5} />
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-amber-100 text-amber-900 border-2 border-slate-900 shadow-pop-xs flex items-center justify-center group-hover:scale-110 transition-transform">
+            <Clock size={20} strokeWidth={2.5} />
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-rose-50 to-pink-50 border-2 border-slate-900 rounded-3xl p-5 shadow-pop hover:shadow-pop-lg hover:-translate-y-1 transition-all flex items-center justify-between group">
+        <div className="bg-gradient-to-br from-rose-50 to-pink-50 border-2 border-slate-900 rounded-3xl p-4 sm:p-5 shadow-pop hover:shadow-pop-lg hover:-translate-y-1 transition-all flex items-center justify-between group">
           <div>
             <p className="text-[11px] uppercase tracking-wider text-rose-600 font-heading font-black">
               Overdue Invoices
             </p>
-            <p className="text-2xl font-heading font-black text-rose-600 mt-1">
+            <p className="text-xl sm:text-2xl font-heading font-black text-rose-600 mt-1">
               {stats.overdueCount}
               <span className="text-xs font-heading font-bold text-slate-500 ml-1.5 font-sans">unpaid</span>
             </p>
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-rose-200 text-rose-800 border-2 border-slate-900 shadow-pop-xs flex items-center justify-center group-hover:scale-110 transition-transform">
-            <AlertTriangle size={22} strokeWidth={2.5} />
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-rose-200 text-rose-800 border-2 border-slate-900 shadow-pop-xs flex items-center justify-center group-hover:scale-110 transition-transform">
+            <AlertTriangle size={20} strokeWidth={2.5} />
           </div>
         </div>
       </div>
@@ -629,9 +629,9 @@ export default function InvoicesPage() {
             <button
               key={tab.id}
               onClick={() => setFilterTab(tab.id)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-heading font-bold whitespace-nowrap transition-all border-2 border-slate-900 cursor-pointer ${
+              className={`px-3.5 py-1.5 rounded-full text-xs font-heading font-extrabold border-2 border-slate-900 transition-all cursor-pointer whitespace-nowrap ${
                 filterTab === tab.id
-                  ? 'bg-pop-violet text-white shadow-pop-sm'
+                  ? 'bg-slate-900 text-white shadow-pop-sm'
                   : 'bg-white text-slate-700 hover:bg-pop-yellow shadow-none hover:shadow-pop-sm hover:-translate-y-0.5'
               }`}
             >
@@ -641,9 +641,10 @@ export default function InvoicesPage() {
         </div>
       </div>
 
-      {/* ── Invoices List Table ─────────────────────────────────────────── */}
+      {/* ── Invoices List (Desktop Table + Mobile Cards) ─────────────────── */}
       <div className="rounded-2xl border-2 border-slate-900 bg-white overflow-hidden shadow-pop">
-        <div className="overflow-x-auto">
+        {/* Desktop / Tablet Table View */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b-2 border-slate-900 bg-slate-100 text-slate-800 font-heading font-extrabold">
@@ -837,6 +838,145 @@ export default function InvoicesPage() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Cards View */}
+        <div className="md:hidden divide-y-2 divide-slate-100">
+          {loading ? (
+            <div className="py-12 text-center text-slate-500 font-heading font-bold">
+              Loading invoices...
+            </div>
+          ) : invoices.length === 0 ? (
+            <div className="py-12 text-center text-slate-600 px-4">
+              <div className="w-12 h-12 rounded-2xl bg-pop-yellow border-2 border-slate-900 shadow-pop-sm flex items-center justify-center mx-auto mb-2">
+                <FileText size={24} strokeWidth={2.5} className="text-slate-900" />
+              </div>
+              <p className="text-sm font-heading font-extrabold text-slate-900">No invoices found</p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Generate an invoice from any approved quotation.
+              </p>
+            </div>
+          ) : (
+            pagedInvoices.map((inv) => {
+              const st = (inv.status || 'DRAFT').toUpperCase();
+              const overdue =
+                st !== 'PAID' && st !== 'CANCELLED' && isPastDue(inv.due_date);
+
+              const displayStatus = overdue ? 'OVERDUE' : st;
+              const statusMeta =
+                STATUS_CONFIG[displayStatus] || STATUS_CONFIG.DRAFT;
+              const StatusIcon = statusMeta.icon;
+
+              return (
+                <div key={inv.id} className="p-4 space-y-3 hover:bg-pop-yellow/10 transition-colors">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <span className="font-mono font-bold text-slate-900 text-xs">
+                        {inv.invoice_number}
+                      </span>
+                      <p className="font-heading font-bold text-slate-900 text-sm mt-0.5">
+                        {inv.quotation?.customer?.name || 'Direct Customer'}
+                      </p>
+                      {inv.quotation?.customer?.company_name && (
+                        <p className="text-[11px] text-slate-500 font-medium">
+                          {inv.quotation.customer.company_name}
+                        </p>
+                      )}
+                    </div>
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-heading font-bold border-2 border-slate-900 shadow-pop-sm shrink-0 ${statusMeta.bg}`}
+                    >
+                      <StatusIcon size={11} strokeWidth={2.5} />
+                      <span>{statusMeta.label}</span>
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 bg-paper p-2.5 rounded-xl border border-slate-300 text-xs">
+                    <div>
+                      <span className="text-[10px] text-slate-500 font-bold uppercase block">Amount</span>
+                      <span className="font-mono font-black text-slate-900 text-sm">
+                        {formatINR(inv.amount)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-500 font-bold uppercase block">Quotation Ref</span>
+                      <span className="font-mono text-pop-violet font-bold text-xs">
+                        {inv.quotation?.quotation_number || `QT-${inv.quotation_id?.slice(0, 8)}`}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-500 font-bold uppercase block">Issue Date</span>
+                      <span className="text-slate-700 font-medium text-xs">
+                        {formatDate(inv.created_at)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-500 font-bold uppercase block">Due Date</span>
+                      <span className={`text-xs font-bold ${overdue ? 'text-rose-600' : 'text-slate-700'}`}>
+                        {formatDate(inv.due_date)} {overdue && '(OVERDUE)'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {st === 'PAID' && inv.payment_ref && (
+                    <div className="text-[11px] text-slate-600 font-mono flex items-center gap-1.5">
+                      <span className="font-bold">Payment:</span>
+                      <span className="bg-emerald-50 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-md font-sans font-semibold">
+                        {inv.payment_ref}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Action buttons */}
+                  <div className="flex items-center justify-end gap-2 pt-1">
+                    {st === 'DRAFT' && canManageInvoices && (
+                      <>
+                        <button
+                          onClick={() => handleMarkSent(inv.id)}
+                          className="btn-candy bg-white hover:bg-pop-sky text-slate-900 text-[11px] px-2.5 py-1 gap-1 shadow-pop-sm"
+                        >
+                          <Send size={11} strokeWidth={2.5} />
+                          Send
+                        </button>
+                        <button
+                          onClick={() => setPaymentModalInvoice(inv)}
+                          className="btn-candy bg-pop-violet hover:bg-[#7C3AED] text-white text-[11px] px-3 py-1 gap-1 shadow-pop-sm"
+                        >
+                          <CreditCard size={11} strokeWidth={2.5} />
+                          Pay
+                        </button>
+                      </>
+                    )}
+                    {(st === 'SENT' || st === 'OVERDUE') && canManageInvoices && (
+                      <button
+                        onClick={() => setPaymentModalInvoice(inv)}
+                        className="btn-candy bg-pop-violet hover:bg-[#7C3AED] text-white text-[11px] px-3 py-1 gap-1 shadow-pop-sm"
+                      >
+                        <CreditCard size={11} strokeWidth={2.5} />
+                        Record Payment
+                      </button>
+                    )}
+                    {st === 'PAID' && (
+                      <button
+                        onClick={() => setReceiptInvoice(inv)}
+                        className="btn-candy bg-pop-mint hover:bg-[#10B981] text-slate-900 text-[11px] px-3 py-1 gap-1 shadow-pop-sm"
+                      >
+                        <Receipt size={11} strokeWidth={2.5} />
+                        Receipt
+                      </button>
+                    )}
+                    <button
+                      onClick={() => invoicesAPI.downloadPDF(inv.id)}
+                      className="w-7 h-7 rounded-full border-2 border-slate-900 bg-white hover:bg-pop-yellow text-slate-900 shadow-pop-sm flex items-center justify-center transition-all active:translate-y-0.5 cursor-pointer"
+                      title="Download PDF"
+                    >
+                      <Download size={12} strokeWidth={2.5} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
 
         {/* Pagination */}
