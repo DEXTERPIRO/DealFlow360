@@ -105,14 +105,14 @@ export const NewDealModal = () => {
             onChange={handleChange}
           />
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+            <label className="block text-xs font-heading font-extrabold uppercase tracking-wider text-slate-900 mb-1.5">
               Priority
             </label>
             <select
               name="priority"
               value={formData.priority}
               onChange={handleChange}
-              className="w-full rounded-lg bg-slate-900 border border-slate-700 text-slate-100 text-sm px-3.5 py-2.5 focus:border-brand-500 focus:outline-none"
+              className="w-full rounded-xl bg-white border-2 border-slate-900 text-slate-900 text-xs font-heading font-bold px-3.5 py-2.5 focus:shadow-pop focus:outline-none transition-all"
             >
               <option value="LOW">Low</option>
               <option value="MEDIUM">Medium</option>
@@ -123,14 +123,14 @@ export const NewDealModal = () => {
         </div>
 
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+          <label className="block text-xs font-heading font-extrabold uppercase tracking-wider text-slate-900 mb-1.5">
             Initial Pipeline Stage
           </label>
           <select
             name="stage"
             value={formData.stage}
             onChange={handleChange}
-            className="w-full rounded-lg bg-slate-900 border border-slate-700 text-slate-100 text-sm px-3.5 py-2.5 focus:border-brand-500 focus:outline-none"
+            className="w-full rounded-xl bg-white border-2 border-slate-900 text-slate-900 text-xs font-heading font-bold px-3.5 py-2.5 focus:shadow-pop focus:outline-none transition-all"
           >
             <option value="LEAD">Lead Inflow</option>
             <option value="QUALIFICATION">Qualification</option>
@@ -142,7 +142,7 @@ export const NewDealModal = () => {
         </div>
 
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+          <label className="block text-xs font-heading font-extrabold uppercase tracking-wider text-slate-900 mb-1.5">
             Investment Thesis / Summary
           </label>
           <textarea
@@ -151,11 +151,11 @@ export const NewDealModal = () => {
             placeholder="Brief overview of transaction structure and core strategic rationale..."
             value={formData.description}
             onChange={handleChange}
-            className="w-full rounded-lg bg-slate-900 border border-slate-700 text-slate-100 text-sm p-3 focus:border-brand-500 focus:outline-none"
+            className="w-full rounded-xl bg-white border-2 border-slate-900 text-slate-900 placeholder:text-slate-400 text-xs font-heading font-medium p-3 focus:shadow-pop focus:outline-none transition-all"
           />
         </div>
 
-        <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+        <div className="flex items-center justify-end gap-3 pt-4 border-t-2 border-slate-900">
           <Button
             type="button"
             variant="ghost"
@@ -163,7 +163,7 @@ export const NewDealModal = () => {
           >
             Cancel
           </Button>
-          <Button type="submit" disabled={loading}>
+          <Button type="submit" disabled={loading} variant="primary">
             {loading ? 'Creating Mandate...' : 'Create Mandate'}
           </Button>
         </div>

@@ -50,26 +50,28 @@ export const FileDropzone = ({ dealId, onUploadSuccess, type = 'products' }) => 
   return (
     <div
       {...getRootProps()}
-      className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors ${
+      className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${
         isDragActive
-          ? 'border-brand-500 bg-brand-500/10'
-          : 'border-slate-800 hover:border-slate-700 bg-slate-900/40'
+          ? 'border-pop-violet bg-violet-50/80 shadow-pop'
+          : 'border-slate-900 hover:border-slate-900 bg-white hover:bg-amber-50/60 shadow-pop-sm hover:shadow-pop'
       }`}
     >
       <input {...getInputProps()} />
-      <div className="flex flex-col items-center justify-center gap-2">
-        <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-brand-400">
-          <UploadCloud className="w-5 h-5" />
+      <div className="flex flex-col items-center justify-center gap-2.5">
+        <div className="w-12 h-12 rounded-2xl bg-pop-amber text-slate-900 border-2 border-slate-900 shadow-pop-xs flex items-center justify-center">
+          <UploadCloud className="w-6 h-6" strokeWidth={2.5} />
         </div>
         <div>
-          <p className="text-xs font-medium text-slate-300">
+          <p className="text-xs font-heading font-extrabold text-slate-900">
             {uploading
               ? 'Processing & optimizing media...'
               : isDragActive
               ? 'Drop files here to upload'
-              : 'Drag & drop pitch decks, teasers, or logos'}
+              : 'Drag & drop pitch decks, teasers, or product media'}
           </p>
-          <p className="text-[10px] text-slate-500 mt-0.5">Supports PNG, JPG, WebP, PDF (up to 10MB)</p>
+          <p className="text-[10px] text-slate-600 font-mono font-bold mt-1">
+            Supports PNG, JPG, WebP, PDF (up to 10MB)
+          </p>
         </div>
       </div>
     </div>

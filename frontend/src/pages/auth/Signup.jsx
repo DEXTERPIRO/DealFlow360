@@ -127,15 +127,15 @@ export default function Signup() {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-4 bg-slate-950 text-slate-100 antialiased selection:bg-blue-600 selection:text-white">
-      <div className="w-full max-w-lg p-8 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl space-y-6">
+    <div className="min-h-screen w-full flex items-center justify-center p-4 bg-paper bg-dot-grid antialiased">
+      <div className="w-full max-w-lg p-8 rounded-3xl bg-white border-2 border-slate-900 shadow-pop-lg space-y-6">
         {/* Brand Header */}
         <div className="text-center space-y-2">
-          <div className="inline-flex w-12 h-12 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 items-center justify-center shadow-lg shadow-blue-500/25 text-white">
-            <Layers className="w-6 h-6" />
+          <div className="inline-flex w-12 h-12 rounded-2xl bg-pop-violet items-center justify-center border-2 border-slate-900 shadow-pop-sm text-white">
+            <Layers className="w-6 h-6" strokeWidth={2.5} />
           </div>
-          <h2 className="text-2xl font-black text-white tracking-tight">Create Corporate Account</h2>
-          <p className="text-xs text-slate-400">
+          <h2 className="text-2xl font-heading font-extrabold text-slate-900 tracking-tight">Create Corporate Account</h2>
+          <p className="text-xs font-medium text-slate-600">
             Set up your credentials for the DealFlow360 platform
           </p>
         </div>
@@ -143,11 +143,11 @@ export default function Signup() {
         <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
           {/* Full Name */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-heading font-bold text-slate-700 uppercase tracking-wider mb-1.5">
               Full Name
             </label>
             <div className="relative">
-              <User className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+              <User className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" strokeWidth={2.5} />
               <input
                 type="text"
                 name="name"
@@ -156,21 +156,21 @@ export default function Signup() {
                 placeholder="Elena Vance"
                 autoComplete="off"
                 spellCheck="false"
-                className={`w-full bg-slate-950 border rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 transition-colors ${
-                  errors.name ? 'border-rose-500 focus:ring-rose-500' : 'border-slate-800 focus:border-blue-500 focus:ring-blue-500'
+                className={`w-full bg-slate-50 border-2 border-slate-900 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 font-medium focus:outline-none focus:bg-white focus:shadow-pop-sm transition-all ${
+                  errors.name ? 'border-rose-500' : ''
                 }`}
               />
             </div>
-            {errors.name && <p className="text-[11px] text-rose-400 mt-1 pl-1 font-medium">{errors.name}</p>}
+            {errors.name && <p className="text-[11px] text-rose-600 mt-1 pl-1 font-bold">{errors.name}</p>}
           </div>
 
           {/* Email */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-heading font-bold text-slate-700 uppercase tracking-wider mb-1.5">
               Work Email
             </label>
             <div className="relative">
-              <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+              <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" strokeWidth={2.5} />
               <input
                 type="email"
                 name="email"
@@ -179,46 +179,46 @@ export default function Signup() {
                 placeholder="elena@company.com"
                 autoComplete="off"
                 spellCheck="false"
-                className={`w-full bg-slate-950 border rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 transition-colors ${
-                  errors.email ? 'border-rose-500 focus:ring-rose-500' : 'border-slate-800 focus:border-blue-500 focus:ring-blue-500'
+                className={`w-full bg-slate-50 border-2 border-slate-900 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 font-medium focus:outline-none focus:bg-white focus:shadow-pop-sm transition-all ${
+                  errors.email ? 'border-rose-500' : ''
                 }`}
               />
             </div>
-            {errors.email && <p className="text-[11px] text-rose-400 mt-1 pl-1 font-medium">{errors.email}</p>}
+            {errors.email && <p className="text-[11px] text-rose-600 mt-1 pl-1 font-bold">{errors.email}</p>}
           </div>
 
           {/* Assigned Role (Managed by Administrator) */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider">
+              <label className="block text-xs font-heading font-bold text-slate-700 uppercase tracking-wider">
                 Assigned Role
               </label>
-              <span className="text-[10px] text-slate-400 font-mono flex items-center gap-1">
-                <ShieldCheck className="w-3.5 h-3.5 text-blue-400" />
+              <span className="text-[10px] text-slate-600 font-mono font-bold flex items-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-pop-violet" strokeWidth={2.5} />
                 Managed by Admin
               </span>
             </div>
-            <div className="flex items-center justify-between px-3.5 py-2.5 bg-slate-950/70 border border-slate-800 rounded-xl text-xs text-slate-200">
+            <div className="flex items-center justify-between px-3.5 py-2.5 bg-slate-50 border-2 border-slate-900 rounded-xl text-xs text-slate-900">
               <div className="flex items-center gap-2.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400/50" />
-                <span className="font-semibold text-white">Sales Representative</span>
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 border border-slate-900 shadow-sm" />
+                <span className="font-heading font-bold text-slate-900">Sales Representative</span>
               </div>
-              <span className="text-[10px] text-slate-400 bg-slate-900 px-2.5 py-0.5 rounded-md border border-slate-800">
+              <span className="text-[10px] font-mono font-bold text-slate-700 bg-slate-200 px-2.5 py-0.5 rounded-md border border-slate-400">
                 Default Member
               </span>
             </div>
-            <p className="text-[11px] text-slate-500 pl-0.5">
+            <p className="text-[11px] text-slate-500 font-medium pl-0.5">
               Role permissions are centrally assigned and upgraded by system administrators.
             </p>
           </div>
 
           {/* Password */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-heading font-bold text-slate-700 uppercase tracking-wider mb-1.5">
               Password
             </label>
             <div className="relative">
-              <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+              <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" strokeWidth={2.5} />
               <input
                 type={showPassword ? 'text' : 'password'}
                 name="password"
@@ -226,30 +226,30 @@ export default function Signup() {
                 onChange={handleChange}
                 placeholder="••••••••"
                 autoComplete="new-password"
-                className={`w-full bg-slate-950 border rounded-xl pl-10 pr-10 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 transition-colors ${
-                  errors.password ? 'border-rose-500 focus:ring-rose-500' : 'border-slate-800 focus:border-blue-500 focus:ring-blue-500'
+                className={`w-full bg-slate-50 border-2 border-slate-900 rounded-xl pl-10 pr-10 py-2.5 text-xs text-slate-900 placeholder-slate-400 font-medium focus:outline-none focus:bg-white focus:shadow-pop-sm transition-all ${
+                  errors.password ? 'border-rose-500' : ''
                 }`}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-900 cursor-pointer"
               >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                {showPassword ? <EyeOff className="w-4 h-4" strokeWidth={2.5} /> : <Eye className="w-4 h-4" strokeWidth={2.5} />}
               </button>
             </div>
-            {errors.password && <p className="text-[11px] text-rose-400 mt-1 pl-1 font-medium">{errors.password}</p>}
+            {errors.password && <p className="text-[11px] text-rose-600 mt-1 pl-1 font-bold">{errors.password}</p>}
 
             {/* Password Strength Meter */}
             {formData.password && (
               <div className="mt-2 space-y-1">
-                <div className="flex items-center justify-between text-[10px] text-slate-400">
+                <div className="flex items-center justify-between text-[10px] text-slate-600 font-medium">
                   <span>Password strength:</span>
-                  <span className={`font-semibold ${strength.score === 3 ? 'text-emerald-400' : strength.score === 2 ? 'text-amber-400' : 'text-rose-400'}`}>
+                  <span className={`font-bold ${strength.score === 3 ? 'text-emerald-700' : strength.score === 2 ? 'text-amber-700' : 'text-rose-700'}`}>
                     {strength.label}
                   </span>
                 </div>
-                <div className="grid grid-cols-3 gap-1 h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                <div className="grid grid-cols-3 gap-1 h-2 w-full bg-slate-100 rounded-full border border-slate-300 overflow-hidden">
                   <div className={`h-full transition-all duration-300 ${strength.score >= 1 ? strength.color : 'bg-transparent'}`} />
                   <div className={`h-full transition-all duration-300 ${strength.score >= 2 ? strength.color : 'bg-transparent'}`} />
                   <div className={`h-full transition-all duration-300 ${strength.score >= 3 ? strength.color : 'bg-transparent'}`} />
@@ -257,49 +257,49 @@ export default function Signup() {
               </div>
             )}
 
-            {/* Password Guidance Hints to make it Strong */}
-            <div className="mt-2.5 p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 space-y-2">
-              <div className="flex items-center justify-between text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-                <span className="flex items-center gap-1.5 text-slate-300">
-                  <Info className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+            {/* Password Guidance Hints */}
+            <div className="mt-2.5 p-3.5 rounded-2xl bg-amber-50/80 border-2 border-slate-900 shadow-pop-sm space-y-2">
+              <div className="flex items-center justify-between text-[10px] font-heading font-extrabold text-slate-800 uppercase tracking-wider">
+                <span className="flex items-center gap-1.5 text-slate-900">
+                  <Info className="w-3.5 h-3.5 text-pop-violet shrink-0" strokeWidth={2.5} />
                   Hints to make password strong:
                 </span>
                 {strength.score === 3 && (
-                  <span className="text-emerald-400 font-bold lowercase text-[10px] flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> strong
+                  <span className="text-emerald-800 font-bold lowercase text-[10px] flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" strokeWidth={2.5} /> strong
                   </span>
                 )}
               </div>
               <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 text-[11px]">
-                <div className={`flex items-center gap-1.5 transition-colors ${passRules.hasMinLen ? 'text-emerald-400 font-medium' : 'text-slate-500'}`}>
+                <div className={`flex items-center gap-1.5 transition-colors ${passRules.hasMinLen ? 'text-emerald-800 font-bold' : 'text-slate-500'}`}>
                   {passRules.hasMinLen ? (
-                    <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <Check className="w-3.5 h-3.5 text-emerald-700 shrink-0" strokeWidth={2.5} />
                   ) : (
-                    <span className="w-1.5 h-1.5 rounded-full bg-slate-600 ml-1 mr-1 shrink-0" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400 ml-1 mr-1 shrink-0" />
                   )}
                   <span>8+ characters</span>
                 </div>
-                <div className={`flex items-center gap-1.5 transition-colors ${passRules.hasUpper ? 'text-emerald-400 font-medium' : 'text-slate-500'}`}>
+                <div className={`flex items-center gap-1.5 transition-colors ${passRules.hasUpper ? 'text-emerald-800 font-bold' : 'text-slate-500'}`}>
                   {passRules.hasUpper ? (
-                    <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <Check className="w-3.5 h-3.5 text-emerald-700 shrink-0" strokeWidth={2.5} />
                   ) : (
-                    <span className="w-1.5 h-1.5 rounded-full bg-slate-600 ml-1 mr-1 shrink-0" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400 ml-1 mr-1 shrink-0" />
                   )}
                   <span>1 uppercase (A-Z)</span>
                 </div>
-                <div className={`flex items-center gap-1.5 transition-colors ${passRules.hasNumber ? 'text-emerald-400 font-medium' : 'text-slate-500'}`}>
+                <div className={`flex items-center gap-1.5 transition-colors ${passRules.hasNumber ? 'text-emerald-800 font-bold' : 'text-slate-500'}`}>
                   {passRules.hasNumber ? (
-                    <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <Check className="w-3.5 h-3.5 text-emerald-700 shrink-0" strokeWidth={2.5} />
                   ) : (
-                    <span className="w-1.5 h-1.5 rounded-full bg-slate-600 ml-1 mr-1 shrink-0" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400 ml-1 mr-1 shrink-0" />
                   )}
                   <span>1 number (0-9)</span>
                 </div>
-                <div className={`flex items-center gap-1.5 transition-colors ${passRules.hasSpecial ? 'text-emerald-400 font-medium' : 'text-slate-500'}`}>
+                <div className={`flex items-center gap-1.5 transition-colors ${passRules.hasSpecial ? 'text-emerald-800 font-bold' : 'text-slate-500'}`}>
                   {passRules.hasSpecial ? (
-                    <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <Check className="w-3.5 h-3.5 text-emerald-700 shrink-0" strokeWidth={2.5} />
                   ) : (
-                    <span className="w-1.5 h-1.5 rounded-full bg-slate-600 ml-1 mr-1 shrink-0" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400 ml-1 mr-1 shrink-0" />
                   )}
                   <span>1 special symbol (!@#$)</span>
                 </div>
@@ -309,11 +309,11 @@ export default function Signup() {
 
           {/* Confirm Password */}
           <div>
-            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-heading font-bold text-slate-700 uppercase tracking-wider mb-1.5">
               Confirm Password
             </label>
             <div className="relative">
-              <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
+              <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" strokeWidth={2.5} />
               <input
                 type={showPassword ? 'text' : 'password'}
                 name="confirmPassword"
@@ -321,29 +321,29 @@ export default function Signup() {
                 onChange={handleChange}
                 placeholder="••••••••"
                 autoComplete="new-password"
-                className={`w-full bg-slate-950 border rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 transition-colors ${
-                  errors.confirmPassword ? 'border-rose-500 focus:ring-rose-500' : 'border-slate-800 focus:border-blue-500 focus:ring-blue-500'
+                className={`w-full bg-slate-50 border-2 border-slate-900 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 font-medium focus:outline-none focus:bg-white focus:shadow-pop-sm transition-all ${
+                  errors.confirmPassword ? 'border-rose-500' : ''
                 }`}
               />
             </div>
             {errors.confirmPassword && (
-              <p className="text-[11px] text-rose-400 mt-1 pl-1 font-medium">{errors.confirmPassword}</p>
+              <p className="text-[11px] text-rose-600 mt-1 pl-1 font-bold">{errors.confirmPassword}</p>
             )}
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full mt-2 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-lg shadow-blue-600/25 transition-all flex items-center justify-center gap-2 active:scale-[0.99] disabled:opacity-50"
+            className="btn-candy bg-pop-violet hover:bg-violet-600 text-white w-full mt-2 py-3.5 px-4 rounded-xl border-2 border-slate-900 shadow-pop text-sm font-heading font-extrabold flex items-center justify-center gap-2 cursor-pointer active:translate-x-0.5 active:translate-y-0.5 transition-all disabled:opacity-50"
           >
             {loading ? 'Registering Account...' : 'Complete Registration'}
-            <ArrowRight className="w-4 h-4" />
+            <ArrowRight className="w-4 h-4" strokeWidth={2.5} />
           </button>
         </form>
 
-        <div className="text-center text-xs text-slate-500 border-t border-slate-800 pt-4">
+        <div className="text-center text-xs text-slate-600 font-medium border-t-2 border-slate-100 pt-4">
           Already have an account?{' '}
-          <Link to="/login" className="text-blue-400 hover:underline font-semibold">
+          <Link to="/login" className="text-pop-violet hover:underline font-bold">
             Sign in
           </Link>
         </div>

@@ -9,30 +9,34 @@ export const Button = ({
   ...props
 }) => {
   const baseStyles =
-    'inline-flex items-center justify-center font-medium rounded-lg transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-50 disabled:cursor-not-allowed';
+    'inline-flex items-center justify-center font-heading font-bold rounded-full border-2 border-slate-900 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-pop-violet focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none cursor-pointer';
 
   const sizeStyles = {
-    sm: 'text-xs px-2.5 py-1.5 gap-1.5',
-    md: 'text-sm px-4 py-2 gap-2',
-    lg: 'text-base px-5 py-2.5 gap-2.5',
+    sm: 'text-xs px-3 py-1.5 gap-1.5 shadow-pop-sm hover:-translate-y-0.5 hover:-translate-x-0.5 hover:shadow-pop active:translate-y-0.5 active:translate-x-0.5 active:shadow-none',
+    md: 'text-xs sm:text-sm px-4 py-2 gap-2 shadow-pop hover:-translate-y-0.5 hover:-translate-x-0.5 hover:shadow-pop-lg active:translate-y-0.5 active:translate-x-0.5 active:shadow-pop-sm',
+    lg: 'text-sm sm:text-base px-6 py-2.5 gap-2.5 shadow-pop hover:-translate-y-0.5 hover:-translate-x-0.5 hover:shadow-pop-lg active:translate-y-0.5 active:translate-x-0.5 active:shadow-pop-sm',
   };
 
   const variantStyles = {
     primary:
-      'bg-brand-600 hover:bg-brand-500 text-white shadow-lg shadow-brand-600/30 focus:ring-brand-500 active:scale-[0.98]',
+      'bg-pop-violet hover:bg-[#7C3AED] text-white',
     secondary:
-      'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 focus:ring-slate-500',
+      'bg-white hover:bg-pop-yellow text-slate-900',
+    candy:
+      'bg-pop-pink hover:bg-[#EC4899] text-white',
+    mint:
+      'bg-pop-mint hover:bg-[#10B981] text-slate-900',
     outline:
-      'border border-slate-700 hover:border-slate-600 text-slate-300 hover:text-white hover:bg-slate-800/50 focus:ring-slate-500',
+      'bg-transparent hover:bg-slate-100 text-slate-900 shadow-pop-sm hover:shadow-pop',
     danger:
-      'bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-600/30 focus:ring-rose-500',
+      'bg-rose-500 hover:bg-rose-600 text-white',
     ghost:
-      'text-slate-400 hover:text-white hover:bg-slate-800/60 focus:ring-slate-500',
+      'border-transparent shadow-none hover:bg-slate-200/70 text-slate-700 hover:text-slate-900',
   };
 
   return (
     <button
-      className={`${baseStyles} ${sizeStyles[size]} ${variantStyles[variant]} ${className}`}
+      className={`${baseStyles} ${sizeStyles[size] || sizeStyles.md} ${variantStyles[variant] || variantStyles.primary} ${className}`}
       disabled={disabled}
       {...props}
     >
@@ -40,3 +44,5 @@ export const Button = ({
     </button>
   );
 };
+
+export default Button;

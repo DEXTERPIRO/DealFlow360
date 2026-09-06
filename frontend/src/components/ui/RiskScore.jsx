@@ -1,4 +1,5 @@
 import React from 'react';
+import { ShieldCheck, AlertTriangle, ShieldAlert } from 'lucide-react';
 
 export const getRiskLevel = (score) => {
   const num = Number(score || 0);
@@ -7,11 +8,9 @@ export const getRiskLevel = (score) => {
       level: 'low',
       label: 'Low Risk',
       shortLabel: 'Low',
-      color: '#10b981',
-      textClass: 'text-emerald-400',
-      bgClass: 'bg-emerald-500/10',
-      borderClass: 'border-emerald-500/30',
-      glow: 'rgba(16,185,129,0.4)',
+      bgClass: 'bg-pop-mint text-slate-900',
+      icon: ShieldCheck,
+      color: '#34D399',
     };
   }
   if (num < 10) {
@@ -19,22 +18,18 @@ export const getRiskLevel = (score) => {
       level: 'medium',
       label: 'Medium Risk',
       shortLabel: 'Med',
-      color: '#f59e0b',
-      textClass: 'text-amber-400',
-      bgClass: 'bg-amber-500/10',
-      borderClass: 'border-amber-500/30',
-      glow: 'rgba(245,158,11,0.4)',
+      bgClass: 'bg-pop-yellow text-slate-900',
+      icon: AlertTriangle,
+      color: '#FBBF24',
     };
   }
   return {
     level: 'high',
     label: 'High Risk',
     shortLabel: 'High',
-    color: '#ef4444',
-    textClass: 'text-rose-400',
-    bgClass: 'bg-rose-500/10',
-    borderClass: 'border-rose-500/30',
-    glow: 'rgba(239,68,68,0.4)',
+    bgClass: 'bg-rose-400 text-white',
+    icon: ShieldAlert,
+    color: '#F87171',
   };
 };
 
@@ -50,6 +45,7 @@ export const RiskScore = ({
   const numScore = Number(score || 0);
   const formattedScore = numScore.toFixed(1);
   const info = getRiskLevel(numScore);
+  const Icon = info.icon;
   const percent = Math.min(Math.max((numScore / max) * 100, 0), 100);
 
   // 1. CHIP VARIANT (default compact table / card pill)
@@ -57,21 +53,11 @@ export const RiskScore = ({
     const isSm = size === 'sm';
     return (
       <span
-        className={`inline-flex items-center gap-1.5 font-mono font-semibold rounded-full border transition-all ${
+        className={`inline-flex items-center gap-1.5 font-heading font-bold rounded-full border-2 border-slate-900 shadow-pop-sm select-none ${
           info.bgClass
-        } ${info.textClass} ${info.borderClass} ${
-          isSm ? 'px-2 py-0.5 text-[11px]' : 'px-2.5 py-1 text-xs'
-        } ${className}`}
+        } ${isSm ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-1 text-xs'} ${className}`}
       >
-        <span
-          className="rounded-full flex-shrink-0"
-          style={{
-            width: isSm ? 5 : 6,
-            height: isSm ? 5 : 6,
-            backgroundColor: info.color,
-            boxShadow: `0 0 5px ${info.glow}`,
-          }}
-        />
+        <Icon size={isSm ? 11 : 13} strokeWidth={2.5} className="shrink-0" />
         <span>
           {showLabel ? `${info.shortLabel}: ` : ''}
           {formattedScore}
@@ -81,31 +67,19 @@ export const RiskScore = ({
     );
   }
 
-  // 2. LED VARIANT (inline glowing ticker indicator)
+  // 2. LED VARIANT
   if (variant === 'led') {
     return (
       <div
-        className={`inline-flex items-center gap-2 font-mono rounded-full border px-3 py-1 ${info.textClass} ${className}`}
-        style={{
-          background: `${info.color}15`,
-          borderColor: `${info.color}40`,
-        }}
+        className={`inline-flex items-center gap-2 font-heading font-bold rounded-full border-2 border-slate-900 px-3 py-1 shadow-pop-sm select-none ${info.bgClass} ${className}`}
       >
-        <span
-          className="rounded-full flex-shrink-0 animate-pulse-dot"
-          style={{
-            width: 7,
-            height: 7,
-            backgroundColor: info.color,
-            boxShadow: `0 0 7px ${info.color}`,
-          }}
-        />
-        <span className="text-xs font-bold">
+        <Icon size={14} strokeWidth={2.5} />
+        <span className="text-xs">
           {formattedScore}
-          <span className="text-slate-500 font-normal"> / {max}</span>
+          <span className="opacity-70 font-normal"> / {max}</span>
         </span>
         {showLabel && (
-          <span className="text-[10px] font-semibold uppercase tracking-wider opacity-90">
+          <span className="text-[10px] uppercase tracking-wider opacity-90">
             ({info.shortLabel})
           </span>
         )}
@@ -113,22 +87,20 @@ export const RiskScore = ({
     );
   }
 
-  // 3. BADGE / METER BLOCK VARIANT (square card / queue visual box)
+  // 3. BADGE / METER BLOCK VARIANT
   if (variant === 'badge' || variant === 'meter') {
     const isSm = size === 'sm';
     return (
       <div
-        className={`rounded-xl border flex flex-col items-center justify-center font-mono ${
+        className={`rounded-2xl border-2 border-slate-900 shadow-pop-sm flex flex-col items-center justify-center font-heading select-none ${
           info.bgClass
-        } ${info.borderClass} ${
-          isSm ? 'w-10 h-10' : 'w-12 h-12'
-        } ${className}`}
+        } ${isSm ? 'w-10 h-10' : 'w-12 h-12'} ${className}`}
       >
-        <span className={`font-black ${info.textClass} ${isSm ? 'text-xs' : 'text-sm'}`}>
+        <span className={`font-black ${isSm ? 'text-xs' : 'text-sm'}`}>
           {formattedScore}
         </span>
         {showLabel && (
-          <span className={`text-[9px] uppercase font-bold tracking-tight text-slate-400`}>
+          <span className="text-[9px] uppercase font-bold tracking-tight opacity-90">
             {info.shortLabel}
           </span>
         )}
@@ -136,53 +108,36 @@ export const RiskScore = ({
     );
   }
 
-  // 4. BAR VARIANT (linear gauge with thresholds)
+  // 4. BAR VARIANT
   if (variant === 'bar') {
     return (
       <div className={`space-y-1.5 w-full ${className}`}>
-        <div className="flex items-center justify-between text-xs font-mono">
-          <span className="text-slate-400 flex items-center gap-1.5">
-            <span
-              className="w-2 h-2 rounded-full"
-              style={{ backgroundColor: info.color }}
-            />
+        <div className="flex items-center justify-between text-xs font-heading font-bold">
+          <span className="text-slate-700 flex items-center gap-1.5">
+            <Icon size={14} strokeWidth={2.5} />
             <span>Risk Index:</span>
-            <span className={`font-bold ${info.textClass}`}>
+            <span className="text-slate-900 font-extrabold">
               {showLabel ? info.label : formattedScore}
             </span>
           </span>
-          <span className="font-bold text-white">
+          <span className="font-extrabold text-slate-900">
             {formattedScore}
-            <span className="text-slate-500"> / {max}</span>
+            <span className="text-slate-500 font-medium"> / {max}</span>
           </span>
         </div>
 
         {/* Track */}
-        <div className="h-2 w-full bg-slate-950 border border-slate-800 rounded-full overflow-hidden relative">
-          {/* Threshold markers */}
-          <div
-            className="absolute top-0 bottom-0 w-[1px] bg-slate-700/60 z-10"
-            style={{ left: '33.3%' }}
-            title="Medium risk threshold (5.0)"
-          />
-          <div
-            className="absolute top-0 bottom-0 w-[1px] bg-slate-700/60 z-10"
-            style={{ left: '66.6%' }}
-            title="High risk threshold (10.0)"
-          />
-
-          {/* Fill */}
+        <div className="h-3 w-full bg-slate-100 border-2 border-slate-900 rounded-full overflow-hidden relative shadow-pop-sm">
           <div
             className="h-full rounded-full transition-all duration-300"
             style={{
               width: `${percent}%`,
               backgroundColor: info.color,
-              boxShadow: `0 0 8px ${info.glow}`,
             }}
           />
         </div>
 
-        <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+        <div className="flex justify-between text-[10px] text-slate-500 font-heading font-bold">
           <span>0 (Safe)</span>
           <span>5 (Review)</span>
           <span>10 (Escalate)</span>
@@ -192,9 +147,8 @@ export const RiskScore = ({
     );
   }
 
-  // Fallback to chip
   return (
-    <span className={`font-mono text-xs font-bold ${info.textClass} ${className}`}>
+    <span className={`font-heading font-bold text-xs ${className}`}>
       {formattedScore} / {max}
     </span>
   );

@@ -1,59 +1,56 @@
 import React from 'react';
+import {
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  XCircle,
+  Send,
+  MessageSquare,
+  Shield,
+  Award,
+  Crown,
+  CreditCard,
+  Zap,
+  Activity,
+  FileCheck
+} from 'lucide-react';
 
 const CONFIG = {
-  DRAFT:              { color: '#64748b', bg: 'rgba(100,116,139,0.15)', label: 'Draft' },
-  PENDING_MANAGER:    { color: '#f59e0b', bg: 'rgba(245,158,11,0.15)', label: 'Pending Manager' },
-  PENDING_FINANCE:    { color: '#f97316', bg: 'rgba(249,115,22,0.15)', label: 'Pending Finance' },
-  APPROVED:           { color: '#10b981', bg: 'rgba(16,185,129,0.15)', label: 'Approved' },
-  REJECTED:           { color: '#ef4444', bg: 'rgba(239,68,68,0.15)', label: 'Rejected' },
-  SENT_TO_CUSTOMER:   { color: '#3b82f6', bg: 'rgba(59,130,246,0.15)', label: 'Sent to Customer' },
-  UNDER_NEGOTIATION:  { color: '#8b5cf6', bg: 'rgba(139,92,246,0.15)', label: 'Negotiating' },
-  CONFIRMED:          { color: '#10b981', bg: 'rgba(16,185,129,0.2)', label: 'Confirmed' },
-  CANCELLED:          { color: '#64748b', bg: 'rgba(100,116,139,0.1)', label: 'Cancelled' },
-  BRONZE:             { color: '#b45309', bg: 'rgba(180,83,9,0.15)', label: 'Bronze' },
-  SILVER:             { color: '#94a3b8', bg: 'rgba(148,163,184,0.15)', label: 'Silver' },
-  GOLD:               { color: '#d97706', bg: 'rgba(217,119,6,0.15)', label: 'Gold' },
-  PAID:               { color: '#10b981', bg: 'rgba(16,185,129,0.15)', label: 'Paid' },
-  OVERDUE:            { color: '#ef4444', bg: 'rgba(239,68,68,0.15)', label: 'Overdue' },
-  ACTIVE:             { color: '#10b981', bg: 'rgba(16,185,129,0.15)', label: 'Active', pulse: true },
+  DRAFT:              { bg: '#F1F5F9', text: '#1E293B', label: 'Draft', icon: Clock },
+  PENDING_MANAGER:    { bg: '#FDE68A', text: '#1E293B', label: 'Pending Manager', icon: Clock },
+  PENDING_FINANCE:    { bg: '#FCD34D', text: '#1E293B', label: 'Pending Finance', icon: Clock },
+  APPROVED:           { bg: '#A7F3D0', text: '#1E293B', label: 'Approved', icon: CheckCircle2 },
+  REJECTED:           { bg: '#FECDD3', text: '#1E293B', label: 'Rejected', icon: XCircle },
+  SENT_TO_CUSTOMER:   { bg: '#BAE6FD', text: '#1E293B', label: 'Sent to Customer', icon: Send },
+  UNDER_NEGOTIATION:  { bg: '#DDD6FE', text: '#1E293B', label: 'Negotiating', icon: MessageSquare },
+  CONFIRMED:          { bg: '#6EE7B7', text: '#1E293B', label: 'Confirmed', icon: FileCheck },
+  CANCELLED:          { bg: '#E2E8F0', text: '#64748B', label: 'Cancelled', icon: XCircle },
+  BRONZE:             { bg: '#FED7AA', text: '#7C2D12', label: 'Bronze', icon: Shield },
+  SILVER:             { bg: '#E2E8F0', text: '#1E293B', label: 'Silver', icon: Award },
+  GOLD:               { bg: '#FDE047', text: '#713F12', label: 'Gold', icon: Crown },
+  PAID:               { bg: '#A7F3D0', text: '#1E293B', label: 'Paid', icon: CheckCircle2 },
+  OVERDUE:            { bg: '#FECDD3', text: '#991B1B', label: 'Overdue', icon: AlertCircle },
+  ACTIVE:             { bg: '#6EE7B7', text: '#1E293B', label: 'Active', icon: Activity, pulse: true },
 };
 
 export default function StatusBadge({ status, size = 'sm', className = '', style = {} }) {
   const normKey = String(status || '').toUpperCase().trim();
-  const cfg = CONFIG[normKey] || CONFIG[status] || { color: '#64748b', bg: 'rgba(100,116,139,0.1)', label: status || '—' };
+  const cfg = CONFIG[normKey] || CONFIG[status] || { bg: '#F1F5F9', text: '#1E293B', label: status || '—', icon: Clock };
+  const Icon = cfg.icon;
 
   return (
     <span
-      className={className}
+      className={`inline-flex items-center gap-1.5 font-heading font-bold rounded-full border-2 border-slate-900 shadow-pop-sm whitespace-nowrap select-none ${
+        size === 'sm' ? 'text-[11px] px-2.5 py-0.5' : 'text-xs px-3.5 py-1'
+      } ${className}`}
       style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 5,
-        padding: size === 'sm' ? '3px 10px' : '5px 14px',
-        borderRadius: 9999,
-        fontFamily: 'monospace',
-        fontWeight: 600,
-        fontSize: size === 'sm' ? 11 : 13,
-        background: cfg.bg,
-        color: cfg.color,
-        border: `1px solid ${cfg.color}30`,
-        whiteSpace: 'nowrap',
-        lineHeight: 1.2,
+        backgroundColor: cfg.bg,
+        color: cfg.text,
         ...style
       }}
     >
-      <span
-        style={{
-          width: 6,
-          height: 6,
-          borderRadius: '50%',
-          background: cfg.color,
-          animation: cfg.pulse ? 'pulse 1.5s infinite' : 'none',
-          boxShadow: cfg.pulse ? `0 0 6px ${cfg.color}` : 'none',
-          flexShrink: 0
-        }}
-      />
-      {cfg.label}
+      {Icon && <Icon size={size === 'sm' ? 12 : 14} strokeWidth={2.5} className="shrink-0" />}
+      <span>{cfg.label}</span>
     </span>
   );
 }

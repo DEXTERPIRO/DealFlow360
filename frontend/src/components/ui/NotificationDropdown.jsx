@@ -1,6 +1,17 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Check, CheckCheck, Clock, ExternalLink, Sparkles } from 'lucide-react';
+import {
+  Bell,
+  CheckCircle2,
+  CheckCheck,
+  Clock,
+  MessageSquare,
+  CreditCard,
+  Package,
+  Briefcase,
+  Sparkles,
+  PartyPopper
+} from 'lucide-react';
 import { notificationsAPI } from '../../api';
 
 // Helper for relative time
@@ -22,22 +33,22 @@ function formatTimeAgo(dateString) {
   return past.toLocaleDateString();
 }
 
-// Icon helper based on type/title/message
+// Icon helper using Lucide Icons (Zero emojis)
 function getNotificationIcon(notif) {
   const text = `${notif.title || ''} ${notif.message || ''}`.toLowerCase();
   if (text.includes('approv') || text.includes('decision') || text.includes('risk')) {
-    return '✅';
+    return { icon: CheckCircle2, color: 'bg-pop-mint text-slate-900' };
   }
   if (text.includes('negotiat') || text.includes('counter') || text.includes('comment')) {
-    return '💬';
+    return { icon: MessageSquare, color: 'bg-pop-yellow text-slate-900' };
   }
   if (text.includes('invoice') || text.includes('payment') || text.includes('paid')) {
-    return '💳';
+    return { icon: CreditCard, color: 'bg-pop-violet text-white' };
   }
   if (text.includes('fulfill') || text.includes('shipment') || text.includes('warehouse')) {
-    return '📦';
+    return { icon: Package, color: 'bg-pop-pink text-white' };
   }
-  return '💼';
+  return { icon: Briefcase, color: 'bg-pop-sky text-slate-900' };
 }
 
 export default function NotificationDropdown({
@@ -64,7 +75,6 @@ export default function NotificationDropdown({
   };
 
   const handleItemClick = async (notif) => {
-    // Mark this one as read
     if (!notif.is_read) {
       try {
         await notificationsAPI.markRead(notif.id);
@@ -80,7 +90,6 @@ export default function NotificationDropdown({
 
     onClose?.();
 
-    // Determine target URL
     if (notif.link) {
       navigate(notif.link);
       return;
@@ -103,14 +112,16 @@ export default function NotificationDropdown({
   const displayList = notifications.slice(0, 20);
 
   return (
-    <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-slate-900 border border-slate-700/90 shadow-2xl shadow-black/80 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
+    <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-[#FFFDF5] border-2 border-slate-900 shadow-pop-xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
       {/* Header */}
-      <div className="p-3.5 px-4 border-b border-slate-800 bg-slate-850 flex items-center justify-between">
+      <div className="p-3.5 px-4 border-b-2 border-slate-900 bg-white flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Bell className="w-4 h-4 text-blue-400" />
-          <h3 className="font-bold text-sm text-white tracking-tight">Notifications</h3>
+          <div className="w-7 h-7 rounded-lg bg-pop-violet text-white border border-slate-900 flex items-center justify-center">
+            <Bell className="w-3.5 h-3.5" strokeWidth={2.5} />
+          </div>
+          <h3 className="font-heading font-extrabold text-sm text-slate-900 tracking-tight">Notifications</h3>
           {unreadCount > 0 && (
-            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-400 border border-blue-500/30">
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-heading font-black bg-rose-500 text-white border border-slate-900 shadow-pop-sm">
               {unreadCount} new
             </span>
           )}
@@ -118,48 +129,48 @@ export default function NotificationDropdown({
         {unreadCount > 0 && (
           <button
             onClick={handleMarkAllRead}
-            className="text-[11px] font-medium text-blue-400 hover:text-blue-300 flex items-center gap-1 hover:underline transition-colors"
+            className="text-[11px] font-heading font-bold text-pop-violet hover:underline flex items-center gap-1 cursor-pointer transition-colors"
           >
-            <CheckCheck className="w-3.5 h-3.5" />
+            <CheckCheck className="w-3.5 h-3.5" strokeWidth={2.5} />
             Mark all read
           </button>
         )}
       </div>
 
       {/* Notifications List */}
-      <div className="max-h-[380px] overflow-y-auto divide-y divide-slate-800/60 scrollbar-thin scrollbar-thumb-slate-700">
+      <div className="max-h-[380px] overflow-y-auto divide-y-2 divide-slate-900/10">
         {displayList.length === 0 ? (
-          <div className="p-8 text-center flex flex-col items-center justify-center text-slate-400">
-            <div className="w-12 h-12 rounded-full bg-slate-800/80 flex items-center justify-center mb-2 text-xl">
-              🎉
+          <div className="p-8 text-center flex flex-col items-center justify-center text-slate-600">
+            <div className="w-12 h-12 rounded-2xl bg-pop-yellow border-2 border-slate-900 shadow-pop-sm flex items-center justify-center mb-2">
+              <CheckCircle2 className="w-6 h-6 text-slate-900" strokeWidth={2.5} />
             </div>
-            <p className="text-sm font-semibold text-slate-300">All caught up!</p>
-            <p className="text-xs text-slate-500 mt-0.5">No notifications to display right now</p>
+            <p className="text-sm font-heading font-bold text-slate-900">All caught up!</p>
+            <p className="text-xs text-slate-500 mt-0.5">No notifications right now</p>
           </div>
         ) : (
           displayList.map((notif) => {
-            const icon = getNotificationIcon(notif);
+            const { icon: Icon, color } = getNotificationIcon(notif);
             return (
               <div
                 key={notif.id}
                 onClick={() => handleItemClick(notif)}
-                className={`group p-3.5 px-4 cursor-pointer transition-all hover:bg-slate-800/70 relative flex items-start gap-3 ${
+                className={`group p-3.5 px-4 cursor-pointer transition-all hover:bg-pop-yellow/30 relative flex items-start gap-3 ${
                   !notif.is_read
-                    ? 'bg-blue-950/20 border-l-4 border-l-blue-500'
-                    : 'border-l-4 border-l-transparent text-slate-400'
+                    ? 'bg-violet-50/80 border-l-4 border-l-pop-violet'
+                    : 'border-l-4 border-l-transparent text-slate-600'
                 }`}
               >
                 {/* Icon */}
-                <div className="w-8 h-8 rounded-xl bg-slate-800 border border-slate-700/60 flex items-center justify-center shrink-0 text-base shadow-sm group-hover:scale-105 transition-transform">
-                  {icon}
+                <div className={`w-8 h-8 rounded-xl border-2 border-slate-900 flex items-center justify-center shrink-0 shadow-pop-sm group-hover:scale-105 transition-transform ${color}`}>
+                  <Icon className="w-4 h-4" strokeWidth={2.5} />
                 </div>
 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
                     <span
-                      className={`text-xs font-semibold truncate ${
-                        !notif.is_read ? 'text-white' : 'text-slate-300'
+                      className={`text-xs font-heading font-bold truncate ${
+                        !notif.is_read ? 'text-slate-900' : 'text-slate-600'
                       }`}
                     >
                       {notif.title}
@@ -169,7 +180,7 @@ export default function NotificationDropdown({
                       {formatTimeAgo(notif.created_at)}
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                  <p className="text-[11px] text-slate-600 mt-0.5 line-clamp-2 leading-relaxed">
                     {notif.message}
                   </p>
                 </div>
@@ -181,9 +192,9 @@ export default function NotificationDropdown({
 
       {/* Footer */}
       {displayList.length > 0 && (
-        <div className="p-2.5 bg-slate-900 border-t border-slate-800/80 text-center">
-          <p className="text-[11px] text-slate-400 font-medium">
-            All caught up! 🎉
+        <div className="p-2.5 bg-white border-t-2 border-slate-900 text-center">
+          <p className="text-[11px] font-heading font-bold text-slate-600">
+            System Alerts & Deal Flow Feed
           </p>
         </div>
       )}

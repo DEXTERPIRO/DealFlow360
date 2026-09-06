@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -7,103 +5,298 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-  font-family: 'Inter', system-ui, sans-serif;
-  background: #0f172a;
-  color: #f1f5f9;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  background-color: #FFFDF5;
+  color: #1E293B;
   -webkit-font-smoothing: antialiased;
 }
 
-.font-mono { font-family: 'JetBrains Mono', monospace; }
-
-/* ── WebKit & Chromium Autofill Fix for Dark Theme ────────────────── */
-input:-webkit-autofill,
-input:-webkit-autofill:hover, 
-input:-webkit-autofill:focus, 
-input:-webkit-autofill:active,
-textarea:-webkit-autofill,
-textarea:-webkit-autofill:hover,
-textarea:-webkit-autofill:focus,
-textarea:-webkit-autofill:active,
-select:-webkit-autofill,
-select:-webkit-autofill:hover,
-select:-webkit-autofill:focus,
-select:-webkit-autofill:active {
-  -webkit-box-shadow: 0 0 0 1000px #020617 inset !important; /* bg-slate-950 */
-  -webkit-text-fill-color: #f1f5f9 !important; /* text-slate-100 */
-  caret-color: #f1f5f9 !important;
-  transition: background-color 500000s ease-in-out 0s !important;
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Outfit', system-ui, sans-serif;
 }
 
-/* Inputs residing in slate-900 surfaces */
-.bg-slate-900 input:-webkit-autofill,
-.bg-slate-900 input:-webkit-autofill:hover,
-.bg-slate-900 input:-webkit-autofill:focus,
-.bg-slate-900 input:-webkit-autofill:active {
-  -webkit-box-shadow: 0 0 0 1000px #0f172a inset !important; /* bg-slate-900 */
-  -webkit-text-fill-color: #f1f5f9 !important;
-  caret-color: #f1f5f9 !important;
-  transition: background-color 500000s ease-in-out 0s !important;
+.font-heading {
+  font-family: 'Outfit', system-ui, sans-serif;
 }
 
-
-/* Custom glassmorphism helpers */
-.glass-panel {
-  background: rgba(15, 23, 42, 0.75);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+.font-mono {
+  font-family: 'JetBrains Mono', monospace;
 }
 
-.glass-card {
-  background: rgba(30, 41, 59, 0.6);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  transition: all 0.2s ease-in-out;
+/* ── Geometric Background Patterns ─────────────────────────────────────────── */
+.bg-dot-grid {
+  background-image: radial-gradient(#cbd5e1 1.5px, transparent 1.5px);
+  background-size: 20px 20px;
 }
 
-.glass-card:hover {
-  border-color: rgba(59, 130, 246, 0.4);
+.bg-dot-grid-dense {
+  background-image: radial-gradient(#cbd5e1 1.2px, transparent 1.2px);
+  background-size: 14px 14px;
+}
+
+.bg-diagonal-stripes {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 10px,
+    rgba(226, 232, 240, 0.4) 10px,
+    rgba(226, 232, 240, 0.4) 20px
+  );
+}
+
+/* ── Tactile Sticker Cards ─────────────────────────────────────────────────── */
+.sticker-card {
+  background: #ffffff;
+  border: 1.5px solid #E2E8F0;
+  border-radius: 18px;
+  box-shadow: 0 2px 8px -1px rgba(15, 23, 42, 0.08), 0 1px 3px 0 rgba(15, 23, 42, 0.06);
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.sticker-card-hover:hover {
   transform: translateY(-2px);
+  box-shadow: 0 8px 20px -3px rgba(15, 23, 42, 0.12), 0 4px 6px -2px rgba(15, 23, 42, 0.06);
 }
 
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #475569; }
-
-::selection { background: rgba(59,130,246,0.3); }
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.7; transform: scale(1.2); }
+.sticker-card-active:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.08);
 }
 
-@keyframes slideIn {
-  from { transform: translateX(100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
+/* ── Soft Modern Shadow Overrides (visible but no hard black offsets) ─────── */
+.shadow-pop-xs,
+[class*="shadow-pop-xs"] {
+  --tw-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.08), 0 1px 2px 0 rgba(15, 23, 42, 0.06) !important;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.08), 0 1px 2px 0 rgba(15, 23, 42, 0.06) !important;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+.shadow-pop-sm,
+[class*="shadow-pop-sm"] {
+  --tw-shadow: 0 2px 6px -1px rgba(15, 23, 42, 0.1), 0 1px 3px 0 rgba(15, 23, 42, 0.06) !important;
+  box-shadow: 0 2px 6px -1px rgba(15, 23, 42, 0.1), 0 1px 3px 0 rgba(15, 23, 42, 0.06) !important;
 }
 
-.animate-pulse-dot {
-  animation: pulse 1.5s ease-in-out infinite;
+.shadow-pop,
+[class*="shadow-pop"] {
+  --tw-shadow: 0 4px 12px -2px rgba(15, 23, 42, 0.1), 0 2px 4px 0 rgba(15, 23, 42, 0.06) !important;
+  box-shadow: 0 4px 12px -2px rgba(15, 23, 42, 0.1), 0 2px 4px 0 rgba(15, 23, 42, 0.06) !important;
 }
 
-.slide-in {
-  animation: slideIn 300ms ease-out;
+.shadow-pop-lg,
+[class*="shadow-pop-lg"] {
+  --tw-shadow: 0 8px 20px -4px rgba(15, 23, 42, 0.12), 0 4px 8px -2px rgba(15, 23, 42, 0.06) !important;
+  box-shadow: 0 8px 20px -4px rgba(15, 23, 42, 0.12), 0 4px 8px -2px rgba(15, 23, 42, 0.06) !important;
 }
 
-.fade-in {
-  animation: fadeIn 200ms ease-out;
+.shadow-pop-xl,
+[class*="shadow-pop-xl"] {
+  --tw-shadow: 0 16px 32px -6px rgba(15, 23, 42, 0.14), 0 6px 12px -4px rgba(15, 23, 42, 0.06) !important;
+  box-shadow: 0 16px 32px -6px rgba(15, 23, 42, 0.14), 0 6px 12px -4px rgba(15, 23, 42, 0.06) !important;
 }
 
-/* React hot toast overrides */
+.shadow-pop-violet {
+  box-shadow: 0 4px 14px 0 rgba(139, 92, 246, 0.2) !important;
+}
+
+.shadow-pop-pink {
+  box-shadow: 0 4px 14px 0 rgba(244, 114, 182, 0.2) !important;
+}
+
+.shadow-pop-yellow {
+  box-shadow: 0 4px 14px 0 rgba(251, 191, 36, 0.2) !important;
+}
+
+.shadow-pop-mint {
+  box-shadow: 0 4px 14px 0 rgba(52, 211, 153, 0.2) !important;
+}
+
+.shadow-pop-sky {
+  box-shadow: 0 4px 14px 0 rgba(56, 189, 248, 0.2) !important;
+}
+
+.hover\:shadow-pop:hover,
+.hover\:shadow-pop-lg:hover,
+.hover\:shadow-pop-xl:hover {
+  box-shadow: 0 10px 24px -4px rgba(15, 23, 42, 0.14), 0 4px 8px -2px rgba(15, 23, 42, 0.06) !important;
+}
+
+/* ── Candy Button Styles ───────────────────────────────────────────────────── */
+.btn-candy {
+  border: 1.5px solid #1E293B;
+  border-radius: 9999px;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 700;
+  box-shadow: 0 2px 6px 0 rgba(15, 23, 42, 0.08);
+  transition: all 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.btn-candy:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px 0 rgba(15, 23, 42, 0.12);
+}
+
+.btn-candy:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.06);
+}
+
+.btn-candy:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* ── Pill Badges ──────────────────────────────────────────────────────────── */
+.pill-badge {
+  border: 1.5px solid #1E293B;
+  border-radius: 9999px;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 700;
+  font-size: 0.75rem;
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.06);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+}
+
+/* ── Inputs & Focus Ring ───────────────────────────────────────────────────── */
+input, select, textarea {
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+}
+
+/* ── Scrollbars ───────────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #FFFDF5;
+  border-left: 1px solid #E2E8F0;
+}
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border: 2px solid #1E293B;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+::selection {
+  background: #8B5CF6;
+  color: #FFFFFF;
+}
+
+/* ── React Hot Toast Sticker Overrides ────────────────────────────────────── */
 [data-hot-toast] {
-  font-family: 'Inter', sans-serif !important;
-  background: #1e293b !important;
-  color: #f1f5f9 !important;
-  border: 1px solid #334155 !important;
-  border-radius: 12px !important;
+  font-family: 'Outfit', sans-serif !important;
+  font-weight: 700 !important;
+  background: #FFFFFF !important;
+  color: #1E293B !important;
+  border: 1.5px solid #E2E8F0 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.04) !important;
+  padding: 12px 18px !important;
 }
+
+/* ── Playful Micro-Animations & Widget Effects ───────────────────────────── */
+@keyframes radar-ripple {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.6);
+    opacity: 0.2;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+.animate-radar {
+  animation: radar-ripple 2s cubic-bezier(0, 0.2, 0.8, 1) infinite;
+}
+
+@keyframes pop-float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+.animate-pop-float {
+  animation: pop-float 3s ease-in-out infinite;
+}
+
+@keyframes shimmer-sweep {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-shimmer-sweep {
+  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.6) 50%, rgba(255,255,255,0) 100%);
+  background-size: 200% 100%;
+  animation: shimmer-sweep 2.5s infinite;
+}
+
+@keyframes pop-wiggle {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-3deg);
+  }
+  75% {
+    transform: rotate(3deg);
+  }
+}
+
+.animate-pop-wiggle {
+  animation: pop-wiggle 1.2s ease-in-out infinite;
+}
+
+@keyframes glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0);
+  }
+  50% {
+    box-shadow: 0 0 16px 2px rgba(139, 92, 246, 0.35);
+  }
+}
+
+.animate-glow-pulse {
+  animation: glow-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes radar-amber {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scale(1.6);
+    opacity: 0.25;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+.animate-radar-amber {
+  animation: radar-amber 2s cubic-bezier(0, 0.2, 0.8, 1) infinite;
+}
+

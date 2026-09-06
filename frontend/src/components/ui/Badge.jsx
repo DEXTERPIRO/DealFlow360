@@ -2,16 +2,18 @@ import React from 'react';
 
 export const Badge = ({ children, variant = 'default', className = '' }) => {
   const variantStyles = {
-    default: 'bg-slate-800 text-slate-300 border-slate-700',
-    brand: 'bg-brand-500/10 text-brand-400 border-brand-500/30',
-    success: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
-    warning: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
-    danger: 'bg-rose-500/10 text-rose-400 border-rose-500/30',
+    default: 'bg-slate-100 text-slate-900',
+    brand: 'bg-pop-violet text-white',
+    success: 'bg-pop-mint text-slate-900',
+    warning: 'bg-pop-yellow text-slate-900',
+    danger: 'bg-rose-500 text-white',
+    pink: 'bg-pop-pink text-white',
+    sky: 'bg-pop-sky text-slate-900',
   };
 
   return (
     <span
-      className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border tracking-wide uppercase ${
+      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-heading font-bold border-2 border-slate-900 shadow-pop-sm uppercase tracking-wide ${
         variantStyles[variant] || variantStyles.default
       } ${className}`}
     >
@@ -19,3 +21,5 @@ export const Badge = ({ children, variant = 'default', className = '' }) => {
     </span>
   );
 };
+
+export default Badge;

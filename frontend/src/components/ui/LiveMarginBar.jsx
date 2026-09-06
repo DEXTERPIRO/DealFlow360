@@ -1,71 +1,36 @@
-import React, { useMemo, useEffect, useRef } from 'react';
+import React, { useMemo } from 'react';
+import { CheckCircle2, AlertTriangle, ShieldAlert, Sparkles, Layers } from 'lucide-react';
 
-/**
- * LiveMarginBar — Fixed bottom sticky bar for QuotationBuilder.
- *
- * Props:
- *   lines       – array of order line objects: { unit_price, cost_price, quantity, discount, tax }
- *   sidebarCollapsed – boolean: whether the left sidebar is collapsed (affects left offset)
- *
- * Computes in real-time:
- *   • Total value (₹)
- *   • Gross Margin %
- *   • Blended Risk Score (0–15)
- *   • Approval path hint
- *   • "X% more discount to trigger next approval tier"
- */
 export default function LiveMarginBar({ lines = [], sidebarCollapsed = false }) {
-  const prevTotalRef = useRef(0);
-
-  // ── Compute Metrics ────────────────────────────────────────────────────────
+  // ── Compute live metrics ──────────────────────────────────────────────────
   const metrics = useMemo(() => {
-    if (!lines.length) {
-      return { total: 0, margin: 0, riskScore: 0, discountToNextTier: null };
-    }
+    let total = 0;
+    let cost = 0;
+    let totalDiscounts = 0;
 
-    let totalRevenue = 0;
-    let totalCost = 0;
-    let weightedRisk = 0;
-    let totalWeight = 0;
-
-    for (const line of lines) {
+    lines.forEach((line) => {
+      const price = Number(line.price_override ?? line.unit_price ?? 0);
       const qty = Number(line.quantity || 1);
-      const unitPrice = Number(line.unit_price ?? line.unitPrice ?? 0);
-      const costPrice = Number(line.cost_price ?? line.costPrice ?? 0);
-      const discount = Number(line.discount || 0);
-      const tax = Number(line.tax ?? 18);
+      const disc = Number(line.discount_pct || 0);
+      const lineCost = Number(line.product?.cost_price ?? line.cost_price ?? 0);
 
-      const effectivePrice = unitPrice * (1 - discount / 100);
-      const lineRevenue = effectivePrice * qty;
-      const lineCost = costPrice * qty;
-      const lineTotal = lineRevenue * (1 + tax / 100);
+      const discountedPrice = price * (1 - disc / 100);
+      const lineTotal = discountedPrice * qty;
 
-      // Risk score per line: weighted by discount
-      const lineRisk = Math.min((discount / 20) * 10 + (discount > 15 ? 5 : 0), 15);
+      total += lineTotal;
+      cost += lineCost * qty;
+      totalDiscounts += disc;
+    });
 
-      totalRevenue += lineRevenue;
-      totalCost += lineCost;
-      weightedRisk += lineRisk * lineRevenue;
-      totalWeight += lineRevenue;
-    }
+    const margin = total > 0 ? ((total - cost) / total) * 100 : 0;
+    const avgDiscount = lines.length ? totalDiscounts / lines.length : 0;
 
-    const total = lines.reduce((sum, line) => {
-      const qty = Number(line.quantity || 1);
-      const unitPrice = Number(line.unit_price ?? line.unitPrice ?? 0);
-      const discount = Number(line.discount || 0);
-      const tax = Number(line.tax ?? 18);
-      const effectivePrice = unitPrice * (1 - discount / 100);
-      return sum + effectivePrice * qty * (1 + tax / 100);
-    }, 0);
+    // Simple CPQ Risk Score:
+    const discountRisk = Math.min((avgDiscount / 30) * 10, 10);
+    const marginRisk = margin < 15 ? 5 : margin < 25 ? 3 : 0;
+    const riskScore = Math.min(+(discountRisk + marginRisk).toFixed(1), 15);
 
-    const gross = totalRevenue - totalCost;
-    const margin = totalRevenue > 0 ? (gross / totalRevenue) * 100 : 0;
-    const riskScore = totalWeight > 0 ? weightedRisk / totalWeight : 0;
-
-    // Discount tiers:  0-5% → auto, 5-10% → Manager, 10%+ → Manager+Finance
-    const avgDiscount =
-      lines.reduce((a, l) => a + Number(l.discount || 0), 0) / lines.length;
-
+    // "What if" delta to next approval tier
     let discountToNextTier = null;
     if (avgDiscount < 5) {
       discountToNextTier = { threshold: 5, label: 'Manager Approval', remaining: +(5 - avgDiscount).toFixed(1) };
@@ -78,226 +43,149 @@ export default function LiveMarginBar({ lines = [], sidebarCollapsed = false }) 
 
   const { total, margin, riskScore, discountToNextTier } = metrics;
 
-  // ── Color helpers ─────────────────────────────────────────────────────────
-  const marginColor =
-    margin >= 30 ? '#10b981' : margin >= 15 ? '#f59e0b' : '#ef4444';
-  const riskColor =
-    riskScore < 5 ? '#10b981' : riskScore < 10 ? '#f59e0b' : '#ef4444';
+  // ── Color & Badge helpers ─────────────────────────────────────────────────
+  const isHighMargin = margin >= 30;
+  const isMedMargin = margin >= 15;
+  const marginColor = isHighMargin ? '#10b981' : isMedMargin ? '#f59e0b' : '#f43f5e';
 
-  const approvalLabel =
-    riskScore < 5
-      ? '✅ Auto-Approved'
-      : riskScore < 10
-      ? '⚠️ Needs Manager Review'
-      : '🔴 Needs Manager + Finance';
+  const riskStatus = riskScore < 5 ? 'low' : riskScore < 10 ? 'medium' : 'high';
 
-  const approvalColor =
-    riskScore < 5 ? '#10b981' : riskScore < 10 ? '#f59e0b' : '#ef4444';
+  const approvalConfig = {
+    low: {
+      label: 'Auto-Approved',
+      icon: CheckCircle2,
+      badgeClass: 'bg-emerald-100 text-emerald-900 border-emerald-900',
+      iconColor: 'text-emerald-700',
+    },
+    medium: {
+      label: 'Needs Manager Review',
+      icon: AlertTriangle,
+      badgeClass: 'bg-amber-100 text-amber-900 border-amber-900',
+      iconColor: 'text-amber-700',
+    },
+    high: {
+      label: 'Needs Manager + Finance',
+      icon: ShieldAlert,
+      badgeClass: 'bg-rose-100 text-rose-900 border-rose-900',
+      iconColor: 'text-rose-700',
+    },
+  }[riskStatus];
 
+  const ApprovalIcon = approvalConfig.icon;
   const sidebarWidth = sidebarCollapsed ? 80 : 256;
 
   if (!lines.length) return null;
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        bottom: 0,
-        left: sidebarWidth,
-        right: 0,
-        background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
-        borderTop: '1px solid #334155',
-        padding: '10px 24px',
-        zIndex: 50,
-        display: 'flex',
-        alignItems: 'center',
-        gap: '28px',
-        boxShadow: '0 -8px 32px rgba(0,0,0,0.5)',
-        transition: 'left 300ms ease',
-        minHeight: 68,
-      }}
+    <aside
+      aria-label="Live quotation margin and risk metrics"
+      style={{ left: sidebarWidth }}
+      className="fixed bottom-0 right-0 z-40 bg-white border-t-2 border-slate-900 px-6 py-2.5 flex items-center gap-6 shadow-[0_-4px_16px_rgba(30,41,59,0.08)] transition-[left] duration-300 min-h-[64px]"
     >
       {/* ── TOTAL ─────────────────────────────────── */}
-      <div style={{ flexShrink: 0 }}>
-        <div
-          style={{ fontSize: 9, color: '#64748b', fontFamily: 'monospace', letterSpacing: '0.1em', marginBottom: 2 }}
-        >
-          LIVE TOTAL
+      <div className="shrink-0">
+        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 font-heading">
+          Live Total
         </div>
-        <div
-          style={{
-            fontSize: 22,
-            fontWeight: 800,
-            color: '#fff',
-            fontFamily: 'monospace',
-            letterSpacing: '-0.02em',
-            lineHeight: 1,
-          }}
-        >
+        <div className="text-xl font-extrabold text-slate-900 font-mono tracking-tight leading-none mt-0.5">
           ₹{Math.round(total).toLocaleString('en-IN')}
         </div>
-        <div style={{ fontSize: 9, color: '#475569', fontFamily: 'monospace', marginTop: 2 }}>
-          incl. tax
+        <div className="text-[10px] font-semibold text-slate-400 font-mono mt-0.5">
+          incl. estimated tax
         </div>
       </div>
 
       {/* Divider */}
-      <div style={{ width: 1, height: 44, background: '#334155', flexShrink: 0 }} />
+      <div className="w-[2px] h-9 bg-slate-200 shrink-0" />
 
       {/* ── MARGIN BAR ────────────────────────────── */}
-      <div style={{ flex: 1, minWidth: 120, maxWidth: 260 }}>
-        <div
-          style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5, alignItems: 'center' }}
-        >
-          <span style={{ fontSize: 9, color: '#64748b', fontFamily: 'monospace', letterSpacing: '0.08em' }}>
-            GROSS MARGIN
+      <div className="flex-1 min-w-[140px] max-w-xs">
+        <div className="flex justify-between items-center mb-1">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 font-heading">
+            Gross Margin
           </span>
           <span
-            style={{
-              fontSize: 14,
-              fontWeight: 700,
-              color: marginColor,
-              fontFamily: 'monospace',
-              transition: 'color 300ms',
-            }}
+            className="text-xs font-extrabold font-mono px-2 py-0.5 rounded-md border-2 border-slate-900 shadow-pop-sm"
+            style={{ backgroundColor: marginColor, color: '#ffffff' }}
           >
             {Number(margin || 0).toFixed(1)}%
           </span>
         </div>
-        {/* Bar */}
-        <div
-          style={{
-            height: 6,
-            background: '#1e3a5f',
-            borderRadius: 9999,
-            overflow: 'hidden',
-            position: 'relative',
-          }}
-        >
-          {/* 30% threshold line */}
+        {/* Chunky Bar */}
+        <div className="h-3 w-full bg-slate-100 rounded-full border-2 border-slate-900 overflow-hidden relative">
+          {/* 30% Target indicator */}
           <div
-            style={{
-              position: 'absolute',
-              left: '30%',
-              top: 0,
-              bottom: 0,
-              width: 1,
-              background: '#334155',
-              zIndex: 2,
-            }}
+            className="absolute left-[30%] top-0 bottom-0 w-[2px] bg-slate-900 z-10 opacity-40"
+            title="30% Healthy Margin Target"
           />
           <div
+            className="h-full rounded-full transition-all duration-300"
             style={{
-              height: '100%',
-              borderRadius: 9999,
               width: `${Math.max(Math.min(margin, 100), 0)}%`,
-              background: `linear-gradient(90deg, ${marginColor}80, ${marginColor})`,
-              transition: 'width 350ms cubic-bezier(0.4, 0, 0.2, 1), background 300ms',
-              boxShadow: `0 0 8px ${marginColor}40`,
+              backgroundColor: marginColor,
             }}
           />
         </div>
         {/* Scale labels */}
-        <div
-          style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3, fontSize: 8, color: '#475569' }}
-        >
+        <div className="flex justify-between mt-1 text-[9px] font-bold font-mono text-slate-400">
           <span>0%</span>
-          <span style={{ color: '#ef4444' }}>15%</span>
-          <span style={{ color: '#f59e0b' }}>30%</span>
-          <span style={{ color: '#10b981' }}>50%+</span>
+          <span className="text-rose-600">15%</span>
+          <span className="text-amber-600">30%</span>
+          <span className="text-emerald-600">50%+</span>
         </div>
       </div>
 
       {/* Divider */}
-      <div style={{ width: 1, height: 44, background: '#334155', flexShrink: 0 }} />
+      <div className="w-[2px] h-9 bg-slate-200 shrink-0" />
 
-      {/* ── RISK LED ─────────────────────────────── */}
-      <div style={{ textAlign: 'center', flexShrink: 0 }}>
-        <div
-          style={{
-            fontSize: 9,
-            color: '#64748b',
-            fontFamily: 'monospace',
-            letterSpacing: '0.08em',
-            marginBottom: 4,
-          }}
-        >
-          RISK SCORE
+      {/* ── RISK SCORE ────────────────────────────── */}
+      <div className="shrink-0 text-center">
+        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 font-heading mb-1">
+          Risk Index
         </div>
-        <div
-          style={{
-            width: 28,
-            height: 28,
-            borderRadius: '50%',
-            margin: '0 auto',
-            background: riskColor,
-            boxShadow: `0 0 16px ${riskColor}, 0 0 4px ${riskColor}`,
-            transition: 'background 300ms, box-shadow 300ms',
-            animation: riskScore > 10 ? 'ledpulse 1s infinite' : 'none',
-            position: 'relative',
-          }}
-        />
-        <div
-          style={{
-            fontSize: 10,
-            color: '#94a3b8',
-            fontFamily: 'monospace',
-            marginTop: 3,
-            fontWeight: 700,
-          }}
-        >
-          {Number(riskScore || 0).toFixed(1)} / 15
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border-2 border-slate-900 font-mono font-bold text-xs shadow-pop-sm bg-slate-50 text-slate-900">
+          <span
+            className="w-2 h-2 rounded-full border border-slate-900 shrink-0"
+            style={{ backgroundColor: marginColor }}
+          />
+          <span>{Number(riskScore || 0).toFixed(1)} / 15</span>
         </div>
-        <style>{`
-          @keyframes ledpulse {
-            0%, 100% { opacity: 1; box-shadow: 0 0 16px #ef4444, 0 0 4px #ef4444; }
-            50% { opacity: 0.6; box-shadow: 0 0 8px #ef4444; }
-          }
-        `}</style>
       </div>
 
       {/* Divider */}
-      <div style={{ width: 1, height: 44, background: '#334155', flexShrink: 0 }} />
+      <div className="w-[2px] h-9 bg-slate-200 shrink-0" />
 
       {/* ── APPROVAL PATH ────────────────────────── */}
-      <div style={{ flexShrink: 0 }}>
-        <div
-          style={{ fontSize: 9, color: '#64748b', fontFamily: 'monospace', letterSpacing: '0.08em', marginBottom: 4 }}
-        >
-          APPROVAL PATH
+      <div className="shrink-0">
+        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 font-heading mb-1">
+          Approval Path
         </div>
-        <div style={{ fontSize: 12, fontWeight: 700, color: approvalColor }}>
-          {approvalLabel}
+        <div className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border-2 font-heading font-extrabold text-xs shadow-pop-sm ${approvalConfig.badgeClass}`}>
+          <ApprovalIcon size={14} className={approvalConfig.iconColor} strokeWidth={2.5} />
+          <span>{approvalConfig.label}</span>
         </div>
         {discountToNextTier && (
-          <div style={{ fontSize: 10, color: '#64748b', marginTop: 3 }}>
-            ↑ Add{' '}
-            <span style={{ color: '#f59e0b', fontWeight: 700 }}>
-              {discountToNextTier.remaining}%
-            </span>{' '}
-            avg discount → triggers{' '}
-            <span style={{ color: '#e2e8f0' }}>{discountToNextTier.label}</span>
+          <div className="text-[10px] font-medium text-slate-500 mt-1 flex items-center gap-1">
+            <span>+</span>
+            <span className="text-amber-700 font-bold font-mono">{discountToNextTier.remaining}%</span>
+            <span>avg disc → triggers</span>
+            <span className="text-slate-900 font-bold">{discountToNextTier.label}</span>
           </div>
         )}
       </div>
 
-      {/* ── LINES COUNT (right-most) ─────────────── */}
-      <div
-        style={{
-          marginLeft: 'auto',
-          flexShrink: 0,
-          textAlign: 'right',
-        }}
-      >
-        <div
-          style={{ fontSize: 9, color: '#64748b', fontFamily: 'monospace', letterSpacing: '0.08em', marginBottom: 2 }}
-        >
-          LINE ITEMS
+      {/* ── LINE ITEMS COUNT (Right) ─────────────── */}
+      <div className="ml-auto shrink-0 text-right">
+        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 font-heading">
+          Line Items
         </div>
-        <div style={{ fontSize: 20, fontWeight: 800, color: '#475569', fontFamily: 'monospace' }}>
-          {lines.length}
+        <div className="inline-flex items-center gap-1.5 mt-0.5">
+          <Layers size={14} className="text-slate-500" strokeWidth={2.5} />
+          <span className="text-lg font-extrabold text-slate-900 font-mono">
+            {lines.length}
+          </span>
         </div>
       </div>
-    </div>
+    </aside>
   );
 }
