@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   DollarSign,
   Tag,
@@ -10,7 +10,10 @@ import {
   Calendar,
   CheckCircle,
   HelpCircle,
-  Award
+  Award,
+  ChevronUp,
+  ChevronDown,
+  ChevronsUpDown
 } from 'lucide-react';
 import { productsAPI } from '../../api';
 import toast from 'react-hot-toast';
@@ -71,8 +74,51 @@ export default function PriceListsPage() {
     }
   };
 
-  // Database-queried price lists
-  const filteredLists = priceLists;
+  // Sorting
+  const [sortField, setSortField] = useState('name');
+  const [sortOrder, setSortOrder] = useState('asc');
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
+    }
+  };
+
+  const SortIcon = ({ field }) => {
+    if (sortField !== field) return <ChevronsUpDown className="w-3 h-3 ml-1 opacity-40 inline" />;
+    return sortOrder === 'asc'
+      ? <ChevronUp className="w-3 h-3 ml-1 inline" />
+      : <ChevronDown className="w-3 h-3 ml-1 inline" />;
+  };
+
+  // Sorted list of price lists
+  const filteredLists = useMemo(() => {
+    const sorted = [...priceLists];
+    sorted.sort((a, b) => {
+      let aVal, bVal;
+      if (sortField === 'name') {
+        aVal = (a.name || '').toLowerCase();
+        bVal = (b.name || '').toLowerCase();
+      } else if (sortField === 'tier') {
+        const order = { BRONZE: 0, SILVER: 1, GOLD: 2, PLATINUM: 3 };
+        aVal = order[a.tier] ?? 0;
+        bVal = order[b.tier] ?? 0;
+      } else if (sortField === 'items') {
+        aVal = a.items?.length || 0;
+        bVal = b.items?.length || 0;
+      } else {
+        aVal = (a.id || '').toLowerCase();
+        bVal = (b.id || '').toLowerCase();
+      }
+      if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+      return (a.id || '').localeCompare(b.id || '');
+    });
+    return sorted;
+  }, [priceLists, sortField, sortOrder]);
 
   // Pagination for items inside each price list
   const [itemPages, setItemPages] = useState({});
@@ -187,6 +233,28 @@ export default function PriceListsPage() {
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Sort Controls */}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <span className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">Sort</span>
+          {[
+            { field: 'name', label: 'Name' },
+            { field: 'tier', label: 'Tier' },
+            { field: 'items', label: 'SKUs' },
+          ].map(({ field, label }) => (
+            <button
+              key={field}
+              onClick={() => handleSort(field)}
+              className={`flex items-center px-2.5 py-1 rounded-xl text-[11px] font-mono font-bold border-2 transition-all cursor-pointer ${
+                sortField === field
+                  ? 'bg-slate-900 text-white border-slate-900 shadow-pop-sm'
+                  : 'bg-white text-slate-600 border-slate-300 hover:border-slate-900'
+              }`}
+            >
+              {label}<SortIcon field={field} />
+            </button>
+          ))}
         </div>
       </div>
 

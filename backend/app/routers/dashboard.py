@@ -1,8 +1,9 @@
 """app/routers/dashboard.py — Executive KPIs, deal velocity, and pipeline metrics."""
 from datetime import datetime, timezone, timedelta
+from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select, func, or_
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import selectinload, aliased
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -209,6 +210,7 @@ async def get_dashboard_metrics(
 
 @router.get("/approval-queue")
 async def get_approval_queue(
+    search: Optional[str] = Query(None),
     user: dict = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
@@ -216,8 +218,28 @@ async def get_approval_queue(
     Returns pending quotations for Sales Manager & Finance approval with full line & risk details,
     along with historical approvals and summary counts.
     """
+    CustomerUser = aliased(User, name="cust_user")
+    RepUser = aliased(User, name="rep_user")
+
+    def _apply_search(stmt, search_str):
+        if not search_str or not search_str.strip():
+            return stmt
+        p = f"%{search_str.strip()}%"
+        return stmt.where(
+            or_(
+                Quotation.quotation_number.ilike(p),
+                CustomerUser.name.ilike(p),
+                CustomerUser.company_name.ilike(p),
+                CustomerUser.email.ilike(p),
+                RepUser.name.ilike(p),
+                RepUser.email.ilike(p),
+            )
+        )
+
     stmt = (
         select(Quotation)
+        .outerjoin(CustomerUser, Quotation.customer_id == CustomerUser.id)
+        .outerjoin(RepUser, Quotation.rep_id == RepUser.id)
         .where(Quotation.status.in_([QuotationStatus.PENDING_MANAGER, QuotationStatus.PENDING_FINANCE]))
         .options(
             selectinload(Quotation.rep),
@@ -228,12 +250,15 @@ async def get_approval_queue(
         )
         .order_by(Quotation.created_at.asc())
     )
+    stmt = _apply_search(stmt, search)
     result = await db.execute(stmt)
     pending_quotations = result.scalars().all()
 
     # Also fetch all quotations that went through discount approval
     all_stmt = (
         select(Quotation)
+        .outerjoin(CustomerUser, Quotation.customer_id == CustomerUser.id)
+        .outerjoin(RepUser, Quotation.rep_id == RepUser.id)
         .where(
             or_(
                 Quotation.status.in_([
@@ -255,6 +280,7 @@ async def get_approval_queue(
         .order_by(Quotation.created_at.desc())
         .limit(100)
     )
+    all_stmt = _apply_search(all_stmt, search)
     all_res = await db.execute(all_stmt)
     all_approvals = all_res.scalars().all()
 

@@ -36,14 +36,33 @@ export default function Reports() {
   const [selectedCategory, setSelectedCategory] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // 1. Fetch Data
-  const loadReportData = useCallback(async () => {
+  // 1. Fetch Data — push all filters to DB
+  const loadReportData = useCallback(async (
+    _period = period,
+    _rep = selectedRep,
+    _status = approvalStatus,
+    _search = searchQuery
+  ) => {
     try {
       setLoading(true);
+      const params = {};
+
+      // Map period to dateRange param that backend understands
+      if (_period === 'today') params.dateRange = '1D';
+      else if (_period === 'week') params.dateRange = '7D';
+      else if (_period === 'month') params.dateRange = '30D';
+      // 'all' => no dateRange param
+
+      if (_rep && _rep !== 'ALL') params.repId = _rep;
+
+      if (_status && _status !== 'ALL') params.status = _status;
+
+      if (_search && _search.trim()) params.search = _search.trim();
+
       const [quotesRes, catsRes, metricsRes] = await Promise.all([
-        quotationsAPI.getAll(),
+        quotationsAPI.getAll(params),
         productsAPI.getCategories().catch(() => []),
-        dashboardAPI.getMetrics({ period }).catch(() => null),
+        dashboardAPI.getMetrics({ period: _period }).catch(() => null),
       ]);
 
       const qList = Array.isArray(quotesRes) ? quotesRes : quotesRes?.quotations || [];
@@ -61,75 +80,28 @@ export default function Reports() {
     } finally {
       setLoading(false);
     }
-  }, [period]);
+  }, []);
 
+  // Debounced reload whenever any filter changes
   useEffect(() => {
-    loadReportData();
-  }, [loadReportData]);
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      loadReportData(period, selectedRep, approvalStatus, searchQuery);
+    }, 300);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [period, selectedRep, approvalStatus, selectedCategory, searchQuery]);
 
-  // 2. Filter Quotations based on Reporting Filters
+  // 2. Client-side category filter only (not supported by backend quotations endpoint)
   const filteredQuotes = useMemo(() => {
-    const now = new Date();
-    let list = [...quotations];
-
-    // Period filter
-    if (period === 'today') {
-      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      list = list.filter((q) => new Date(q.created_at || q.createdAt) >= startOfDay);
-    } else if (period === 'week') {
-      const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      list = list.filter((q) => new Date(q.created_at || q.createdAt) >= sevenDaysAgo);
-    } else if (period === 'month') {
-      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      list = list.filter((q) => new Date(q.created_at || q.createdAt) >= thirtyDaysAgo);
-    }
-
-    // Rep filter
-    if (selectedRep !== 'ALL') {
-      list = list.filter(
-        (q) => (q.rep_id || q.repId) === selectedRep || q.rep?.id === selectedRep
-      );
-    }
-
-    // Approval status filter
-    if (approvalStatus !== 'ALL') {
-      if (approvalStatus === 'PENDING') {
-        list = list.filter((q) =>
-          ['PENDING_MANAGER', 'PENDING_FINANCE'].includes(q.status)
-        );
-      } else if (approvalStatus === 'APPROVED') {
-        list = list.filter((q) =>
-          ['APPROVED', 'CONFIRMED'].includes(q.status)
-        );
-      } else if (approvalStatus === 'REJECTED') {
-        list = list.filter((q) => q.status === 'REJECTED');
-      }
-    }
-
-    // Product Category filter
-    if (selectedCategory !== 'ALL') {
-      list = list.filter((q) => {
-        const lines = q.lines || [];
-        return lines.some((l) => {
-          const catName = l.product?.category?.name || l.product?.category;
-          return catName === selectedCategory;
-        });
+    if (selectedCategory === 'ALL') return quotations;
+    return quotations.filter((q) => {
+      const lines = q.lines || [];
+      return lines.some((l) => {
+        const catName = l.product?.category?.name || l.product?.category;
+        return catName === selectedCategory;
       });
-    }
-
-    // Search query
-    if (searchQuery.trim()) {
-      const qLower = searchQuery.toLowerCase().trim();
-      list = list.filter((item) => {
-        const num = (item.quotationNumber || item.quotation_number || '').toLowerCase();
-        const cust = (item.customer?.name || item.customer?.company_name || '').toLowerCase();
-        const rep = (item.rep?.name || '').toLowerCase();
-        return num.includes(qLower) || cust.includes(qLower) || rep.includes(qLower);
-      });
-    }
-
-    return list;
-  }, [quotations, period, selectedRep, approvalStatus, selectedCategory, searchQuery]);
+    });
+  }, [quotations, selectedCategory]);
 
   // 3. Computed Metrics
   const metrics = useMemo(() => {

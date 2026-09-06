@@ -27,7 +27,10 @@ import {
   Database,
   Info,
   Eye,
-  SlidersHorizontal
+  SlidersHorizontal,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { subscriptionsAPI, productsAPI, quotationsAPI } from '../../api';
 import toast from 'react-hot-toast';
@@ -320,6 +323,10 @@ export default function Subscriptions() {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Sorting state
+  const [sortField, setSortField] = useState('customer');
+  const [sortOrder, setSortOrder] = useState('asc');
+
   // Pagination for Subscriptions Table
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
@@ -333,12 +340,16 @@ export default function Subscriptions() {
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
   const [selectedPlanToEdit, setSelectedPlanToEdit] = useState(null);
 
-  // Load subscriptions & plans
-  const loadData = useCallback(async () => {
+  // Load subscriptions & plans — push search/status to the DB
+  const loadData = useCallback(async (search = searchQuery, status = statusFilter) => {
     try {
       setLoading(true);
+      const params = {};
+      if (status && status !== 'ALL') params.status = status;
+      if (search && search.trim()) params.search = search.trim();
+
       const [subsRes, plansRes] = await Promise.all([
-        subscriptionsAPI.getAll(),
+        subscriptionsAPI.getAll(params),
         subscriptionsAPI.getPlans(),
       ]);
       setSubscriptions(Array.isArray(subsRes) ? subsRes : subsRes?.subscriptions || []);
@@ -351,9 +362,14 @@ export default function Subscriptions() {
     }
   }, []);
 
+  // Reload when search or status filter changes (debounced 300 ms)
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      loadData(searchQuery, statusFilter);
+    }, 300);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [searchQuery, statusFilter]);
 
   // Compute status counts for Top Badges
   const counts = useMemo(() => {
@@ -369,37 +385,63 @@ export default function Subscriptions() {
     return { active, paused, cancelled, total: subscriptions.length };
   }, [subscriptions]);
 
-  // Filtered subscriptions list
-  const filteredSubscriptions = useMemo(() => {
-    let list = subscriptions;
+  // DB already filters — subscriptions IS the filtered list
+  const filteredSubscriptions = subscriptions;
 
-    if (statusFilter !== 'ALL') {
-      list = list.filter((s) => (s.status || 'ACTIVE').toUpperCase() === statusFilter);
-    }
+  // Sort handler
+  const handleSort = (field) => {
+    if (sortField === field) setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'));
+    else { setSortField(field); setSortOrder('asc'); }
+    setCurrentPage(1);
+  };
 
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      list = list.filter((s) => {
-        const cust = (s.quotation?.customer?.name || s.quotation?.customer?.company_name || '').toLowerCase();
-        const plan = (s.plan?.name || '').toLowerCase();
-        const num = (s.quotation?.quotation_number || '').toLowerCase();
-        return cust.includes(q) || plan.includes(q) || num.includes(q);
-      });
-    }
+  // Sorted subscriptions
+  const sortedSubscriptions = useMemo(() => {
+    const arr = [...filteredSubscriptions];
+    arr.sort((a, b) => {
+      let av, bv;
+      if (sortField === 'plan') {
+        av = (a.plan?.name || '').toLowerCase();
+        bv = (b.plan?.name || '').toLowerCase();
+      } else if (sortField === 'rate') {
+        av = Number(a.unit_price || 0) * Number(a.quantity || 1);
+        bv = Number(b.unit_price || 0) * Number(b.quantity || 1);
+      } else if (sortField === 'next_billing') {
+        av = new Date(a.next_billing_date || 0).getTime();
+        bv = new Date(b.next_billing_date || 0).getTime();
+      } else if (sortField === 'updated_at') {
+        av = new Date(a.updated_at || a.created_at || 0).getTime();
+        bv = new Date(b.updated_at || b.created_at || 0).getTime();
+      } else {
+        // customer default
+        av = (a.quotation?.customer?.name || a.quotation?.customer?.company_name || '').toLowerCase();
+        bv = (b.quotation?.customer?.name || b.quotation?.customer?.company_name || '').toLowerCase();
+      }
+      if (av < bv) return sortOrder === 'asc' ? -1 : 1;
+      if (av > bv) return sortOrder === 'asc' ? 1 : -1;
+      return (a.id || '').localeCompare(b.id || '');
+    });
+    return arr;
+  }, [filteredSubscriptions, sortField, sortOrder]);
 
-    return list;
-  }, [subscriptions, statusFilter, searchQuery]);
+  // Sort icon helper
+  const SortIcon = ({ field }) => {
+    if (sortField !== field) return <ArrowUpDown size={11} strokeWidth={2.5} className="text-slate-400 inline ml-1" />;
+    return sortOrder === 'asc'
+      ? <ArrowUp size={11} strokeWidth={2.5} className="text-pop-violet inline ml-1" />
+      : <ArrowDown size={11} strokeWidth={2.5} className="text-pop-violet inline ml-1" />;
+  };
 
   // Reset page when filter or search changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [statusFilter, searchQuery]);
+  }, [statusFilter, searchQuery, sortField, sortOrder]);
 
   // Paginated list
   const paginatedSubscriptions = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
-    return filteredSubscriptions.slice(start, start + pageSize);
-  }, [filteredSubscriptions, currentPage, pageSize]);
+    return sortedSubscriptions.slice(start, start + pageSize);
+  }, [sortedSubscriptions, currentPage, pageSize]);
 
   // Cancel handler
   const handleConfirmCancel = async () => {
@@ -572,6 +614,27 @@ export default function Subscriptions() {
 
           {/* Action: + New Plan (Admin) Button */}
           <div className="flex items-center justify-end gap-2 w-full sm:w-auto">
+            {/* Sort Controls */}
+            <select
+              value={sortField}
+              onChange={(e) => { setSortField(e.target.value); setCurrentPage(1); }}
+              className="bg-white border-2 border-slate-900 rounded-xl px-2.5 py-1.5 text-xs font-heading font-bold text-slate-900 focus:outline-none focus:shadow-pop cursor-pointer shadow-pop-xs"
+            >
+              <option value="customer">Customer</option>
+              <option value="plan">Plan</option>
+              <option value="rate">Recurring Rate</option>
+              <option value="next_billing">Next Bill Date</option>
+              <option value="updated_at">Latest Update</option>
+            </select>
+            <button
+              onClick={() => setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'))}
+              className="p-1.5 rounded-xl border-2 border-slate-900 bg-white hover:bg-pop-yellow shadow-pop-xs transition-all cursor-pointer"
+              title={sortOrder === 'asc' ? 'Ascending' : 'Descending'}
+            >
+              {sortOrder === 'asc'
+                ? <ArrowUp size={14} strokeWidth={2.5} className="text-pop-violet" />
+                : <ArrowDown size={14} strokeWidth={2.5} className="text-pop-violet" />}
+            </button>
             {canManagePlans && (
               <button
                 onClick={() => {
@@ -601,12 +664,20 @@ export default function Subscriptions() {
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b-2 border-slate-900 bg-slate-100/90 text-[10px] uppercase font-mono font-black text-slate-800 tracking-wider">
-                <th className="p-3.5 font-bold">Customer</th>
-                <th className="p-3.5 font-bold">Plan</th>
+                <th className="p-3.5 font-bold cursor-pointer select-none hover:bg-slate-200 transition-colors" onClick={() => handleSort('customer')}>
+                  Customer <SortIcon field="customer" />
+                </th>
+                <th className="p-3.5 font-bold cursor-pointer select-none hover:bg-slate-200 transition-colors" onClick={() => handleSort('plan')}>
+                  Plan <SortIcon field="plan" />
+                </th>
                 <th className="p-3.5 font-bold">Cycle</th>
-                <th className="p-3.5 font-bold">Next Bill</th>
+                <th className="p-3.5 font-bold cursor-pointer select-none hover:bg-slate-200 transition-colors" onClick={() => handleSort('next_billing')}>
+                  Next Bill <SortIcon field="next_billing" />
+                </th>
                 <th className="p-3.5 font-bold">Status</th>
-                <th className="p-3.5 font-bold text-right">Recurring Rate</th>
+                <th className="p-3.5 font-bold text-right cursor-pointer select-none hover:bg-slate-200 transition-colors" onClick={() => handleSort('rate')}>
+                  Recurring Rate <SortIcon field="rate" />
+                </th>
                 <th className="p-3.5 font-bold text-right">Action</th>
               </tr>
             </thead>

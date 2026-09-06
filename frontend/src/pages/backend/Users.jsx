@@ -18,6 +18,9 @@ import {
   ToggleLeft,
   ToggleRight,
   FileText,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 import { usersAPI } from '../../api';
 import { useAuthStore } from '../../store/authStore';
@@ -33,6 +36,32 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('ALL');
+
+  // Sorting State (defaults to alphabetical by name so position is 100% stable!)
+  const [sortField, setSortField] = useState('name');
+  const [sortOrder, setSortOrder] = useState('asc');
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
+    }
+  };
+
+  // Customer Table Sorting
+  const [custSortField, setCustSortField] = useState('company_name');
+  const [custSortOrder, setCustSortOrder] = useState('asc');
+
+  const handleCustSort = (field) => {
+    if (custSortField === field) {
+      setCustSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setCustSortField(field);
+      setCustSortOrder(field === 'quotations_count' ? 'desc' : 'asc');
+    }
+  };
 
   // Pagination
   const [internalPage, setInternalPage] = useState(1);
@@ -85,9 +114,36 @@ export default function UsersPage() {
         customer_tier: editRoleForm.role === 'CUSTOMER' ? editRoleForm.customer_tier : null,
         company_name: editRoleForm.company_name,
       });
-      toast.success(`Role for "${editRoleUser.name}" updated to ${editRoleForm.role.replace('_', ' ')}!`);
+
+      // Update in-place in local state immediately so user row updates without losing position!
+      setUsers((prev) =>
+        prev.map((u) =>
+          u.id === editRoleUser.id
+            ? {
+                ...u,
+                role: editRoleForm.role,
+                customer_tier: editRoleForm.role === 'CUSTOMER' ? editRoleForm.customer_tier : null,
+                company_name: editRoleForm.company_name,
+              }
+            : u
+        )
+      );
+
+      if (editRoleForm.role === 'CUSTOMER') {
+        toast.success(`"${editRoleUser.name}" moved to Customer Portal Accounts (table below)!`, { duration: 5000 });
+      } else {
+        toast.success(`Role for "${editRoleUser.name}" updated to ${editRoleForm.role.replace('_', ' ')}!`);
+      }
+
+      // If active role filter would hide this user, reset filter to 'ALL' so they stay visible
+      let nextRoleFilter = roleFilter;
+      if (roleFilter !== 'ALL' && editRoleForm.role !== roleFilter) {
+        nextRoleFilter = 'ALL';
+        setRoleFilter('ALL');
+      }
+
       setEditRoleUser(null);
-      loadUsers(searchQuery, roleFilter);
+      loadUsers(searchQuery, nextRoleFilter, sortField, sortOrder);
     } catch (err) {
       const msg = err.response?.data?.detail || err.message || 'Failed to update role';
       toast.error(msg);
@@ -96,8 +152,8 @@ export default function UsersPage() {
     }
   };
 
-  // Fetch users directly from PostgreSQL database with search and role filtering
-  const loadUsers = async (q = searchQuery, role = roleFilter) => {
+  // Fetch users directly from PostgreSQL database with search, role, and deterministic sorting
+  const loadUsers = async (q = searchQuery, role = roleFilter, sf = sortField, so = sortOrder) => {
     setLoading(true);
     try {
       const searchStr = typeof q === 'string' ? q : (typeof searchQuery === 'string' ? searchQuery : '');
@@ -105,6 +161,8 @@ export default function UsersPage() {
       const params = {};
       if (searchStr.trim()) params.search = searchStr.trim();
       if (roleStr !== 'ALL') params.role = roleStr;
+      if (sf) params.sort_by = sf;
+      if (so) params.order = so;
       const res = await usersAPI.getAll(params);
       setUsers(Array.isArray(res) ? res : []);
     } catch (err) {
@@ -116,10 +174,10 @@ export default function UsersPage() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      loadUsers(searchQuery, roleFilter);
+      loadUsers(searchQuery, roleFilter, sortField, sortOrder);
     }, 250);
     return () => clearTimeout(timer);
-  }, [searchQuery, roleFilter]);
+  }, [searchQuery, roleFilter, sortField, sortOrder]);
 
   // Role Badge Styling
   const getRoleBadge = (role) => {
@@ -262,8 +320,33 @@ export default function UsersPage() {
   }, [users]);
 
   const customerUsers = useMemo(() => {
-    return users.filter((u) => u.role === 'CUSTOMER');
-  }, [users]);
+    const list = users.filter((u) => u.role === 'CUSTOMER');
+    list.sort((a, b) => {
+      let cmp = 0;
+      if (custSortField === 'company_name' || custSortField === 'name') {
+        const aName = (a.company_name || a.name || '').toLowerCase();
+        const bName = (b.company_name || b.name || '').toLowerCase();
+        cmp = aName.localeCompare(bName);
+      } else if (custSortField === 'tier') {
+        const aTier = a.customer_tier || 'BRONZE';
+        const bTier = b.customer_tier || 'BRONZE';
+        cmp = aTier.localeCompare(bTier);
+      } else if (custSortField === 'email') {
+        cmp = (a.email || '').localeCompare(b.email || '');
+      } else if (custSortField === 'quotations_count') {
+        cmp = (Number(a.quotations_count) || 0) - (Number(b.quotations_count) || 0);
+      } else {
+        const aDate = new Date(a.created_at || 0).getTime();
+        const bDate = new Date(b.created_at || 0).getTime();
+        cmp = aDate - bDate;
+      }
+      if (cmp === 0) {
+        cmp = String(a.id).localeCompare(String(b.id));
+      }
+      return custSortOrder === 'asc' ? cmp : -cmp;
+    });
+    return list;
+  }, [users, custSortField, custSortOrder]);
 
   // Reset page on filter change
   useEffect(() => { setInternalPage(1); }, [roleFilter, searchQuery]);
@@ -350,11 +433,63 @@ export default function UsersPage() {
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-100 border-b-2 border-slate-900 text-[11px] font-mono font-black text-slate-700 uppercase tracking-wider">
                 <tr>
-                  <th className="py-3.5 px-4 font-black">Name</th>
-                  <th className="py-3.5 px-4 font-black hidden sm:table-cell">Email</th>
-                  <th className="py-3.5 px-4 text-center font-black">Role</th>
+                  <th
+                    onClick={() => handleSort('name')}
+                    className="py-3.5 px-4 font-black cursor-pointer select-none hover:text-slate-950 transition-colors"
+                    title="Sort by Name"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>Name</span>
+                      {sortField === 'name' ? (
+                        sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 text-violet-700" strokeWidth={2.5} /> : <ArrowDown className="w-3 h-3 text-violet-700" strokeWidth={2.5} />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-60" />
+                      )}
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleSort('email')}
+                    className="py-3.5 px-4 font-black hidden sm:table-cell cursor-pointer select-none hover:text-slate-950 transition-colors"
+                    title="Sort by Email"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>Email</span>
+                      {sortField === 'email' ? (
+                        sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 text-violet-700" strokeWidth={2.5} /> : <ArrowDown className="w-3 h-3 text-violet-700" strokeWidth={2.5} />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-60" />
+                      )}
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleSort('role')}
+                    className="py-3.5 px-4 text-center font-black cursor-pointer select-none hover:text-slate-950 transition-colors"
+                    title="Sort by Role"
+                  >
+                    <div className="flex items-center justify-center gap-1.5">
+                      <span>Role</span>
+                      {sortField === 'role' ? (
+                        sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 text-violet-700" strokeWidth={2.5} /> : <ArrowDown className="w-3 h-3 text-violet-700" strokeWidth={2.5} />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-60" />
+                      )}
+                    </div>
+                  </th>
                   <th className="py-3.5 px-4 text-center font-black hidden sm:table-cell">Status</th>
-                  <th className="py-3.5 px-4 text-center font-black hidden md:table-cell">Created</th>
+                  <th
+                    onClick={() => handleSort('created_at')}
+                    className="py-3.5 px-4 text-center font-black hidden md:table-cell cursor-pointer select-none hover:text-slate-950 transition-colors"
+                    title="Sort by Creation Date"
+                  >
+                    <div className="flex items-center justify-center gap-1.5">
+                      <span>Created</span>
+                      {sortField === 'created_at' ? (
+                        sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 text-violet-700" strokeWidth={2.5} /> : <ArrowDown className="w-3 h-3 text-violet-700" strokeWidth={2.5} />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 text-slate-400 opacity-60" />
+                      )}
+                    </div>
+                  </th>
                   <th className="py-3.5 px-4 text-right font-black">Actions</th>
                 </tr>
               </thead>
@@ -548,10 +683,62 @@ export default function UsersPage() {
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-100 border-b-2 border-slate-900 text-[11px] font-mono font-black text-slate-700 uppercase tracking-wider">
                 <tr>
-                  <th className="py-3.5 px-4 font-black">Company Name</th>
-                  <th className="py-3.5 px-4 text-center font-black">Tier</th>
-                  <th className="py-3.5 px-4 font-black hidden sm:table-cell">Contact Email</th>
-                  <th className="py-3.5 px-4 text-center font-black hidden md:table-cell">Linked Quotations</th>
+                  <th
+                    onClick={() => handleCustSort('company_name')}
+                    className="py-3.5 px-4 font-black cursor-pointer hover:bg-slate-200 transition-colors select-none"
+                    title="Sort by Company Name"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Company Name</span>
+                      {custSortField === 'company_name' ? (
+                        custSortOrder === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-violet-700" /> : <ArrowDown className="w-3.5 h-3.5 text-violet-700" />
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                      )}
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleCustSort('tier')}
+                    className="py-3.5 px-4 text-center font-black cursor-pointer hover:bg-slate-200 transition-colors select-none"
+                    title="Sort by Customer Tier"
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      <span>Tier</span>
+                      {custSortField === 'tier' ? (
+                        custSortOrder === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-violet-700" /> : <ArrowDown className="w-3.5 h-3.5 text-violet-700" />
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                      )}
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleCustSort('email')}
+                    className="py-3.5 px-4 font-black hidden sm:table-cell cursor-pointer hover:bg-slate-200 transition-colors select-none"
+                    title="Sort by Contact Email"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Contact Email</span>
+                      {custSortField === 'email' ? (
+                        custSortOrder === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-violet-700" /> : <ArrowDown className="w-3.5 h-3.5 text-violet-700" />
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                      )}
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleCustSort('quotations_count')}
+                    className="py-3.5 px-4 text-center font-black hidden md:table-cell cursor-pointer hover:bg-slate-200 transition-colors select-none"
+                    title="Sort by Linked Quotations Count"
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      <span>Linked Quotations</span>
+                      {custSortField === 'quotations_count' ? (
+                        custSortOrder === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-violet-700" /> : <ArrowDown className="w-3.5 h-3.5 text-violet-700" />
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                      )}
+                    </div>
+                  </th>
                   <th className="py-3.5 px-4 text-right font-black">Portal Access</th>
                 </tr>
               </thead>

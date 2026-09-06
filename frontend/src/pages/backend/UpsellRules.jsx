@@ -9,6 +9,9 @@ import {
   Star,
   Zap,
   X,
+  ChevronUp,
+  ChevronDown,
+  ChevronsUpDown,
 } from 'lucide-react';
 import { productsAPI } from '../../api';
 import toast from 'react-hot-toast';
@@ -143,8 +146,63 @@ export default function UpsellRules() {
     }
   };
 
-  // ── Database Queried Rules ───────────────────────────────────────────────
-  const filteredRules = rules;
+  // Sorting
+  const [sortField, setSortField] = useState('score');
+  const [sortOrder, setSortOrder] = useState('desc');
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortOrder(field === 'score' ? 'desc' : 'asc');
+    }
+  };
+
+  const SortIcon = ({ field }) => {
+    if (sortField !== field) return <ChevronsUpDown className="w-3 h-3 ml-1 opacity-40 inline" />;
+    return sortOrder === 'asc'
+      ? <ChevronUp className="w-3 h-3 ml-1 inline" />
+      : <ChevronDown className="w-3 h-3 ml-1 inline" />;
+  };
+
+  // Filtered and sorted rules
+  const filteredRules = useMemo(() => {
+    const list = rules.filter((r) => {
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        r.source_product?.name?.toLowerCase().includes(q) ||
+        r.target_product?.name?.toLowerCase().includes(q)
+      );
+    });
+    list.sort((a, b) => {
+      let aVal, bVal;
+      if (sortField === 'score') {
+        aVal = Number(a.score) || 0;
+        bVal = Number(b.score) || 0;
+      } else if (sortField === 'source') {
+        aVal = (a.source_product?.name || '').toLowerCase();
+        bVal = (b.source_product?.name || '').toLowerCase();
+      } else if (sortField === 'target') {
+        aVal = (a.target_product?.name || '').toLowerCase();
+        bVal = (b.target_product?.name || '').toLowerCase();
+      } else if (sortField === 'promoted') {
+        aVal = a.is_promoted ? 1 : 0;
+        bVal = b.is_promoted ? 1 : 0;
+      } else if (sortField === 'margin') {
+        aVal = Number(a.min_margin) || 0;
+        bVal = Number(b.min_margin) || 0;
+      } else {
+        aVal = (a.id || '').toLowerCase();
+        bVal = (b.id || '').toLowerCase();
+      }
+      if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+      return (a.id || '').localeCompare(b.id || '');
+    });
+    return list;
+  }, [rules, searchQuery, sortField, sortOrder]);
 
   // Pagination
   const [rulePage, setRulePage] = useState(1);
@@ -162,7 +220,7 @@ export default function UpsellRules() {
   useEffect(() => {
     setRulePage(1);
     setPromotedPage(1);
-  }, [searchQuery]);
+  }, [searchQuery, sortField, sortOrder]);
 
   const pagedRules = useMemo(() => {
     const start = (rulePage - 1) * rulePageSize;
@@ -302,7 +360,32 @@ export default function UpsellRules() {
               className="w-full bg-[#FFFDF5] border-2 border-slate-900 rounded-2xl pl-10 pr-3 py-2 text-xs font-heading font-bold text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 shadow-pop-xs"
             />
           </div>
-          <span className="text-xs font-mono font-bold text-slate-600">
+
+          {/* Sort Buttons */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">Sort</span>
+            {[
+              { field: 'score', label: 'Score' },
+              { field: 'source', label: 'Source' },
+              { field: 'target', label: 'Target' },
+              { field: 'promoted', label: 'Promoted' },
+              { field: 'margin', label: 'Min Margin' },
+            ].map(({ field, label }) => (
+              <button
+                key={field}
+                onClick={() => handleSort(field)}
+                className={`flex items-center px-2.5 py-1 rounded-xl text-[11px] font-mono font-bold border-2 transition-all cursor-pointer ${
+                  sortField === field
+                    ? 'bg-slate-900 text-white border-slate-900 shadow-pop-sm'
+                    : 'bg-white text-slate-600 border-slate-300 hover:border-slate-900'
+                }`}
+              >
+                {label}<SortIcon field={field} />
+              </button>
+            ))}
+          </div>
+
+          <span className="text-xs font-mono font-bold text-slate-600 flex-shrink-0">
             Showing {filteredRules.length} rules
           </span>
         </div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import {
@@ -18,7 +18,13 @@ import {
   Sparkles,
   Database,
   Activity,
-  ArrowRight
+  ArrowRight,
+  ShoppingBag,
+  RotateCcw,
+  RefreshCw,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { quotationsAPI, usersAPI, invoicesAPI } from '../../api';
@@ -115,14 +121,55 @@ export default function PipelineKanban() {
   const [colPages, setColPages]         = useState({});
   const [reps, setReps]                 = useState([]);
 
+  // Sorting State for Pipeline Deals
+  const [sortField, setSortField]       = useState('last_activity'); // 'last_activity' | 'name' | 'amount' | 'customer' | 'risk' | 'expiry'
+  const [sortOrder, setSortOrder]       = useState('desc'); // 'asc' | 'desc'
+
   // Quick Card Hover & In-Place Action States
   const [quickCardQuote, setQuickCardQuote]         = useState(null);
   const [quickCardPos, setQuickCardPos]             = useState({ x: 0, y: 0 });
   const [quickCardType, setQuickCardType]           = useState('');
-  const [quickApprovalQuote, setQuickApprovalQuote] = useState(null);
+  const [activeDealModal, setActiveDealModal]       = useState(null);
+  const [dealDetails, setDealDetails]               = useState(null);
+  const [loadingDetails, setLoadingDetails]         = useState(false);
   const [approvalNotes, setApprovalNotes]           = useState('');
   const [submittingDecision, setSubmittingDecision] = useState(false);
   const [sendingId, setSendingId]                   = useState(null);
+
+  // Load detailed quotation data when active deal modal opens
+  useEffect(() => {
+    if (!activeDealModal) {
+      setDealDetails(null);
+      setApprovalNotes('');
+      return;
+    }
+    let cancelled = false;
+    setLoadingDetails(true);
+    quotationsAPI.getOne(activeDealModal.id)
+      .then((res) => {
+        if (cancelled) return;
+        const data = res?.data || res;
+        setDealDetails(data);
+      })
+      .catch((err) => {
+        console.error('Failed to fetch full quotation details:', err);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingDetails(false);
+      });
+    return () => { cancelled = true; };
+  }, [activeDealModal?.id]);
+
+  // Close modal on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setActiveDealModal(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Quick Card Hover Helper
   const handleButtonHover = (q, e, type) => {
@@ -170,12 +217,50 @@ export default function PipelineKanban() {
           : `Quotation rejected.`
       );
 
-      setQuickApprovalQuote(null);
+      setActiveDealModal(null);
       setApprovalNotes('');
       loadData();
     } catch (err) {
       console.error(err);
       toast.error(err.response?.data?.detail || err.detail || 'Failed to submit decision');
+    } finally {
+      setSubmittingDecision(false);
+    }
+  };
+
+  // Quick In-Place Submit for Approval (Draft stage)
+  const handleQuickSubmit = async (q) => {
+    setSubmittingDecision(true);
+    try {
+      await quotationsAPI.submit(q.id);
+      toast.success(`${q.quotation_number} submitted for approval!`);
+      setQuotations((prev) =>
+        prev.map((item) => (item.id === q.id ? { ...item, status: 'PENDING_MANAGER' } : item))
+      );
+      setActiveDealModal(null);
+      loadData();
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.detail || err.detail || 'Failed to submit quotation');
+    } finally {
+      setSubmittingDecision(false);
+    }
+  };
+
+  // Quick In-Place Restore to Draft (Cancelled stage)
+  const handleQuickRestoreDraft = async (q) => {
+    setSubmittingDecision(true);
+    try {
+      await quotationsAPI.updateStatus(q.id, { status: 'DRAFT' });
+      toast.success(`${q.quotation_number} restored to DRAFT!`);
+      setQuotations((prev) =>
+        prev.map((item) => (item.id === q.id ? { ...item, status: 'DRAFT' } : item))
+      );
+      setActiveDealModal(null);
+      loadData();
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.detail || err.detail || 'Failed to restore quotation');
     } finally {
       setSubmittingDecision(false);
     }
@@ -291,10 +376,51 @@ export default function PipelineKanban() {
 
   const toDbStatus = { PENDING:'PENDING_MANAGER', APPROVED:'APPROVED', SENT:'SENT_TO_CUSTOMER', NEGOTIATING:'UNDER_NEGOTIATION', CONFIRMED:'CONFIRMED', CANCELLED:'CANCELLED' };
 
-  // Data is filtered directly in PostgreSQL database
+  // Sort deals deterministically based on active sort options
+  const sortedQuotes = useMemo(() => {
+    const list = [...quotations];
+    list.sort((a, b) => {
+      let cmp = 0;
+      if (sortField === 'name') {
+        const aVal = (a.quotation_number || a.quotationNumber || '').toLowerCase();
+        const bVal = (b.quotation_number || b.quotationNumber || '').toLowerCase();
+        cmp = aVal.localeCompare(bVal);
+      } else if (sortField === 'customer') {
+        const aVal = (a.customer?.company_name || a.customer?.name || a.customer_name || '').toLowerCase();
+        const bVal = (b.customer?.company_name || b.customer?.name || b.customer_name || '').toLowerCase();
+        cmp = aVal.localeCompare(bVal);
+      } else if (sortField === 'amount') {
+        const aVal = Number(a.total ?? a.final_amount ?? a.total_amount ?? 0);
+        const bVal = Number(b.total ?? b.final_amount ?? b.total_amount ?? 0);
+        cmp = aVal - bVal;
+      } else if (sortField === 'risk') {
+        const aVal = Number(a.blended_risk_score ?? a.blendedRiskScore ?? a.risk_score ?? 0);
+        const bVal = Number(b.blended_risk_score ?? b.blendedRiskScore ?? b.risk_score ?? 0);
+        cmp = aVal - bVal;
+      } else if (sortField === 'expiry') {
+        const aVal = a.valid_until ? new Date(a.valid_until).getTime() : 0;
+        const bVal = b.valid_until ? new Date(b.valid_until).getTime() : 0;
+        cmp = aVal - bVal;
+      } else {
+        // Default: 'last_activity' / latest update
+        const aVal = new Date(a.last_activity_at || a.updated_at || a.created_at || 0).getTime();
+        const bVal = new Date(b.last_activity_at || b.updated_at || b.created_at || 0).getTime();
+        cmp = aVal - bVal;
+      }
+
+      if (cmp === 0) {
+        // Deterministic secondary tie-breaker by ID
+        cmp = String(a.id).localeCompare(String(b.id));
+      }
+      return sortOrder === 'asc' ? cmp : -cmp;
+    });
+    return list;
+  }, [quotations, sortField, sortOrder]);
+
+  // Distribute sorted deals into kanban stages
   const colData = {};
   KANBAN_COLUMNS.forEach((c) => { colData[c.id] = []; });
-  quotations.forEach((q) => { const id = mapStatus(q.status); if (colData[id]) colData[id].push(q); });
+  sortedQuotes.forEach((q) => { const id = mapStatus(q.status); if (colData[id]) colData[id].push(q); });
 
   useEffect(() => { setColPages({}); }, [searchTerm, selectedRep, dateRange]);
 
@@ -411,6 +537,35 @@ export default function PipelineKanban() {
             <option value="">All Reps</option>
             {reps.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
           </select>
+
+          {/* Neo-brutalist Sorting Controls */}
+          <div className="flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-full bg-[#FFFDF5] border-2 border-slate-900 shadow-pop-sm">
+            <span className="text-[10px] text-slate-500 font-heading font-black uppercase tracking-wider hidden sm:inline">Sort:</span>
+            <select
+              value={sortField}
+              onChange={(e) => setSortField(e.target.value)}
+              className="bg-transparent text-xs font-heading font-bold text-slate-900 focus:outline-none cursor-pointer pr-1"
+            >
+              <option value="last_activity">Latest Update</option>
+              <option value="name">Deal Name (QT#)</option>
+              <option value="amount">Deal Value</option>
+              <option value="customer">Customer Name</option>
+              <option value="risk">Risk Score</option>
+              <option value="expiry">Expiry Date</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
+              className="p-1 rounded-full bg-white hover:bg-pop-yellow text-slate-900 border border-slate-900 shadow-pop-xs transition-transform active:translate-y-0.5 cursor-pointer"
+              title={sortOrder === 'asc' ? 'Ascending (Click for Descending)' : 'Descending (Click for Ascending)'}
+            >
+              {sortOrder === 'asc' ? (
+                <ArrowUp className="w-3.5 h-3.5 text-pop-violet" strokeWidth={3} />
+              ) : (
+                <ArrowDown className="w-3.5 h-3.5 text-pop-violet" strokeWidth={3} />
+              )}
+            </button>
+          </div>
 
           <div className="flex items-center rounded-full overflow-hidden border-2 border-slate-900 shadow-pop-sm">
             {[{ id:'ALL',label:'All' },{ id:'7D',label:'7d' },{ id:'30D',label:'30d' }].map((d) => (
@@ -535,7 +690,7 @@ export default function PipelineKanban() {
                                 {...dp.dragHandleProps}
                                 onClick={(e) => {
                                   if (ds.isDragging) return;
-                                  navigate(`/quotations/${q.id}`);
+                                  setActiveDealModal(q);
                                 }}
                                 className="rounded-2xl p-3 space-y-2 transition-all cursor-pointer select-none active:cursor-grabbing bg-white border-2 border-slate-900 shadow-pop-sm hover:shadow-pop hover:-translate-y-0.5 group relative text-slate-900"
                                 style={{
@@ -543,7 +698,7 @@ export default function PipelineKanban() {
                                   boxShadow: ds.isDragging ? '0 14px 28px -4px rgba(15, 23, 42, 0.15)' : undefined,
                                   transform: ds.isDragging ? 'rotate(2deg) scale(1.02)' : undefined,
                                 }}
-                                title="Click tile card to open full quotation"
+                                title="Click tile card to open deal window"
                               >
                                 {/* Row 1: QT# + Tier Badge */}
                                 <div className="flex items-center justify-between gap-1.5">
@@ -604,12 +759,12 @@ export default function PipelineKanban() {
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        navigate(`/quotations/${q.id}`);
+                                        setActiveDealModal(q);
                                       }}
                                       onMouseEnter={(e) => handleButtonHover(q, e, 'DRAFT')}
                                       onMouseLeave={() => setQuickCardQuote(null)}
                                       className="btn-candy w-full py-1.5 rounded-full text-[10px] bg-pop-violet text-white shadow-pop-sm gap-1"
-                                      title="Configure quote lines"
+                                      title="Open deal window & configure quote lines"
                                     >
                                       <FileText className="w-3 h-3" strokeWidth={2.5} /> Build Quote
                                     </button>
@@ -618,49 +773,56 @@ export default function PipelineKanban() {
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        setQuickApprovalQuote(q);
+                                        setActiveDealModal(q);
                                         setApprovalNotes('');
                                         setQuickCardQuote(null);
                                       }}
                                       onMouseEnter={(e) => handleButtonHover(q, e, 'APPROVAL')}
                                       onMouseLeave={() => setQuickCardQuote(null)}
                                       className="btn-candy w-full py-1.5 rounded-full text-[10px] bg-pop-yellow text-slate-900 shadow-pop-sm gap-1"
-                                      title="Review & Approve in-place without leaving pipeline"
+                                      title="Review & Approve in deal window"
                                     >
                                       <ShieldCheck className="w-3 h-3" strokeWidth={2.5} /> Review Approval
                                     </button>
                                   )}
                                   {col.id === 'APPROVED' && (
                                     <button
-                                      disabled={sendingId === q.id}
-                                      onClick={(e) => handleSendCustomer(q, e)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActiveDealModal(q);
+                                      }}
                                       onMouseEnter={(e) => handleButtonHover(q, e, 'SEND')}
                                       onMouseLeave={() => setQuickCardQuote(null)}
                                       className="btn-candy w-full py-1.5 rounded-full text-[10px] bg-pop-mint text-slate-900 shadow-pop-sm gap-1"
-                                      title="Dispatch quotation to client via email in-place"
+                                      title="Open deal window to dispatch email or view portal"
                                     >
-                                      <Send className={`w-3 h-3 ${sendingId === q.id ? 'animate-pulse' : ''}`} strokeWidth={2.5} />
-                                      {sendingId === q.id ? 'Sending...' : 'Send to Customer'}
+                                      <Send className="w-3 h-3" strokeWidth={2.5} /> Send to Customer
                                     </button>
                                   )}
                                   {(col.id==='SENT'||col.id==='NEGOTIATING') && (
                                     <button
-                                      onClick={(e) => handleViewPortal(q, e)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActiveDealModal(q);
+                                      }}
                                       onMouseEnter={(e) => handleButtonHover(q, e, 'PORTAL')}
                                       onMouseLeave={() => setQuickCardQuote(null)}
                                       className="btn-candy w-full py-1.5 rounded-full text-[10px] bg-pop-sky text-slate-900 shadow-pop-sm gap-1"
-                                      title="Launch client portal in new tab & copy link"
+                                      title="Open deal window & view portal details"
                                     >
                                       <ExternalLink className="w-3 h-3" strokeWidth={2.5} /> View Portal
                                     </button>
                                   )}
                                   {col.id === 'CONFIRMED' && (
                                     <button
-                                      onClick={(e) => handleCreateInvoice(q, e)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setActiveDealModal(q);
+                                      }}
                                       onMouseEnter={(e) => handleButtonHover(q, e, 'INVOICE')}
                                       onMouseLeave={() => setQuickCardQuote(null)}
                                       className="btn-candy w-full py-1.5 rounded-full text-[10px] bg-pop-mint text-slate-900 shadow-pop-sm gap-1"
-                                      title="Generate invoice in-place"
+                                      title="Open deal window to create invoice"
                                     >
                                       <DollarSign className="w-3 h-3" strokeWidth={2.5} /> Create Invoice
                                     </button>
@@ -669,13 +831,14 @@ export default function PipelineKanban() {
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        navigate(`/quotations/${q.id}`);
+                                        setActiveDealModal(q);
                                       }}
                                       onMouseEnter={(e) => handleButtonHover(q, e, 'CANCELLED')}
                                       onMouseLeave={() => setQuickCardQuote(null)}
-                                      className="btn-candy w-full py-1.5 rounded-full text-[10px] bg-slate-100 text-slate-700 shadow-pop-sm"
+                                      className="btn-candy w-full py-1.5 rounded-full text-[10px] bg-slate-100 text-slate-700 shadow-pop-sm flex items-center justify-center gap-1"
+                                      title="Inspect details in deal window"
                                     >
-                                      Inspect Details
+                                      <span>Inspect Details</span>
                                     </button>
                                   )}
                                 </div>
@@ -758,12 +921,12 @@ export default function PipelineKanban() {
             <div className="p-2.5 rounded-2xl bg-white border-2 border-slate-900 shadow-pop-sm text-[11px] text-slate-800 flex items-start gap-2 font-heading font-bold">
               <Sparkles className="w-4 h-4 shrink-0 text-pop-violet mt-0.5" strokeWidth={2.5} />
               <div>
-                {quickCardType === 'APPROVAL' && 'Click button to review & approve in-place without leaving pipeline.'}
-                {quickCardType === 'SEND' && 'Click button to dispatch quotation email in-place.'}
-                {quickCardType === 'PORTAL' && 'Click button to open portal in new tab & copy link.'}
-                {quickCardType === 'DRAFT' && 'Click button or tile to edit line items.'}
-                {quickCardType === 'INVOICE' && 'Click button to generate invoice in-place.'}
-                {quickCardType === 'CANCELLED' && 'Archived quotation.'}
+                {quickCardType === 'APPROVAL' && 'Click button or tile to review & approve in deal window.'}
+                {quickCardType === 'SEND' && 'Click button to dispatch quotation email, or tile for deal window.'}
+                {quickCardType === 'PORTAL' && 'Click button to open portal in new tab, or tile for deal window.'}
+                {quickCardType === 'DRAFT' && 'Click button or tile to open deal window & edit line items.'}
+                {quickCardType === 'INVOICE' && 'Click button to generate invoice, or tile for deal window.'}
+                {quickCardType === 'CANCELLED' && 'Click button or tile to inspect or restore deal in deal window.'}
               </div>
             </div>
           </div>
@@ -771,99 +934,389 @@ export default function PipelineKanban() {
           {/* Direct to page hint */}
           <div className="pt-2 border-t-2 border-slate-900/10 text-center">
             <span className="text-[10px] text-slate-600 font-heading font-bold flex items-center justify-center gap-1">
-              <ChevronRight className="w-3.5 h-3.5" strokeWidth={2.5} /> Click tile card to open quotation
+              <ChevronRight className="w-3.5 h-3.5" strokeWidth={2.5} /> Click tile card to open deal window
             </span>
           </div>
         </div>
       )}
 
-      {/* ── In-Place Quick Approval Review Modal ────────────────────── */}
-      {quickApprovalQuote && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="w-full max-w-md rounded-3xl bg-[#FFFDF5] border-2 border-slate-900 shadow-pop-xl p-6 space-y-4 text-slate-900">
-            <div className="flex items-center justify-between pb-3 border-b-2 border-slate-900 bg-white -mx-6 -mt-6 p-6 rounded-t-3xl">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-pop-yellow text-slate-900 border-2 border-slate-900 shadow-pop-sm flex items-center justify-center">
-                  <ShieldCheck className="w-5 h-5" strokeWidth={2.5} />
+      {/* ── In-Place Unified Deal Window Modal for All Pipeline Cards ── */}
+      {activeDealModal && (() => {
+        const modalQ = dealDetails || activeDealModal;
+        const currentStatus = mapStatus(modalQ.status);
+        const colDef = KANBAN_COLUMNS.find((c) => c.id === currentStatus) || KANBAN_COLUMNS[0];
+        const tier = tierColor(modalQ.customer_tier);
+        const risk = riskColor(modalQ.blended_risk_score);
+        const marginVal = Number(modalQ.margin ?? modalQ.gross_margin_percent ?? modalQ.margin_percent ?? 0);
+        const items = modalQ.items || modalQ.lines || [];
+
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150"
+            onClick={() => setActiveDealModal(null)}
+          >
+            <div
+              className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-3xl bg-[#FFFDF5] border-2 border-slate-900 shadow-pop-xl text-slate-900 overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Top Header */}
+              <div
+                className="flex items-center justify-between px-6 py-4 border-b-2 border-slate-900 bg-white"
+                style={{ borderTop: `4px solid ${colDef.accent}` }}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-11 h-11 rounded-2xl border-2 border-slate-900 shadow-pop-sm flex items-center justify-center text-slate-900 font-bold"
+                    style={{ background: colDef.glow }}
+                  >
+                    {currentStatus === 'DRAFT' && <FileText className="w-5 h-5" strokeWidth={2.5} />}
+                    {currentStatus === 'PENDING' && <ShieldCheck className="w-5 h-5" strokeWidth={2.5} />}
+                    {currentStatus === 'APPROVED' && <Check className="w-5 h-5" strokeWidth={2.5} />}
+                    {(currentStatus === 'SENT' || currentStatus === 'NEGOTIATING') && <Send className="w-5 h-5" strokeWidth={2.5} />}
+                    {currentStatus === 'CONFIRMED' && <DollarSign className="w-5 h-5" strokeWidth={2.5} />}
+                    {currentStatus === 'CANCELLED' && <X className="w-5 h-5" strokeWidth={2.5} />}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-mono font-bold text-pop-violet">
+                        {modalQ.quotation_number}
+                      </span>
+                      <span
+                        className="px-2.5 py-0.5 rounded-full text-[10px] font-heading font-black uppercase tracking-wider border border-slate-900 shadow-pop-xs"
+                        style={{ background: colDef.glow, color: colDef.accent }}
+                      >
+                        {colDef.title}
+                      </span>
+                      <span
+                        className="px-2 py-0.2 rounded-full text-[9px] font-heading font-black uppercase tracking-wider border border-slate-900 shadow-pop-xs"
+                        style={{ background: tier.bg, color: tier.text }}
+                      >
+                        {modalQ.customer_tier || 'BRONZE'}
+                      </span>
+                    </div>
+                    <h3 className="text-base font-heading font-extrabold text-slate-900 truncate mt-0.5 max-w-md">
+                      {modalQ.customer?.name || modalQ.customer?.company_name || 'Customer Deal'}
+                    </h3>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-base font-heading font-extrabold text-slate-900 flex items-center gap-2">
-                    Quick Approval
-                    <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-slate-100 border border-slate-900 shadow-pop-sm">
-                      {quickApprovalQuote.quotation_number}
-                    </span>
-                  </h3>
-                  <p className="text-xs text-slate-600 font-medium">
-                    Decision directly inside pipeline
-                  </p>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => window.open(`/quotations/${modalQ.id}`, '_blank')}
+                    className="btn-candy hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white hover:bg-slate-100 text-slate-800 border-2 border-slate-900 shadow-pop-xs text-xs font-heading font-bold"
+                    title="Open full quote editor in separate window"
+                  >
+                    <span>Full Editor</span>
+                    <ExternalLink className="w-3 h-3" strokeWidth={2.5} />
+                  </button>
+                  <button
+                    onClick={() => setActiveDealModal(null)}
+                    className="w-8 h-8 rounded-full border-2 border-slate-900 bg-white hover:bg-rose-100 text-slate-900 flex items-center justify-center shadow-pop-sm cursor-pointer transition-all"
+                    title="Close window (Esc)"
+                  >
+                    <X className="w-4 h-4" strokeWidth={2.5} />
+                  </button>
                 </div>
               </div>
-              <button
-                onClick={() => setQuickApprovalQuote(null)}
-                className="w-8 h-8 rounded-full border-2 border-slate-900 bg-white hover:bg-rose-100 text-slate-900 flex items-center justify-center shadow-pop-sm cursor-pointer"
-              >
-                <X className="w-4 h-4" strokeWidth={2.5} />
-              </button>
-            </div>
 
-            <div className="p-4 rounded-2xl bg-white border-2 border-slate-900 shadow-pop-sm space-y-2 text-xs">
-              <div className="flex justify-between">
-                <span className="text-slate-600 font-heading font-bold">Client:</span>
-                <span className="font-heading font-extrabold text-slate-900">
-                  {quickApprovalQuote.customer?.name || quickApprovalQuote.customer?.company_name}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-600 font-heading font-bold">Tier:</span>
-                <span className="font-mono font-bold text-pop-violet">{quickApprovalQuote.customer_tier || 'BRONZE'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-600 font-heading font-bold">Deal Value:</span>
-                <span className="font-mono font-black text-slate-900 text-sm">
-                  ₹{Number(quickApprovalQuote.total || 0).toLocaleString('en-IN')}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-600 font-heading font-bold">Blended Risk:</span>
-                <span className="font-mono font-bold text-pop-yellow flex items-center gap-1">
-                  <Activity size={12} strokeWidth={2.5} />
-                  <span>{Number(quickApprovalQuote.blended_risk_score || 0).toFixed(1)} / 100</span>
-                </span>
-              </div>
-            </div>
+              {/* Modal Scrollable Body */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                {/* 4 KPI Cards Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div className="p-3 rounded-2xl bg-white border-2 border-slate-900 shadow-pop-xs">
+                    <div className="text-[10px] font-heading font-bold uppercase text-slate-500">Deal Value</div>
+                    <div className="text-base font-black text-slate-900 font-mono mt-0.5">
+                      ₹{Number(modalQ.total || 0).toLocaleString('en-IN')}
+                    </div>
+                  </div>
 
-            <div>
-              <label className="block text-xs font-heading font-bold text-slate-900 mb-1.5">
-                Decision Notes (Optional)
-              </label>
-              <textarea
-                rows={2}
-                value={approvalNotes}
-                onChange={(e) => setApprovalNotes(e.target.value)}
-                placeholder="e.g. Approved with standard quarterly payment terms..."
-                className="w-full bg-white border-2 border-slate-900 rounded-xl px-3.5 py-2 text-xs font-heading text-slate-900 focus:outline-none focus:shadow-pop transition-all placeholder:text-slate-400"
-              />
-            </div>
+                  <div className="p-3 rounded-2xl bg-white border-2 border-slate-900 shadow-pop-xs">
+                    <div className="text-[10px] font-heading font-bold uppercase text-slate-500">Gross Margin</div>
+                    <div className={`text-base font-black font-mono mt-0.5 ${
+                      marginVal >= 25 ? 'text-emerald-600' : marginVal >= 15 ? 'text-amber-600' : 'text-rose-600'
+                    }`}>
+                      {marginVal > 0 ? `${marginVal.toFixed(1)}%` : '—'}
+                    </div>
+                  </div>
 
-            <div className="flex items-center justify-end gap-2.5 pt-2 border-t-2 border-slate-900/10">
-              <button
-                disabled={submittingDecision}
-                onClick={() => handleQuickApprove(quickApprovalQuote.id, 'REJECTED')}
-                className="btn-candy bg-rose-400 hover:bg-rose-500 text-white text-xs px-4 py-2 shadow-pop-sm"
-              >
-                Reject
-              </button>
-              <button
-                disabled={submittingDecision}
-                onClick={() => handleQuickApprove(quickApprovalQuote.id, 'APPROVED')}
-                className="btn-candy bg-pop-mint hover:bg-[#10B981] text-slate-900 text-xs px-5 py-2 shadow-pop"
-              >
-                {submittingDecision ? 'Submitting...' : 'Approve Deal'}
-              </button>
+                  <div className="p-3 rounded-2xl bg-white border-2 border-slate-900 shadow-pop-xs">
+                    <div className="text-[10px] font-heading font-bold uppercase text-slate-500">Blended Risk</div>
+                    <div className="text-base font-black text-pop-yellow font-mono flex items-center gap-1 mt-0.5">
+                      <Activity size={14} strokeWidth={2.5} />
+                      <span>{Number(modalQ.blended_risk_score || 0).toFixed(1)}</span>
+                      <span className="text-[10px] text-slate-400 font-normal">/100</span>
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-2xl bg-white border-2 border-slate-900 shadow-pop-xs">
+                    <div className="text-[10px] font-heading font-bold uppercase text-slate-500">Sales Rep</div>
+                    <div className="text-xs font-heading font-extrabold text-slate-900 truncate mt-1">
+                      {modalQ.rep?.name || 'Assigned Rep'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Client & Metadata Details Card */}
+                <div className="p-4 rounded-2xl bg-white border-2 border-slate-900 shadow-pop-sm space-y-2 text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-slate-500 font-heading font-bold">Client Email: </span>
+                      <span className="font-mono text-slate-800">{modalQ.customer?.email || '—'}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 font-heading font-bold">Payment Terms: </span>
+                      <span className="font-heading font-bold text-slate-900">{modalQ.payment_terms || 'Standard Net 30'}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 font-heading font-bold">Created: </span>
+                      <span className="font-mono text-slate-700">
+                        {modalQ.created_at ? new Date(modalQ.created_at).toLocaleDateString() : '—'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 font-heading font-bold">Validity Expiry: </span>
+                      <span className="font-mono text-slate-700">
+                        {modalQ.expiry_date ? new Date(modalQ.expiry_date).toLocaleDateString() : '—'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Client Portal Link Card (Sent, Negotiating, Approved, Confirmed) */}
+                {(currentStatus === 'SENT' || currentStatus === 'NEGOTIATING' || currentStatus === 'APPROVED' || currentStatus === 'CONFIRMED' || modalQ.portal_token) && (
+                  <div className="p-3.5 rounded-2xl bg-sky-50 border-2 border-slate-900 shadow-pop-xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 text-xs font-heading font-extrabold text-slate-900">
+                        <ExternalLink className="w-3.5 h-3.5 text-sky-700" strokeWidth={2.5} />
+                        <span>Client Portal Access</span>
+                      </div>
+                      <span className="text-[10px] font-mono px-2 py-0.2 rounded-full bg-white border border-slate-900 text-sky-800 font-bold">
+                        {currentStatus === 'SENT' ? 'Dispatched' : currentStatus === 'NEGOTIATING' ? 'Under Negotiation' : 'Client Access'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        value={modalQ.portal_token ? `${window.location.origin}/portal/${modalQ.portal_token}` : 'Portal link generated upon dispatch'}
+                        className="flex-1 bg-white border-2 border-slate-900 rounded-xl px-3 py-1.5 text-xs font-mono text-slate-700 select-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!modalQ.portal_token) {
+                            toast.error('Portal link not generated yet');
+                            return;
+                          }
+                          const url = `${window.location.origin}/portal/${modalQ.portal_token}`;
+                          navigator.clipboard.writeText(url);
+                          toast.success('Client Portal link copied!');
+                        }}
+                        className="btn-candy px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-900 text-xs font-heading font-bold border-2 border-slate-900 shadow-pop-xs"
+                      >
+                        Copy Link
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => handleViewPortal(modalQ, e)}
+                        className="btn-candy px-3.5 py-1.5 rounded-xl bg-pop-sky hover:bg-sky-400 text-slate-900 text-xs font-heading font-black border-2 border-slate-900 shadow-pop-xs flex items-center gap-1"
+                      >
+                        <span>Open</span>
+                        <ExternalLink className="w-3 h-3" strokeWidth={2.5} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Line Items Preview / Summary */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-heading font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <ShoppingBag className="w-3.5 h-3.5 text-pop-violet" strokeWidth={2.5} />
+                      <span>Line Items ({items.length})</span>
+                    </h4>
+                    {loadingDetails && (
+                      <span className="text-[10px] font-mono text-slate-400 flex items-center gap-1">
+                        <RefreshCw className="w-2.5 h-2.5 animate-spin" /> Loading items...
+                      </span>
+                    )}
+                  </div>
+
+                  {items.length > 0 ? (
+                    <div className="rounded-2xl border-2 border-slate-900 overflow-hidden bg-white shadow-pop-xs">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 border-b-2 border-slate-900 font-heading font-bold text-[10px] text-slate-600 uppercase">
+                            <th className="p-2.5">Product</th>
+                            <th className="p-2.5 text-center">Qty</th>
+                            <th className="p-2.5 text-right">Price</th>
+                            <th className="p-2.5 text-right">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          {items.slice(0, 5).map((item, idx) => (
+                            <tr key={item.id || idx} className="hover:bg-slate-50">
+                              <td className="p-2.5">
+                                <div className="font-heading font-extrabold text-slate-900 truncate max-w-[200px]">
+                                  {item.product?.name || item.product_name || `Item #${idx + 1}`}
+                                </div>
+                                {(item.product?.sku || item.sku) && (
+                                  <div className="text-[10px] font-mono text-slate-400">
+                                    {item.product?.sku || item.sku}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="p-2.5 text-center font-mono font-bold text-slate-800">
+                                {item.quantity}
+                              </td>
+                              <td className="p-2.5 text-right font-mono text-slate-700">
+                                ₹{Number(item.unit_price || 0).toLocaleString('en-IN')}
+                              </td>
+                              <td className="p-2.5 text-right font-mono font-bold text-slate-900">
+                                ₹{Number(item.total || (item.unit_price * item.quantity) || 0).toLocaleString('en-IN')}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {items.length > 5 && (
+                        <div className="py-1.5 px-3 bg-slate-50 text-[10px] font-heading font-bold text-slate-500 text-center border-t border-slate-200">
+                          +{items.length - 5} more items in full quotation
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-2xl bg-white border-2 border-dashed border-slate-300 text-center text-xs text-slate-500 font-heading">
+                      {loadingDetails ? 'Fetching line items...' : 'No line items configured yet.'}
+                    </div>
+                  )}
+                </div>
+
+                {/* Stage-Specific Inputs (Decision notes for Pending) */}
+                {currentStatus === 'PENDING' && (
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-heading font-bold text-slate-900">
+                      Approval Decision Notes (Optional)
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={approvalNotes}
+                      onChange={(e) => setApprovalNotes(e.target.value)}
+                      placeholder="e.g. Approved with standard payment terms..."
+                      className="w-full bg-white border-2 border-slate-900 rounded-xl px-3.5 py-2 text-xs font-heading text-slate-900 focus:outline-none focus:shadow-pop transition-all placeholder:text-slate-400"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Bottom Action Controls Footer */}
+              <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 bg-white border-t-2 border-slate-900">
+                <button
+                  onClick={() => window.open(`/quotations/${modalQ.id}`, '_blank')}
+                  className="btn-candy px-3.5 py-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-heading font-bold flex items-center gap-1.5 border-2 border-slate-900 shadow-pop-xs"
+                >
+                  <span>Open Full Builder</span>
+                  <ExternalLink className="w-3 h-3" strokeWidth={2.5} />
+                </button>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  {currentStatus === 'DRAFT' && (
+                    <button
+                      disabled={submittingDecision}
+                      onClick={() => handleQuickSubmit(modalQ)}
+                      className="btn-candy px-5 py-2 rounded-full bg-pop-yellow hover:bg-amber-400 text-slate-900 text-xs font-heading font-extrabold flex items-center gap-1.5 border-2 border-slate-900 shadow-pop"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5" strokeWidth={2.5} />
+                      <span>Submit for Approval</span>
+                    </button>
+                  )}
+
+                  {currentStatus === 'PENDING' && (
+                    <>
+                      <button
+                        disabled={submittingDecision}
+                        onClick={() => handleQuickApprove(modalQ.id, 'REJECTED')}
+                        className="btn-candy px-4 py-2 rounded-full bg-rose-400 hover:bg-rose-500 text-white text-xs font-heading font-bold border-2 border-slate-900 shadow-pop-xs"
+                      >
+                        Reject
+                      </button>
+                      <button
+                        disabled={submittingDecision}
+                        onClick={() => handleQuickApprove(modalQ.id, 'APPROVED')}
+                        className="btn-candy px-5 py-2 rounded-full bg-pop-mint hover:bg-emerald-400 text-slate-900 text-xs font-heading font-extrabold flex items-center gap-1.5 border-2 border-slate-900 shadow-pop"
+                      >
+                        <Check className="w-3.5 h-3.5" strokeWidth={2.5} />
+                        <span>{submittingDecision ? 'Submitting...' : 'Approve Deal'}</span>
+                      </button>
+                    </>
+                  )}
+
+                  {currentStatus === 'APPROVED' && (
+                    <>
+                      <button
+                        onClick={(e) => handleViewPortal(modalQ, e)}
+                        className="btn-candy px-3.5 py-2 rounded-full bg-pop-sky text-slate-900 text-xs font-heading font-bold flex items-center gap-1.5 border-2 border-slate-900 shadow-pop-xs"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" strokeWidth={2.5} />
+                        <span>View Portal</span>
+                      </button>
+                      <button
+                        disabled={sendingId === modalQ.id}
+                        onClick={(e) => handleSendCustomer(modalQ, e)}
+                        className="btn-candy px-5 py-2 rounded-full bg-pop-mint text-slate-900 text-xs font-heading font-extrabold flex items-center gap-1.5 border-2 border-slate-900 shadow-pop"
+                      >
+                        <Send className={`w-3.5 h-3.5 ${sendingId === modalQ.id ? 'animate-pulse' : ''}`} strokeWidth={2.5} />
+                        <span>{sendingId === modalQ.id ? 'Sending...' : 'Send to Customer'}</span>
+                      </button>
+                    </>
+                  )}
+
+                  {(currentStatus === 'SENT' || currentStatus === 'NEGOTIATING') && (
+                    <button
+                      onClick={(e) => handleViewPortal(modalQ, e)}
+                      className="btn-candy px-5 py-2 rounded-full bg-pop-sky text-slate-900 text-xs font-heading font-extrabold flex items-center gap-1.5 border-2 border-slate-900 shadow-pop"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" strokeWidth={2.5} />
+                      <span>Launch Client Portal & Copy Link</span>
+                    </button>
+                  )}
+
+                  {currentStatus === 'CONFIRMED' && (
+                    <>
+                      <button
+                        onClick={(e) => handleViewPortal(modalQ, e)}
+                        className="btn-candy px-3.5 py-2 rounded-full bg-pop-sky text-slate-900 text-xs font-heading font-bold flex items-center gap-1.5 border-2 border-slate-900 shadow-pop-xs"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" strokeWidth={2.5} />
+                        <span>Client Portal</span>
+                      </button>
+                      <button
+                        onClick={(e) => handleCreateInvoice(modalQ, e)}
+                        className="btn-candy px-5 py-2 rounded-full bg-pop-mint text-slate-900 text-xs font-heading font-extrabold flex items-center gap-1.5 border-2 border-slate-900 shadow-pop"
+                      >
+                        <DollarSign className="w-3.5 h-3.5" strokeWidth={2.5} />
+                        <span>Create Invoice</span>
+                      </button>
+                    </>
+                  )}
+
+                  {currentStatus === 'CANCELLED' && (
+                    <button
+                      disabled={submittingDecision}
+                      onClick={() => handleQuickRestoreDraft(modalQ)}
+                      className="btn-candy px-5 py-2 rounded-full bg-pop-violet text-white text-xs font-heading font-extrabold flex items-center gap-1.5 border-2 border-slate-900 shadow-pop"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" strokeWidth={2.5} />
+                      <span>Restore to Draft</span>
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

@@ -10,6 +10,8 @@ import {
   Clock,
   AlertTriangle,
   ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
   Building2,
   User,
   ShieldCheck,
@@ -25,7 +27,8 @@ import {
   RefreshCw,
   XCircle,
   MessageSquare,
-  Database
+  Database,
+  FileText
 } from 'lucide-react';
 import { quotationsAPI, usersAPI } from '../../api';
 import { useAuthStore } from '../../store/authStore';
@@ -73,6 +76,19 @@ export default function QuotationsList() {
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
+
+  // Sorting State
+  const [sortField, setSortField] = useState('updated_at'); // 'updated_at' | 'quotation_number' | 'customer' | 'tier' | 'rep' | 'total' | 'margin' | 'risk' | 'status' | 'expiry'
+  const [sortOrder, setSortOrder] = useState('desc'); // 'asc' | 'desc'
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortOrder(field === 'total' || field === 'margin' || field === 'updated_at' || field === 'risk' ? 'desc' : 'asc');
+    }
+  };
 
   const isManagerOrAdmin = ['ADMIN', 'SALES_MANAGER', 'FINANCE'].includes(user?.role);
 
@@ -203,10 +219,59 @@ export default function QuotationsList() {
     return counts;
   }, [allCountQuotes, quotations]);
 
-  // Quotations returned directly from PostgreSQL database query
+  // Quotations sorted deterministically based on active sort options
   const filteredQuotations = useMemo(() => {
-    return quotations;
-  }, [quotations]);
+    const list = [...quotations];
+    list.sort((a, b) => {
+      let cmp = 0;
+      if (sortField === 'quotation_number' || sortField === 'name') {
+        const aNum = (a.quotationNumber || a.quotation_number || '').toLowerCase();
+        const bNum = (b.quotationNumber || b.quotation_number || '').toLowerCase();
+        cmp = aNum.localeCompare(bNum);
+      } else if (sortField === 'customer') {
+        const aCust = (a.customer?.companyName || a.customer?.company_name || a.customer?.name || a.customer_name || '').toLowerCase();
+        const bCust = (b.customer?.companyName || b.customer?.company_name || b.customer?.name || b.customer_name || '').toLowerCase();
+        cmp = aCust.localeCompare(bCust);
+      } else if (sortField === 'tier') {
+        const aTier = a.customerTier || a.customer?.customerTier || a.customer?.customer_tier || 'BRONZE';
+        const bTier = b.customerTier || b.customer?.customerTier || b.customer?.customer_tier || 'BRONZE';
+        cmp = aTier.localeCompare(bTier);
+      } else if (sortField === 'rep') {
+        const aRep = (a.rep?.name || a.rep_name || '').toLowerCase();
+        const bRep = (b.rep?.name || b.rep_name || '').toLowerCase();
+        cmp = aRep.localeCompare(bRep);
+      } else if (sortField === 'total') {
+        const aTot = Number(a.total ?? a.final_amount ?? a.total_amount ?? 0);
+        const bTot = Number(b.total ?? b.final_amount ?? b.total_amount ?? 0);
+        cmp = aTot - bTot;
+      } else if (sortField === 'margin') {
+        const aMar = Number(a.margin ?? a.gross_margin_percent ?? a.margin_percent ?? 0);
+        const bMar = Number(b.margin ?? b.gross_margin_percent ?? b.margin_percent ?? 0);
+        cmp = aMar - bMar;
+      } else if (sortField === 'risk') {
+        const aR = Number(a.blendedRiskScore ?? a.blended_risk_score ?? a.risk_score ?? 0);
+        const bR = Number(b.blendedRiskScore ?? b.blended_risk_score ?? b.risk_score ?? 0);
+        cmp = aR - bR;
+      } else if (sortField === 'status') {
+        cmp = (a.status || '').localeCompare(b.status || '');
+      } else if (sortField === 'expiry') {
+        const aExp = a.expiryDate || a.valid_until ? new Date(a.expiryDate || a.valid_until).getTime() : 0;
+        const bExp = b.expiryDate || b.valid_until ? new Date(b.expiryDate || b.valid_until).getTime() : 0;
+        cmp = aExp - bExp;
+      } else {
+        // Default: updated_at / created_at
+        const aDate = new Date(a.updated_at || a.updatedAt || a.created_at || a.createdAt || 0).getTime();
+        const bDate = new Date(b.updated_at || b.updatedAt || b.created_at || b.createdAt || 0).getTime();
+        cmp = aDate - bDate;
+      }
+
+      if (cmp === 0) {
+        cmp = String(a.id).localeCompare(String(b.id));
+      }
+      return sortOrder === 'asc' ? cmp : -cmp;
+    });
+    return list;
+  }, [quotations, sortField, sortOrder]);
 
   // Summary KPIs for Animated Dashboard Widgets
   const summaryKPIs = useMemo(() => {
@@ -512,7 +577,7 @@ export default function QuotationsList() {
       {/* ── SEARCH & FILTERS BAR ────────────────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-3 bg-white p-4 rounded-2xl border-2 border-slate-900 shadow-pop">
         {/* Search input */}
-        <div className="relative md:col-span-6 lg:col-span-7">
+        <div className={`relative ${isManagerOrAdmin ? 'md:col-span-5 lg:col-span-4' : 'md:col-span-6 lg:col-span-5'}`}>
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" strokeWidth={2.5} />
           <input
             type="text"
@@ -558,7 +623,7 @@ export default function QuotationsList() {
 
         {/* Rep Filter (Managers and Admins only) */}
         {isManagerOrAdmin && (
-          <div className="md:col-span-3 lg:col-span-3">
+          <div className="md:col-span-4 lg:col-span-3">
             <select
               value={selectedRep}
               onChange={(e) => setSelectedRep(e.target.value)}
@@ -573,6 +638,39 @@ export default function QuotationsList() {
             </select>
           </div>
         )}
+
+        {/* Quick Sort Dropdown + Direction */}
+        <div className={`${isManagerOrAdmin ? 'md:col-span-12 lg:col-span-3' : 'md:col-span-3 lg:col-span-5'} flex items-center gap-1.5`}>
+          <div className="flex-1 flex items-center gap-1 bg-slate-50 border-2 border-slate-900 rounded-xl px-2.5 py-1.5">
+            <span className="text-[10px] text-slate-500 font-heading font-black uppercase tracking-wider hidden sm:inline">Sort:</span>
+            <select
+              value={sortField}
+              onChange={(e) => setSortField(e.target.value)}
+              className="w-full bg-transparent text-xs font-heading font-bold text-slate-900 focus:outline-none cursor-pointer"
+            >
+              <option value="updated_at">Latest Update / Date</option>
+              <option value="quotation_number">QT# / Deal Name</option>
+              <option value="customer">Customer Name</option>
+              <option value="total">Deal Value (Amount)</option>
+              <option value="margin">Margin %</option>
+              <option value="risk">Risk Score</option>
+              <option value="status">Status</option>
+              <option value="expiry">Expiry Date</option>
+            </select>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
+            className="p-2 rounded-xl bg-white hover:bg-pop-yellow text-slate-900 border-2 border-slate-900 shadow-pop-xs transition-transform active:translate-y-0.5 cursor-pointer shrink-0"
+            title={sortOrder === 'asc' ? 'Ascending (Click for Descending)' : 'Descending (Click for Ascending)'}
+          >
+            {sortOrder === 'asc' ? (
+              <ArrowUp className="w-4 h-4 text-violet-700" strokeWidth={3} />
+            ) : (
+              <ArrowDown className="w-4 h-4 text-violet-700" strokeWidth={3} />
+            )}
+          </button>
+        </div>
       </div>
 
       {/* ── STATUS FILTER TABS ──────────────────────────────────────── */}
@@ -641,15 +739,132 @@ export default function QuotationsList() {
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-100 border-b-2 border-slate-900 text-[11px] font-heading font-extrabold text-slate-800 uppercase tracking-wider">
                 <tr>
-                  <th className="py-3.5 px-4">QT#</th>
-                  <th className="py-3.5 px-4">Customer</th>
-                  <th className="py-3.5 px-4 hidden sm:table-cell">Tier</th>
-                  <th className="py-3.5 px-4 hidden lg:table-cell">Rep</th>
-                  <th className="py-3.5 px-4 text-right">Total</th>
-                  <th className="py-3.5 px-4 text-center hidden md:table-cell">Margin %</th>
-                  <th className="py-3.5 px-4 text-center hidden lg:table-cell">Risk Score</th>
-                  <th className="py-3.5 px-4 text-center">Status</th>
-                  <th className="py-3.5 px-4 text-center hidden sm:table-cell">Expiry</th>
+                  <th
+                    onClick={() => handleSort('quotation_number')}
+                    className="py-3.5 px-4 cursor-pointer hover:bg-slate-200 transition-colors select-none"
+                    title="Sort by QT#"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>QT#</span>
+                      {sortField === 'quotation_number' ? (
+                        sortOrder === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-violet-700" /> : <ArrowDown className="w-3.5 h-3.5 text-violet-700" />
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                      )}
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleSort('customer')}
+                    className="py-3.5 px-4 cursor-pointer hover:bg-slate-200 transition-colors select-none"
+                    title="Sort by Customer"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Customer</span>
+                      {sortField === 'customer' ? (
+                        sortOrder === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-violet-700" /> : <ArrowDown className="w-3.5 h-3.5 text-violet-700" />
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                      )}
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleSort('tier')}
+                    className="py-3.5 px-4 hidden sm:table-cell cursor-pointer hover:bg-slate-200 transition-colors select-none"
+                    title="Sort by Tier"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Tier</span>
+                      {sortField === 'tier' ? (
+                        sortOrder === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-violet-700" /> : <ArrowDown className="w-3.5 h-3.5 text-violet-700" />
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                      )}
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleSort('rep')}
+                    className="py-3.5 px-4 hidden lg:table-cell cursor-pointer hover:bg-slate-200 transition-colors select-none"
+                    title="Sort by Rep"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Rep</span>
+                      {sortField === 'rep' ? (
+                        sortOrder === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-violet-700" /> : <ArrowDown className="w-3.5 h-3.5 text-violet-700" />
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                      )}
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleSort('total')}
+                    className="py-3.5 px-4 text-right cursor-pointer hover:bg-slate-200 transition-colors select-none"
+                    title="Sort by Total Amount"
+                  >
+                    <div className="flex items-center justify-end gap-1">
+                      <span>Total</span>
+                      {sortField === 'total' ? (
+                        sortOrder === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-violet-700" /> : <ArrowDown className="w-3.5 h-3.5 text-violet-700" />
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                      )}
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleSort('margin')}
+                    className="py-3.5 px-4 text-center hidden md:table-cell cursor-pointer hover:bg-slate-200 transition-colors select-none"
+                    title="Sort by Margin %"
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      <span>Margin %</span>
+                      {sortField === 'margin' ? (
+                        sortOrder === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-violet-700" /> : <ArrowDown className="w-3.5 h-3.5 text-violet-700" />
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                      )}
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleSort('risk')}
+                    className="py-3.5 px-4 text-center hidden lg:table-cell cursor-pointer hover:bg-slate-200 transition-colors select-none"
+                    title="Sort by Risk Score"
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      <span>Risk Score</span>
+                      {sortField === 'risk' ? (
+                        sortOrder === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-violet-700" /> : <ArrowDown className="w-3.5 h-3.5 text-violet-700" />
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                      )}
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleSort('status')}
+                    className="py-3.5 px-4 text-center cursor-pointer hover:bg-slate-200 transition-colors select-none"
+                    title="Sort by Status"
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      <span>Status</span>
+                      {sortField === 'status' ? (
+                        sortOrder === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-violet-700" /> : <ArrowDown className="w-3.5 h-3.5 text-violet-700" />
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                      )}
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleSort('expiry')}
+                    className="py-3.5 px-4 text-center hidden sm:table-cell cursor-pointer hover:bg-slate-200 transition-colors select-none"
+                    title="Sort by Expiry Date"
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      <span>Expiry</span>
+                      {sortField === 'expiry' ? (
+                        sortOrder === 'asc' ? <ArrowUp className="w-3.5 h-3.5 text-violet-700" /> : <ArrowDown className="w-3.5 h-3.5 text-violet-700" />
+                      ) : (
+                        <ArrowUpDown className="w-3.5 h-3.5 text-slate-400" />
+                      )}
+                    </div>
+                  </th>
                   <th className="py-3.5 px-4 text-right">Actions</th>
                 </tr>
               </thead>

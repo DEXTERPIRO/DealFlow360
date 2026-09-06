@@ -77,13 +77,19 @@ export default function ApprovalQueue() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
 
+  // Sorting state
+  const [sortField, setSortField] = useState('created_at');
+  const [sortOrder, setSortOrder] = useState('desc');
+
   // Live timer tick
   const [, setTimeTick] = useState(Date.now());
 
-  const loadApprovalData = async () => {
+  const loadApprovalData = async (search = '') => {
     try {
       setLoading(true);
-      const res = await dashboardAPI.getApprovalQueue();
+      const params = {};
+      if (search && search.trim()) params.search = search.trim();
+      const res = await dashboardAPI.getApprovalQueue(params);
       if (res) {
         setQueue(res.queue || []);
         setAllApprovals(res.allApprovals || res.queue || []);
@@ -110,9 +116,18 @@ export default function ApprovalQueue() {
     }
   };
 
+  // Initial load
   useEffect(() => {
     loadApprovalData();
   }, []);
+
+  // Debounced reload when search changes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadApprovalData(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // Update live waiting timer every minute
   useEffect(() => {
@@ -154,7 +169,7 @@ export default function ApprovalQueue() {
     }
   }, [queue, allApprovals]);
 
-  // Compute displayed list based on filter and search
+  // Compute displayed list based on filter (search is handled by DB)
   const displayedItems = useMemo(() => {
     // Choose base dataset: if filter is 'PENDING' or stage-specific, use pending queue, else use allApprovals
     let items = allApprovals.length > 0 ? allApprovals : queue;
@@ -176,29 +191,63 @@ export default function ApprovalQueue() {
       items = items.filter((q) => q.status === 'APPROVED');
     }
 
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      items = items.filter((item) => {
-        const num = (item.quotationNumber || item.quotation_number || '').toLowerCase();
-        const cust = (item.customer?.name || item.customer?.company_name || '').toLowerCase();
-        const rep = (item.rep?.name || '').toLowerCase();
-        return num.includes(q) || cust.includes(q) || rep.includes(q);
-      });
-    }
-
     return items;
-  }, [filter, searchQuery, allApprovals, queue]);
+  }, [filter, allApprovals, queue]);
 
   // Reset page when filter or search changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [filter, searchQuery]);
+  }, [filter, searchQuery, sortField, sortOrder]);
+
+  // Sort handler
+  const handleSort = (field) => {
+    if (sortField === field) setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'));
+    else { setSortField(field); setSortOrder('asc'); }
+    setCurrentPage(1);
+  };
+
+  // Sorted displayed items
+  const sortedItems = useMemo(() => {
+    const arr = [...displayedItems];
+    arr.sort((a, b) => {
+      let av, bv;
+      if (sortField === 'customer') {
+        av = (a.customerName || a.customer_name || a.quotation?.customer?.name || '').toLowerCase();
+        bv = (b.customerName || b.customer_name || b.quotation?.customer?.name || '').toLowerCase();
+      } else if (sortField === 'amount') {
+        av = Number(a.total || a.totalAmount || 0);
+        bv = Number(b.total || b.totalAmount || 0);
+      } else if (sortField === 'risk') {
+        av = Number(a.blendedRiskScore ?? a.blended_risk_score ?? 0);
+        bv = Number(b.blendedRiskScore ?? b.blended_risk_score ?? 0);
+      } else if (sortField === 'quotation') {
+        av = (a.quotation_number || a.quotationNumber || '').toLowerCase();
+        bv = (b.quotation_number || b.quotationNumber || '').toLowerCase();
+      } else {
+        // created_at default
+        av = new Date(a.created_at || 0).getTime();
+        bv = new Date(b.created_at || 0).getTime();
+      }
+      if (av < bv) return sortOrder === 'asc' ? -1 : 1;
+      if (av > bv) return sortOrder === 'asc' ? 1 : -1;
+      return (a.id || '').localeCompare(b.id || '');
+    });
+    return arr;
+  }, [displayedItems, sortField, sortOrder]);
+
+  // Sort icon helper
+  const SortIcon = ({ field }) => {
+    if (sortField !== field) return <ArrowUpDown size={11} strokeWidth={2.5} className="text-slate-400 inline ml-1" />;
+    return sortOrder === 'asc'
+      ? <ArrowUpDown size={11} strokeWidth={2.5} className="text-amber-600 inline ml-1" />
+      : <ArrowUpDown size={11} strokeWidth={2.5} className="text-amber-600 inline ml-1" />;
+  };
 
   // Paginated items
   const paginatedItems = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
-    return displayedItems.slice(start, start + pageSize);
-  }, [displayedItems, currentPage, pageSize]);
+    return sortedItems.slice(start, start + pageSize);
+  }, [sortedItems, currentPage, pageSize]);
 
   // Calculate waiting time string
   const getWaitingTime = (createdDate) => {
@@ -538,6 +587,28 @@ export default function ApprovalQueue() {
             </button>
           )}
 
+          {/* Sort Controls */}
+          <select
+            value={sortField}
+            onChange={(e) => { setSortField(e.target.value); setCurrentPage(1); }}
+            className="bg-slate-50 border-2 border-slate-900 rounded-xl px-2.5 py-2 text-xs font-heading font-bold text-slate-900 focus:outline-none focus:bg-white focus:shadow-pop-sm transition-all cursor-pointer"
+          >
+            <option value="created_at">Submitted Date</option>
+            <option value="quotation">Quotation #</option>
+            <option value="customer">Customer</option>
+            <option value="amount">Amount</option>
+            <option value="risk">Risk Score</option>
+          </select>
+          <button
+            onClick={() => setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'))}
+            className="p-1.5 rounded-xl border-2 border-slate-900 bg-slate-50 hover:bg-pop-yellow shadow-pop-xs transition-all cursor-pointer"
+            title={sortOrder === 'asc' ? 'Ascending' : 'Descending'}
+          >
+            {sortOrder === 'asc'
+              ? <ArrowUpDown size={14} strokeWidth={2.5} className="text-amber-600" />
+              : <ArrowUpDown size={14} strokeWidth={2.5} className="text-amber-600 rotate-180" />}
+          </button>
+
           {/* View Mode Toggle */}
           <div className="flex items-center bg-slate-100 p-1 rounded-xl border-2 border-slate-900">
             <button
@@ -614,13 +685,23 @@ export default function ApprovalQueue() {
                       )}
                     </button>
                   </th>
-                  <th className="p-3 font-heading font-extrabold">Quotation</th>
-                  <th className="p-3 font-heading font-extrabold">Customer</th>
-                  <th className="p-3 font-heading font-extrabold text-center hidden md:table-cell">Blended Risk</th>
+                  <th className="p-3 font-heading font-extrabold cursor-pointer select-none hover:bg-slate-200 transition-colors" onClick={() => handleSort('quotation')}>
+                    Quotation <SortIcon field="quotation" />
+                  </th>
+                  <th className="p-3 font-heading font-extrabold cursor-pointer select-none hover:bg-slate-200 transition-colors" onClick={() => handleSort('customer')}>
+                    Customer <SortIcon field="customer" />
+                  </th>
+                  <th className="p-3 font-heading font-extrabold text-center hidden md:table-cell cursor-pointer select-none hover:bg-slate-200 transition-colors" onClick={() => handleSort('risk')}>
+                    Blended Risk <SortIcon field="risk" />
+                  </th>
                   <th className="p-3 font-heading font-extrabold hidden sm:table-cell">Stage</th>
                   <th className="p-3 font-heading font-extrabold hidden lg:table-cell">Assigned To</th>
-                  <th className="p-3 font-heading font-extrabold text-right">Amount</th>
-                  <th className="p-3 font-heading font-extrabold hidden sm:table-cell">Waiting</th>
+                  <th className="p-3 font-heading font-extrabold text-right cursor-pointer select-none hover:bg-slate-200 transition-colors" onClick={() => handleSort('amount')}>
+                    Amount <SortIcon field="amount" />
+                  </th>
+                  <th className="p-3 font-heading font-extrabold hidden sm:table-cell cursor-pointer select-none hover:bg-slate-200 transition-colors" onClick={() => handleSort('created_at')}>
+                    Waiting <SortIcon field="created_at" />
+                  </th>
                   <th className="p-3 font-heading font-extrabold text-right">Action</th>
                 </tr>
               </thead>

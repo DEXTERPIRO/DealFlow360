@@ -28,7 +28,10 @@ import {
   Zap,
   Smartphone,
   Landmark,
-  FileCheck
+  FileCheck,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { invoicesAPI, quotationsAPI } from '../../api';
 import toast from 'react-hot-toast';
@@ -429,6 +432,10 @@ export default function InvoicesPage() {
   const [receiptInvoice, setReceiptInvoice] = useState(null);
   const [paymentModalInvoice, setPaymentModalInvoice] = useState(null);
 
+  // Sorting state
+  const [sortField, setSortField] = useState('invoice_number');
+  const [sortOrder, setSortOrder] = useState('desc');
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
@@ -503,14 +510,62 @@ export default function InvoicesPage() {
     };
   }, [invoices]);
 
+  // Sort handler
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
+    }
+    setCurrentPage(1);
+  };
+
+  // Sorted invoices
+  const sortedInvoices = useMemo(() => {
+    const arr = [...invoices];
+    arr.sort((a, b) => {
+      let av, bv;
+      if (sortField === 'customer') {
+        av = (a.quotation?.customer?.name || '').toLowerCase();
+        bv = (b.quotation?.customer?.name || '').toLowerCase();
+      } else if (sortField === 'amount') {
+        av = Number(a.amount || 0);
+        bv = Number(b.amount || 0);
+      } else if (sortField === 'due_date') {
+        av = new Date(a.due_date || 0).getTime();
+        bv = new Date(b.due_date || 0).getTime();
+      } else if (sortField === 'updated_at') {
+        av = new Date(a.updated_at || a.created_at || 0).getTime();
+        bv = new Date(b.updated_at || b.created_at || 0).getTime();
+      } else {
+        // invoice_number default
+        av = (a.invoice_number || '').toLowerCase();
+        bv = (b.invoice_number || '').toLowerCase();
+      }
+      if (av < bv) return sortOrder === 'asc' ? -1 : 1;
+      if (av > bv) return sortOrder === 'asc' ? 1 : -1;
+      return (a.id || '').localeCompare(b.id || '');
+    });
+    return arr;
+  }, [invoices, sortField, sortOrder]);
+
   // Reset page on filter change
-  useEffect(() => { setCurrentPage(1); }, [filterTab, searchQuery]);
+  useEffect(() => { setCurrentPage(1); }, [filterTab, searchQuery, sortField, sortOrder]);
 
   // Paginated slice
   const pagedInvoices = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
-    return invoices.slice(start, start + pageSize);
-  }, [invoices, currentPage, pageSize]);
+    return sortedInvoices.slice(start, start + pageSize);
+  }, [sortedInvoices, currentPage, pageSize]);
+
+  // Sort icon helper
+  const SortIcon = ({ field }) => {
+    if (sortField !== field) return <ArrowUpDown size={11} strokeWidth={2.5} className="text-slate-400 inline ml-1" />;
+    return sortOrder === 'asc'
+      ? <ArrowUp size={11} strokeWidth={2.5} className="text-pop-violet inline ml-1" />
+      : <ArrowDown size={11} strokeWidth={2.5} className="text-pop-violet inline ml-1" />;
+  };
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -618,26 +673,53 @@ export default function InvoicesPage() {
           />
         </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto">
-          {[
-            { id: 'ALL', label: 'All Invoices' },
-            { id: 'DRAFT', label: 'Draft' },
-            { id: 'SENT', label: 'Sent' },
-            { id: 'PAID', label: 'Paid' },
-            { id: 'OVERDUE', label: 'Overdue' },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setFilterTab(tab.id)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-heading font-extrabold border-2 border-slate-900 transition-all cursor-pointer whitespace-nowrap ${
-                filterTab === tab.id
-                  ? 'bg-slate-900 text-white shadow-pop-sm'
-                  : 'bg-white text-slate-700 hover:bg-pop-yellow shadow-none hover:shadow-pop-sm hover:-translate-y-0.5'
-              }`}
+        <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
+          {/* Status Tabs */}
+          <div className="flex items-center gap-2 overflow-x-auto">
+            {[
+              { id: 'ALL', label: 'All Invoices' },
+              { id: 'DRAFT', label: 'Draft' },
+              { id: 'SENT', label: 'Sent' },
+              { id: 'PAID', label: 'Paid' },
+              { id: 'OVERDUE', label: 'Overdue' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setFilterTab(tab.id)}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-heading font-extrabold border-2 border-slate-900 transition-all cursor-pointer whitespace-nowrap ${
+                  filterTab === tab.id
+                    ? 'bg-slate-900 text-white shadow-pop-sm'
+                    : 'bg-white text-slate-700 hover:bg-pop-yellow shadow-none hover:shadow-pop-sm hover:-translate-y-0.5'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Sort Controls */}
+          <div className="flex items-center gap-1.5 ml-auto">
+            <select
+              value={sortField}
+              onChange={(e) => { setSortField(e.target.value); setCurrentPage(1); }}
+              className="bg-white border-2 border-slate-900 rounded-xl px-2.5 py-1.5 text-xs font-heading font-bold text-slate-900 focus:outline-none focus:shadow-pop cursor-pointer shadow-pop-xs"
             >
-              {tab.label}
+              <option value="invoice_number">Invoice #</option>
+              <option value="customer">Customer</option>
+              <option value="amount">Amount</option>
+              <option value="due_date">Due Date</option>
+              <option value="updated_at">Latest Update</option>
+            </select>
+            <button
+              onClick={() => setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'))}
+              className="p-1.5 rounded-xl border-2 border-slate-900 bg-white hover:bg-pop-yellow shadow-pop-xs transition-all cursor-pointer"
+              title={sortOrder === 'asc' ? 'Ascending' : 'Descending'}
+            >
+              {sortOrder === 'asc'
+                ? <ArrowUp size={14} strokeWidth={2.5} className="text-pop-violet" />
+                : <ArrowDown size={14} strokeWidth={2.5} className="text-pop-violet" />}
             </button>
-          ))}
+          </div>
         </div>
       </div>
 
@@ -648,12 +730,20 @@ export default function InvoicesPage() {
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b-2 border-slate-900 bg-slate-100 text-slate-800 font-heading font-extrabold">
-                <th className="py-3.5 px-5">Invoice #</th>
-                <th className="py-3.5 px-4">Customer</th>
+                <th className="py-3.5 px-5 cursor-pointer select-none hover:bg-slate-200 transition-colors" onClick={() => handleSort('invoice_number')}>
+                  Invoice # <SortIcon field="invoice_number" />
+                </th>
+                <th className="py-3.5 px-4 cursor-pointer select-none hover:bg-slate-200 transition-colors" onClick={() => handleSort('customer')}>
+                  Customer <SortIcon field="customer" />
+                </th>
                 <th className="py-3.5 px-4">Quotation Ref</th>
-                <th className="py-3.5 px-4 text-right">Amount</th>
+                <th className="py-3.5 px-4 text-right cursor-pointer select-none hover:bg-slate-200 transition-colors" onClick={() => handleSort('amount')}>
+                  Amount <SortIcon field="amount" />
+                </th>
                 <th className="py-3.5 px-4">Issue Date</th>
-                <th className="py-3.5 px-4">Due Date</th>
+                <th className="py-3.5 px-4 cursor-pointer select-none hover:bg-slate-200 transition-colors" onClick={() => handleSort('due_date')}>
+                  Due Date <SortIcon field="due_date" />
+                </th>
                 <th className="py-3.5 px-4 text-center">Status</th>
                 <th className="py-3.5 px-5 text-right">Actions</th>
               </tr>

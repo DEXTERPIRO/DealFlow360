@@ -208,11 +208,14 @@ async def get_quotations(
             )
         )
 
-    # Date range database filter: 7D, 30D
+    # Date range database filter: 1D, 7D, 30D
     if dateRange and dateRange != "ALL":
         d_upper = dateRange.upper().strip()
         now = datetime.utcnow()
-        if d_upper == "7D":
+        if d_upper == "1D":
+            cutoff = datetime(now.year, now.month, now.day)  # start of today UTC
+            stmt = stmt.where(Quotation.created_at >= cutoff)
+        elif d_upper == "7D":
             cutoff = now - timedelta(days=7)
             stmt = stmt.where(Quotation.created_at >= cutoff)
         elif d_upper == "30D":

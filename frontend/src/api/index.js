@@ -85,7 +85,7 @@ export const negotiationsAPI = {
 
 export const dashboardAPI = {
   getMetrics: (params) => api.get('/dashboard/metrics', { params }),
-  getApprovalQueue: () => api.get('/dashboard/approval-queue'),
+  getApprovalQueue: (params) => api.get('/dashboard/approval-queue', { params }),
   getRepLeaderboard: () => api.get('/auth/users', { params: { role: 'SALES_REP' } }),
   getDealHealth: () => api.get('/dashboard/deal-health'),
   nudgeRep: (quotationId) => api.post(`/dashboard/nudge/${quotationId}`),

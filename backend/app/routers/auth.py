@@ -356,13 +356,26 @@ async def get_all_users(
     search: Optional[str] = Query(None),
     role: Optional[str] = Query(None),
     tier: Optional[str] = Query(None),
+    sort_by: Optional[str] = Query("name"),
+    order: Optional[str] = Query("asc"),
     user: dict = Depends(verify_token),
     db: AsyncSession = Depends(get_db)
 ):
     from sqlalchemy.orm import selectinload
     from app.models.models import Quotation, CustomerTier
     
-    stmt = select(User).order_by(User.created_at.desc())
+    order_col = User.name
+    if sort_by == "created_at":
+        order_col = User.created_at
+    elif sort_by == "email":
+        order_col = User.email
+    elif sort_by == "role":
+        order_col = User.role
+    
+    if order == "desc":
+        stmt = select(User).order_by(order_col.desc(), User.name.asc(), User.id.asc())
+    else:
+        stmt = select(User).order_by(order_col.asc(), User.id.asc())
 
     if role and role != "ALL":
         try:

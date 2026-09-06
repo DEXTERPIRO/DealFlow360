@@ -14,7 +14,10 @@ import {
   LayoutGrid,
   List,
   Search,
-  Filter
+  Filter,
+  ChevronUp,
+  ChevronDown,
+  ChevronsUpDown
 } from 'lucide-react';
 import { subscriptionsAPI } from '../../api';
 import toast from 'react-hot-toast';
@@ -71,8 +74,28 @@ export default function SubscriptionPlans() {
   const [planPage, setPlanPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
 
+  // Sorting
+  const [sortField, setSortField] = useState('name');
+  const [sortOrder, setSortOrder] = useState('asc');
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
+    }
+  };
+
+  const SortIcon = ({ field }) => {
+    if (sortField !== field) return <ChevronsUpDown className="w-3 h-3 ml-1 opacity-40 inline" />;
+    return sortOrder === 'asc'
+      ? <ChevronUp className="w-3 h-3 ml-1 inline" />
+      : <ChevronDown className="w-3 h-3 ml-1 inline" />;
+  };
+
   const filteredPlans = useMemo(() => {
-    return plans.filter((plan) => {
+    const list = plans.filter((plan) => {
       const cycle = (plan.billing_cycle || plan.billingCycle || 'MONTHLY').toUpperCase();
       if (selectedCycle !== 'ALL' && cycle !== selectedCycle) return false;
       if (searchQuery.trim()) {
@@ -83,11 +106,32 @@ export default function SubscriptionPlans() {
       }
       return true;
     });
-  }, [plans, selectedCycle, searchQuery]);
+    list.sort((a, b) => {
+      let aVal, bVal;
+      if (sortField === 'name') {
+        aVal = (a.name || '').toLowerCase();
+        bVal = (b.name || '').toLowerCase();
+      } else if (sortField === 'cycle') {
+        const order = { MONTHLY: 0, QUARTERLY: 1, YEARLY: 2 };
+        aVal = order[(a.billing_cycle || a.billingCycle || 'MONTHLY').toUpperCase()] ?? 0;
+        bVal = order[(b.billing_cycle || b.billingCycle || 'MONTHLY').toUpperCase()] ?? 0;
+      } else if (sortField === 'prorate') {
+        aVal = a.prorate_on_change ? 1 : 0;
+        bVal = b.prorate_on_change ? 1 : 0;
+      } else {
+        aVal = (a.id || '').toLowerCase();
+        bVal = (b.id || '').toLowerCase();
+      }
+      if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+      return (a.id || '').localeCompare(b.id || '');
+    });
+    return list;
+  }, [plans, selectedCycle, searchQuery, sortField, sortOrder]);
 
   useEffect(() => {
     setPlanPage(1);
-  }, [searchQuery, selectedCycle]);
+  }, [searchQuery, selectedCycle, sortField, sortOrder]);
 
   const pagedPlans = useMemo(() => {
     return filteredPlans.slice((planPage - 1) * pageSize, planPage * pageSize);
@@ -301,6 +345,27 @@ export default function SubscriptionPlans() {
               <List size={13} strokeWidth={2.5} />
               <span>Table</span>
             </button>
+          </div>
+          {/* Sort Controls */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider">Sort</span>
+            {[
+              { field: 'name', label: 'Name' },
+              { field: 'cycle', label: 'Cycle' },
+              { field: 'prorate', label: 'Prorate' },
+            ].map(({ field, label }) => (
+              <button
+                key={field}
+                onClick={() => handleSort(field)}
+                className={`flex items-center px-2.5 py-1 rounded-xl text-[11px] font-mono font-bold border-2 transition-all cursor-pointer ${
+                  sortField === field
+                    ? 'bg-slate-900 text-white border-slate-900 shadow-pop-sm'
+                    : 'bg-white text-slate-600 border-slate-300 hover:border-slate-900'
+                }`}
+              >
+                {label}<SortIcon field={field} />
+              </button>
+            ))}
           </div>
         </div>
       </div>

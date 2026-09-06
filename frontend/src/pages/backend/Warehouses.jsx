@@ -18,7 +18,10 @@ import {
   Package,
   Sparkles,
   LayoutGrid,
-  List
+  List,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { fulfillmentAPI, productsAPI } from '../../api';
 import toast from 'react-hot-toast';
@@ -279,30 +282,56 @@ export default function Warehouses() {
   // Database-queried stock records
   const filteredStock = flattenedStock;
 
-  // ── 3b. Facility Filtering & Pagination ──────────────────────────────────
+  // ── 3b. Facility Filtering & Sorting & Pagination ──────────────────────────────────────────
   const [facilityViewMode, setFacilityViewMode] = useState('grid');
   const [facilitySearch, setFacilitySearch] = useState('');
   const [facilityPage, setFacilityPage] = useState(1);
   const [facilityPageSize, setFacilityPageSize] = useState(5);
+  const [facilitySortField, setFacilitySortField] = useState('name');
+  const [facilitySortOrder, setFacilitySortOrder] = useState('asc');
 
   useEffect(() => {
     setFacilityPage(1);
-  }, [facilitySearch]);
+  }, [facilitySearch, facilitySortField, facilitySortOrder]);
 
   const filteredWarehouses = useMemo(() => {
-    if (!facilitySearch.trim()) return warehouses;
-    const q = facilitySearch.toLowerCase().trim();
-    return warehouses.filter(
-      (wh) =>
-        wh.name?.toLowerCase().includes(q) ||
-        wh.location?.toLowerCase().includes(q)
-    );
-  }, [warehouses, facilitySearch]);
+    let arr = !facilitySearch.trim()
+      ? [...warehouses]
+      : warehouses.filter(
+          (wh) =>
+            wh.name?.toLowerCase().includes(facilitySearch.toLowerCase().trim()) ||
+            wh.location?.toLowerCase().includes(facilitySearch.toLowerCase().trim())
+        );
+    arr.sort((a, b) => {
+      let av, bv;
+      if (facilitySortField === 'total_units') {
+        av = (a.stocks || []).reduce((s, st) => s + (st.quantity || 0), 0);
+        bv = (b.stocks || []).reduce((s, st) => s + (st.quantity || 0), 0);
+      } else if (facilitySortField === 'skus') {
+        av = (a.stocks || []).length;
+        bv = (b.stocks || []).length;
+      } else if (facilitySortField === 'shipping') {
+        av = Number(a.shipping_cost || 0);
+        bv = Number(b.shipping_cost || 0);
+      } else {
+        av = (a.name || '').toLowerCase();
+        bv = (b.name || '').toLowerCase();
+      }
+      if (av < bv) return facilitySortOrder === 'asc' ? -1 : 1;
+      if (av > bv) return facilitySortOrder === 'asc' ? 1 : -1;
+      return (a.id || '').localeCompare(b.id || '');
+    });
+    return arr;
+  }, [warehouses, facilitySearch, facilitySortField, facilitySortOrder]);
 
   const pagedWarehouses = useMemo(() => {
     const start = (facilityPage - 1) * facilityPageSize;
     return filteredWarehouses.slice(start, start + facilityPageSize);
   }, [filteredWarehouses, facilityPage, facilityPageSize]);
+
+  // Stock Sorting
+  const [stockSortField, setStockSortField] = useState('product');
+  const [stockSortOrder, setStockSortOrder] = useState('asc');
 
   // Stock Pagination
   const [stockPage, setStockPage] = useState(1);
@@ -310,12 +339,47 @@ export default function Warehouses() {
 
   useEffect(() => {
     setStockPage(1);
-  }, [warehouseFilter, searchProduct]);
+  }, [warehouseFilter, searchProduct, stockSortField, stockSortOrder]);
+
+  const sortedStock = useMemo(() => {
+    const arr = [...filteredStock];
+    arr.sort((a, b) => {
+      let av, bv;
+      if (stockSortField === 'warehouse') {
+        av = (a.warehouseName || '').toLowerCase();
+        bv = (b.warehouseName || '').toLowerCase();
+      } else if (stockSortField === 'sku') {
+        av = (a.sku || '').toLowerCase();
+        bv = (b.sku || '').toLowerCase();
+      } else if (stockSortField === 'quantity') {
+        av = Number(a.quantity || 0);
+        bv = Number(b.quantity || 0);
+      } else if (stockSortField === 'available') {
+        av = Number(a.available || 0);
+        bv = Number(b.available || 0);
+      } else {
+        av = (a.productName || '').toLowerCase();
+        bv = (b.productName || '').toLowerCase();
+      }
+      if (av < bv) return stockSortOrder === 'asc' ? -1 : 1;
+      if (av > bv) return stockSortOrder === 'asc' ? 1 : -1;
+      return `${a.warehouseId}-${a.productId}`.localeCompare(`${b.warehouseId}-${b.productId}`);
+    });
+    return arr;
+  }, [filteredStock, stockSortField, stockSortOrder]);
 
   const pagedStock = useMemo(() => {
     const start = (stockPage - 1) * stockPageSize;
-    return filteredStock.slice(start, start + stockPageSize);
-  }, [filteredStock, stockPage, stockPageSize]);
+    return sortedStock.slice(start, start + stockPageSize);
+  }, [sortedStock, stockPage, stockPageSize]);
+
+  // Sort icon helper
+  const SortIcon = ({ field, current, order }) => {
+    if (current !== field) return <ArrowUpDown size={11} strokeWidth={2.5} className="text-slate-400 inline ml-1" />;
+    return order === 'asc'
+      ? <ArrowUp size={11} strokeWidth={2.5} className="text-pop-violet inline ml-1" />
+      : <ArrowDown size={11} strokeWidth={2.5} className="text-pop-violet inline ml-1" />;
+  };
 
   const getStockColorClass = (avail) => {
     if (avail > 20) return 'bg-pop-mint text-slate-900 border-2 border-slate-900 shadow-pop-sm';
@@ -396,6 +460,27 @@ export default function Warehouses() {
                 </button>
               )}
             </div>
+
+            {/* Facility Sort Controls */}
+            <select
+              value={facilitySortField}
+              onChange={(e) => { setFacilitySortField(e.target.value); setFacilityPage(1); }}
+              className="bg-white border-2 border-slate-900 rounded-xl px-2.5 py-1.5 text-xs font-heading font-bold text-slate-900 focus:outline-none cursor-pointer shadow-pop-xs"
+            >
+              <option value="name">Name</option>
+              <option value="total_units">Total Units</option>
+              <option value="skus">SKU Count</option>
+              <option value="shipping">Shipping Cost</option>
+            </select>
+            <button
+              onClick={() => setFacilitySortOrder((o) => (o === 'asc' ? 'desc' : 'asc'))}
+              className="p-1.5 rounded-xl border-2 border-slate-900 bg-white hover:bg-pop-yellow shadow-pop-xs transition-all cursor-pointer"
+              title={facilitySortOrder === 'asc' ? 'Ascending' : 'Descending'}
+            >
+              {facilitySortOrder === 'asc'
+                ? <ArrowUp size={14} strokeWidth={2.5} className="text-pop-violet" />
+                : <ArrowDown size={14} strokeWidth={2.5} className="text-pop-violet" />}
+            </button>
 
             {/* View Mode Toggle */}
             <div className="flex items-center bg-slate-100 border-2 border-slate-900 rounded-xl p-0.5 shadow-pop-xs">
@@ -713,6 +798,28 @@ export default function Warehouses() {
               </select>
             </div>
 
+            {/* Stock Sort Controls */}
+            <select
+              value={stockSortField}
+              onChange={(e) => { setStockSortField(e.target.value); setStockPage(1); }}
+              className="bg-paper border-2 border-slate-900 rounded-2xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-pop-violet transition-colors cursor-pointer"
+            >
+              <option value="product">Product Name</option>
+              <option value="warehouse">Warehouse</option>
+              <option value="sku">SKU</option>
+              <option value="quantity">In Stock</option>
+              <option value="available">Available</option>
+            </select>
+            <button
+              onClick={() => setStockSortOrder((o) => (o === 'asc' ? 'desc' : 'asc'))}
+              className="p-1.5 rounded-xl border-2 border-slate-900 bg-white hover:bg-pop-yellow shadow-pop-xs transition-all cursor-pointer"
+              title={stockSortOrder === 'asc' ? 'Ascending' : 'Descending'}
+            >
+              {stockSortOrder === 'asc'
+                ? <ArrowUp size={14} strokeWidth={2.5} className="text-pop-violet" />
+                : <ArrowDown size={14} strokeWidth={2.5} className="text-pop-violet" />}
+            </button>
+
             <button
               type="button"
               onClick={handleOpenConnectModal}
@@ -730,12 +837,22 @@ export default function Warehouses() {
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="border-b-2 border-slate-900 bg-slate-100/90 text-slate-800 text-[10px] uppercase font-mono font-black tracking-wider">
-                  <th className="py-3.5 px-6">Warehouse</th>
-                  <th className="py-3.5 px-4">Product</th>
-                  <th className="py-3.5 px-4 font-mono hidden sm:table-cell">SKU</th>
-                  <th className="py-3.5 px-4 text-center hidden md:table-cell">In Stock</th>
+                  <th className="py-3.5 px-6 cursor-pointer select-none hover:bg-slate-200 transition-colors" onClick={() => { setStockSortField('warehouse'); setStockSortOrder(s => stockSortField === 'warehouse' ? (s === 'asc' ? 'desc' : 'asc') : 'asc'); setStockPage(1); }}>
+                    Warehouse <SortIcon field="warehouse" current={stockSortField} order={stockSortOrder} />
+                  </th>
+                  <th className="py-3.5 px-4 cursor-pointer select-none hover:bg-slate-200 transition-colors" onClick={() => { setStockSortField('product'); setStockSortOrder(s => stockSortField === 'product' ? (s === 'asc' ? 'desc' : 'asc') : 'asc'); setStockPage(1); }}>
+                    Product <SortIcon field="product" current={stockSortField} order={stockSortOrder} />
+                  </th>
+                  <th className="py-3.5 px-4 font-mono hidden sm:table-cell cursor-pointer select-none hover:bg-slate-200 transition-colors" onClick={() => { setStockSortField('sku'); setStockSortOrder(s => stockSortField === 'sku' ? (s === 'asc' ? 'desc' : 'asc') : 'asc'); setStockPage(1); }}>
+                    SKU <SortIcon field="sku" current={stockSortField} order={stockSortOrder} />
+                  </th>
+                  <th className="py-3.5 px-4 text-center hidden md:table-cell cursor-pointer select-none hover:bg-slate-200 transition-colors" onClick={() => { setStockSortField('quantity'); setStockSortOrder(s => stockSortField === 'quantity' ? (s === 'asc' ? 'desc' : 'asc') : 'asc'); setStockPage(1); }}>
+                    In Stock <SortIcon field="quantity" current={stockSortField} order={stockSortOrder} />
+                  </th>
                   <th className="py-3.5 px-4 text-center hidden md:table-cell">Reserved</th>
-                  <th className="py-3.5 px-4 text-center">Available</th>
+                  <th className="py-3.5 px-4 text-center cursor-pointer select-none hover:bg-slate-200 transition-colors" onClick={() => { setStockSortField('available'); setStockSortOrder(s => stockSortField === 'available' ? (s === 'asc' ? 'desc' : 'asc') : 'asc'); setStockPage(1); }}>
+                    Available <SortIcon field="available" current={stockSortField} order={stockSortOrder} />
+                  </th>
                   <th className="py-3.5 px-6 text-right">Action</th>
                 </tr>
               </thead>

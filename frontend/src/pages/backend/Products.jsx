@@ -18,7 +18,10 @@ import {
   Warehouse,
   ChevronDown,
   X,
-  Database
+  Database,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { productsAPI } from '../../api';
 import toast from 'react-hot-toast';
@@ -37,6 +40,19 @@ export default function ProductsPage() {
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
+
+  // Sorting State
+  const [sortField, setSortField] = useState('name'); // 'name' | 'sku' | 'category' | 'basePrice' | 'costPrice' | 'margin' | 'stock' | 'created_at'
+  const [sortOrder, setSortOrder] = useState('asc'); // 'asc' | 'desc'
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortField(field);
+      setSortOrder(field === 'basePrice' || field === 'margin' || field === 'stock' || field === 'created_at' ? 'desc' : 'asc');
+    }
+  };
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -96,10 +112,53 @@ export default function ProductsPage() {
     return () => clearTimeout(timer);
   }, [search, selectedCategory, subscriptionFilter]);
 
-  // Products returned directly from database query
+  // Products sorted deterministically based on active sort options
   const filteredProducts = useMemo(() => {
-    return products;
-  }, [products]);
+    const list = [...products];
+    list.sort((a, b) => {
+      let cmp = 0;
+      if (sortField === 'name') {
+        cmp = (a.name || '').localeCompare(b.name || '');
+      } else if (sortField === 'sku') {
+        cmp = (a.sku || '').localeCompare(b.sku || '');
+      } else if (sortField === 'category') {
+        const aCat = a.category?.name || '';
+        const bCat = b.category?.name || '';
+        cmp = aCat.localeCompare(bCat);
+      } else if (sortField === 'basePrice') {
+        const aBase = Number(a.basePrice) || 0;
+        const bBase = Number(b.basePrice) || 0;
+        cmp = aBase - bBase;
+      } else if (sortField === 'costPrice') {
+        const aCost = Number(a.costPrice) || 0;
+        const bCost = Number(b.costPrice) || 0;
+        cmp = aCost - bCost;
+      } else if (sortField === 'margin') {
+        const aBase = Number(a.basePrice) || 0;
+        const aCost = Number(a.costPrice) || 0;
+        const aMar = aBase > 0 ? ((aBase - aCost) / aBase) * 100 : 0;
+        const bBase = Number(b.basePrice) || 0;
+        const bCost = Number(b.costPrice) || 0;
+        const bMar = bBase > 0 ? ((bBase - bCost) / bBase) * 100 : 0;
+        cmp = aMar - bMar;
+      } else if (sortField === 'stock') {
+        const aStock = (a.warehouseStocks || []).reduce((acc, s) => acc + (s.quantity || 0), 0);
+        const bStock = (b.warehouseStocks || []).reduce((acc, s) => acc + (s.quantity || 0), 0);
+        cmp = aStock - bStock;
+      } else {
+        // Default: created_at / updated_at
+        const aDate = new Date(a.updated_at || a.created_at || 0).getTime();
+        const bDate = new Date(b.updated_at || b.created_at || 0).getTime();
+        cmp = aDate - bDate;
+      }
+
+      if (cmp === 0) {
+        cmp = String(a.id).localeCompare(String(b.id));
+      }
+      return sortOrder === 'asc' ? cmp : -cmp;
+    });
+    return list;
+  }, [products, sortField, sortOrder]);
 
   // Reset to page 1 when filters change
   useEffect(() => { setCurrentPage(1); }, [search, selectedCategory, subscriptionFilter]);
@@ -350,6 +409,36 @@ export default function ProductsPage() {
               </button>
             ))}
           </div>
+
+          {/* Quick Sort Controls */}
+          <div className="flex items-center gap-1.5 bg-paper border-2 border-slate-900 rounded-2xl px-2.5 py-1.5">
+            <span className="text-[10px] text-slate-500 font-heading font-black uppercase tracking-wider hidden sm:inline">Sort:</span>
+            <select
+              value={sortField}
+              onChange={(e) => setSortField(e.target.value)}
+              className="bg-transparent text-xs font-bold text-slate-900 focus:outline-none cursor-pointer"
+            >
+              <option value="name">Product Name (A-Z)</option>
+              <option value="sku">SKU Code</option>
+              <option value="category">Category</option>
+              <option value="basePrice">Base Price</option>
+              <option value="margin">Margin %</option>
+              <option value="stock">Warehouse Stock</option>
+              <option value="created_at">Latest Update</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
+              className="p-1 rounded-lg bg-white hover:bg-pop-yellow text-slate-900 border border-slate-900 shadow-pop-xs transition-transform active:translate-y-0.5 cursor-pointer"
+              title={sortOrder === 'asc' ? 'Ascending (Click for Descending)' : 'Descending (Click for Ascending)'}
+            >
+              {sortOrder === 'asc' ? (
+                <ArrowUp className="w-3.5 h-3.5 text-pop-violet" strokeWidth={3} />
+              ) : (
+                <ArrowDown className="w-3.5 h-3.5 text-pop-violet" strokeWidth={3} />
+              )}
+            </button>
+          </div>
         </div>
 
         {/* View Toggle */}
@@ -385,14 +474,92 @@ export default function ProductsPage() {
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="border-b-2 border-slate-900 bg-slate-100/90 text-[10px] uppercase font-mono font-black text-slate-800 tracking-wider">
-                  <th className="py-3 px-4">Product & SKU</th>
-                  <th className="py-3 px-4">Category</th>
+                  <th
+                    onClick={() => handleSort('name')}
+                    className="py-3 px-4 cursor-pointer hover:bg-slate-200 transition-colors select-none"
+                    title="Sort by Product Name"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Product & SKU</span>
+                      {sortField === 'name' ? (
+                        sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 text-violet-700" /> : <ArrowDown className="w-3 h-3 text-violet-700" />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                      )}
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleSort('category')}
+                    className="py-3 px-4 cursor-pointer hover:bg-slate-200 transition-colors select-none"
+                    title="Sort by Category"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Category</span>
+                      {sortField === 'category' ? (
+                        sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 text-violet-700" /> : <ArrowDown className="w-3 h-3 text-violet-700" />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                      )}
+                    </div>
+                  </th>
                   <th className="py-3 px-4 text-center hidden sm:table-cell">Type</th>
-                  <th className="py-3 px-4 text-right">Base Price</th>
-                  <th className="py-3 px-4 text-right hidden sm:table-cell">Cost Price</th>
-                  <th className="py-3 px-4 text-center">Margin</th>
+                  <th
+                    onClick={() => handleSort('basePrice')}
+                    className="py-3 px-4 text-right cursor-pointer hover:bg-slate-200 transition-colors select-none"
+                    title="Sort by Base Price"
+                  >
+                    <div className="flex items-center justify-end gap-1">
+                      <span>Base Price</span>
+                      {sortField === 'basePrice' ? (
+                        sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 text-violet-700" /> : <ArrowDown className="w-3 h-3 text-violet-700" />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                      )}
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleSort('costPrice')}
+                    className="py-3 px-4 text-right hidden sm:table-cell cursor-pointer hover:bg-slate-200 transition-colors select-none"
+                    title="Sort by Cost Price"
+                  >
+                    <div className="flex items-center justify-end gap-1">
+                      <span>Cost Price</span>
+                      {sortField === 'costPrice' ? (
+                        sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 text-violet-700" /> : <ArrowDown className="w-3 h-3 text-violet-700" />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                      )}
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleSort('margin')}
+                    className="py-3 px-4 text-center cursor-pointer hover:bg-slate-200 transition-colors select-none"
+                    title="Sort by Margin %"
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      <span>Margin</span>
+                      {sortField === 'margin' ? (
+                        sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 text-violet-700" /> : <ArrowDown className="w-3 h-3 text-violet-700" />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                      )}
+                    </div>
+                  </th>
                   <th className="py-3 px-4 text-center hidden md:table-cell">Tax</th>
-                  <th className="py-3 px-4">Warehouse Stock</th>
+                  <th
+                    onClick={() => handleSort('stock')}
+                    className="py-3 px-4 cursor-pointer hover:bg-slate-200 transition-colors select-none"
+                    title="Sort by Warehouse Stock"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>Warehouse Stock</span>
+                      {sortField === 'stock' ? (
+                        sortOrder === 'asc' ? <ArrowUp className="w-3 h-3 text-violet-700" /> : <ArrowDown className="w-3 h-3 text-violet-700" />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 text-slate-400" />
+                      )}
+                    </div>
+                  </th>
                   <th className="py-3 px-4 text-right">Actions</th>
                 </tr>
               </thead>
