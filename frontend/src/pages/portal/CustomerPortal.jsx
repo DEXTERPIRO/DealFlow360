@@ -8,7 +8,6 @@ import {
   MessageSquare,
   Send,
   Download,
-  Copy,
   Check,
   Building,
   User,
@@ -23,9 +22,10 @@ import {
   Layers,
   FileCheck,
   FileText,
-  LogOut
+  LogOut,
+  Mail,
+  Award,
 } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
 import { io } from 'socket.io-client';
 import { quotationsAPI, negotiationsAPI } from '../../api';
 import { useAuthStore } from '../../store/authStore';
@@ -159,7 +159,7 @@ function CountdownTimer({ expiryDate }) {
           50% { box-shadow: 0 0 28px rgba(239,68,68,0.7); }
         }
       `}</style>
-      <span style={{ fontSize: 16 }}>⏳</span>
+      <Clock size={16} strokeWidth={2.5} />
       <span>{display.isExpired ? 'OFFER EXPIRED' : display.text}</span>
     </div>
   );
@@ -169,42 +169,42 @@ function CountdownTimer({ expiryDate }) {
 
 function ConfirmModal({ quotation, onClose, onConfirm, loading }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl p-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="w-full max-w-md rounded-3xl border-2 border-slate-900 bg-white shadow-pop-xl p-6 text-slate-900">
         <div className="flex items-center gap-3 mb-4">
-          <div className="p-3 rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-            <CheckCircle2 size={24} />
+          <div className="p-3 rounded-2xl bg-emerald-100 text-emerald-800 border-2 border-slate-900 shadow-pop-xs">
+            <CheckCircle2 size={24} strokeWidth={2.5} />
           </div>
           <div>
-            <h3 className="text-base font-bold text-white">Confirm Quotation</h3>
-            <p className="text-xs text-slate-400">Accept and place binding order</p>
+            <h3 className="text-base font-heading font-black text-slate-900">Confirm Quotation</h3>
+            <p className="text-xs font-medium text-slate-600">Accept and place binding order</p>
           </div>
         </div>
 
-        <div className="rounded-xl border border-slate-800 bg-slate-800/40 p-3.5 space-y-2 text-xs">
-          <div className="flex justify-between text-slate-300">
-            <span className="text-slate-500">Quotation #:</span>
-            <span className="font-mono font-bold text-white">
+        <div className="rounded-2xl border-2 border-slate-900 bg-[#FFFDF5] p-4 space-y-2 text-xs shadow-pop-xs">
+          <div className="flex justify-between text-slate-700 font-medium">
+            <span>Quotation #:</span>
+            <span className="font-mono font-black text-slate-900">
               {quotation.quotationNumber || quotation.quotation_number}
             </span>
           </div>
-          <div className="flex justify-between text-slate-300">
-            <span className="text-slate-500">Total Commitment:</span>
-            <span className="font-mono font-black text-emerald-400 text-sm">
+          <div className="flex justify-between text-slate-700 font-medium">
+            <span>Total Commitment:</span>
+            <span className="font-mono font-black text-emerald-700 text-sm">
               {formatINR(quotation.total || 0)}
             </span>
           </div>
         </div>
 
-        <p className="text-xs text-slate-300 mt-4 leading-relaxed">
+        <p className="text-xs font-medium text-slate-600 mt-4 leading-relaxed">
           By confirming, you agree to the quoted terms, pricing, and fulfillment schedules. Our sales & operations team will initiate order provisioning immediately.
         </p>
 
-        <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-slate-800">
+        <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t-2 border-slate-900">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-lg border border-slate-700 hover:border-slate-600 text-slate-300 text-xs font-medium transition-colors"
+            className="px-4 py-2 rounded-xl border-2 border-slate-900 bg-white hover:bg-slate-100 text-slate-800 text-xs font-heading font-bold transition-all shadow-pop-xs"
           >
             Review Terms
           </button>
@@ -212,9 +212,9 @@ function ConfirmModal({ quotation, onClose, onConfirm, loading }) {
             type="button"
             disabled={loading}
             onClick={onConfirm}
-            className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold shadow-lg shadow-emerald-600/20 transition-all flex items-center gap-1.5 cursor-pointer"
+            className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-heading font-black shadow-pop-xs border-2 border-slate-900 transition-all flex items-center gap-1.5 cursor-pointer active:translate-x-0.5 active:translate-y-0.5"
           >
-            <Check size={14} />
+            <Check size={14} strokeWidth={2.5} />
             {loading ? 'Confirming...' : 'Yes, Confirm Quotation'}
           </button>
         </div>
@@ -254,6 +254,7 @@ export default function CustomerPortal() {
   // Negotiation form state
   const [message, setMessage] = useState('');
   const [counterDiscount, setCounterDiscount] = useState(0);
+  const [requestedDeliveryDate, setRequestedDeliveryDate] = useState('');
   const [submittingNeg, setSubmittingNeg] = useState(false);
   const [negotiations, setNegotiations] = useState([]);
 
@@ -377,22 +378,35 @@ export default function CustomerPortal() {
 
   // ── 4. Handlers ──────────────────────────────────────────────────────────
 
+  const handleQuickAddonRequest = (productName, price) => {
+    setMessage(`Please add 1x ${productName} (${formatINR(price)}) to this quotation. Please update the proposal.`);
+    const formEl = document.getElementById('negotiation-form');
+    if (formEl) {
+      formEl.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   const handleNegotiationSubmit = async (e) => {
     e.preventDefault();
     if (!message.trim()) {
-      toast.error('Please describe what changes you would like');
+      toast.error('Please describe what changes or add-ons you would like');
       return;
     }
+
+    const finalMsg = requestedDeliveryDate
+      ? `${message.trim()} [Requested Delivery Date: ${requestedDeliveryDate}]`
+      : message.trim();
 
     try {
       setSubmittingNeg(true);
       const res = await negotiationsAPI.submit(quotation.id, {
-        message: message.trim(),
+        message: finalMsg,
         counterDiscount: Number(counterDiscount),
         requestedBy: 'CUSTOMER',
       });
       toast.success('Request sent! Your rep will respond soon.');
       setMessage('');
+      setRequestedDeliveryDate('');
       if (res) {
         setNegotiations((prev) => [res, ...prev]);
       }
@@ -412,7 +426,7 @@ export default function CustomerPortal() {
       if (res?.needsReapproval) {
         toast.success('Terms updated. Sent for re-approval.');
       } else {
-        toast.success('🎉 Order Confirmed! Your rep will be in touch.');
+        toast.success('Order Confirmed! Your representative will be in touch.');
       }
       setIsConfirmModalOpen(false);
       loadQuotation();
@@ -455,24 +469,24 @@ export default function CustomerPortal() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-slate-100">
-        <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 mb-4 animate-spin text-blue-400">
-          <RefreshCw size={28} />
+      <div className="min-h-screen bg-[#FFFDF5] flex flex-col items-center justify-center p-6 text-slate-900">
+        <div className="p-4 rounded-3xl bg-white border-2 border-slate-900 shadow-pop mb-4 animate-spin text-violet-700">
+          <RefreshCw size={28} strokeWidth={2.5} />
         </div>
-        <p className="text-sm font-semibold text-slate-300">Loading your secure quotation portal...</p>
-        <p className="text-xs text-slate-500 mt-1">Authenticating encrypted token</p>
+        <p className="text-sm font-heading font-bold text-slate-900">Loading your secure quotation portal...</p>
+        <p className="text-xs font-medium text-slate-500 mt-1">Authenticating encrypted token</p>
       </div>
     );
   }
 
   if (error || !quotation) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-slate-100">
-        <div className="p-4 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-400 mb-4">
-          <AlertTriangle size={36} />
+      <div className="min-h-screen bg-[#FFFDF5] flex flex-col items-center justify-center p-6 text-slate-900">
+        <div className="p-4 rounded-2xl bg-rose-100 border-2 border-slate-900 text-rose-700 mb-4 shadow-pop">
+          <AlertTriangle size={36} strokeWidth={2.5} />
         </div>
-        <h2 className="text-xl font-black text-white">Quotation Not Found</h2>
-        <p className="text-xs text-slate-400 max-w-sm text-center mt-2 leading-relaxed">
+        <h2 className="text-2xl font-extrabold text-slate-900 font-heading">Quotation Not Found</h2>
+        <p className="text-xs font-medium text-slate-600 max-w-sm text-center mt-2 leading-relaxed">
           {error || 'This portal link is invalid, has expired, or has been revoked. Please contact your sales representative.'}
         </p>
       </div>
@@ -480,52 +494,52 @@ export default function CustomerPortal() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-blue-600 selection:text-white">
+    <div className="min-h-screen bg-[#FFFDF5] text-slate-900 flex flex-col selection:bg-violet-600 selection:text-white font-sans">
       {/* ═════════════════════════════════════════════════════════════════════
           HEADER: Isolated Customer Portal Bar (NO internal nav)
       ══════════════════════════════════════════════════════════════════════ */}
-      <header className="sticky top-0 z-40 bg-slate-900/80 backdrop-blur-md border-b border-slate-800/80 px-4 sm:px-8 py-3.5 flex items-center justify-between">
+      <header className="sticky top-0 z-40 bg-white border-b-2 border-slate-900 px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-pop-sm">
         <div className="flex items-center gap-3">
           {/* Brand Logo */}
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white font-black text-base shadow-md shadow-blue-500/20">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-violet-600 border-2 border-slate-900 flex items-center justify-center text-white font-extrabold text-base shadow-pop-sm font-heading">
               D
             </div>
-            <span className="font-extrabold text-white text-base tracking-tight hidden sm:inline">
-              DealFlow<span className="text-blue-400">360</span>
+            <span className="font-extrabold text-slate-900 text-base tracking-tight hidden sm:inline font-heading">
+              DealFlow<span className="text-violet-600">360</span>
             </span>
           </div>
 
-          <div className="h-4 w-px bg-slate-800 hidden sm:block" />
+          <div className="h-5 w-[2px] bg-slate-200 hidden sm:block" />
 
           {/* Portal badge */}
-          <span className="px-2.5 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-[11px] font-semibold text-slate-300">
+          <span className="px-3 py-0.5 rounded-full bg-slate-100 border-2 border-slate-900 text-xs font-heading font-bold text-slate-800 shadow-pop-sm">
             Customer Portal
           </span>
         </div>
 
         <div className="flex items-center gap-3">
           {/* Quotation Number */}
-          <span className="font-mono text-xs font-bold text-slate-300 bg-slate-800/60 px-2.5 py-1 rounded-lg border border-slate-700/60">
+          <span className="font-mono text-xs font-extrabold text-slate-900 bg-violet-50 px-3 py-1 rounded-full border-2 border-slate-900 shadow-pop-sm">
             {quotation.quotationNumber || quotation.quotation_number}
           </span>
 
           {/* Status chip with indicator light */}
           <div
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${statusMeta.badgeClass}`}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-heading font-bold border-2 border-slate-900 shadow-pop-sm ${statusMeta.badgeClass}`}
           >
-            <span className={`w-2 h-2 rounded-full ${statusMeta.dotClass}`} />
+            <span className={`w-2 h-2 rounded-full border border-slate-900 ${statusMeta.dotClass}`} />
             {statusMeta.label}
           </div>
 
           {/* Logout / Exit button */}
           <button
             onClick={handleLogout}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-300 border border-slate-700 hover:border-rose-500/40 text-xs font-semibold transition-all shadow-sm cursor-pointer ml-1"
+            className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 border-2 border-slate-900 text-xs font-heading font-bold transition-all shadow-pop-sm cursor-pointer ml-1"
             title="Log out and return to sign in"
           >
-            <LogOut size={13} />
-            <span>Logout</span>
+            <LogOut size={13} strokeWidth={2.5} />
+            <span>Exit</span>
           </button>
         </div>
       </header>
@@ -535,30 +549,28 @@ export default function CustomerPortal() {
       ══════════════════════════════════════════════════════════════════════ */}
       <main className="flex-1 max-w-5xl mx-auto w-full p-4 sm:p-8 space-y-8">
         {/* ── 1. HERO: QUOTATION SUMMARY CARD ──────────────────────────────── */}
-        <section className="relative overflow-hidden rounded-3xl border border-slate-800/90 bg-gradient-to-b from-slate-900/90 via-slate-900/60 to-slate-950 p-6 sm:p-8 shadow-2xl backdrop-blur-xl">
-          <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-blue-500/5 blur-3xl pointer-events-none" />
-
+        <section className="relative overflow-hidden rounded-3xl border-2 border-slate-900 bg-white p-6 sm:p-8 shadow-pop">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div>
-              <p className="text-xs uppercase tracking-widest text-blue-400 font-bold mb-1">
-                Official Proposal
+              <p className="text-xs uppercase tracking-widest text-violet-700 font-extrabold font-heading mb-1">
+                Official Commercial Proposal
               </p>
-              <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 font-heading tracking-tight">
                 Quotation for{' '}
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-100 to-slate-300">
+                <span className="text-violet-700">
                   {quotation.customer?.company_name || quotation.customer?.name || 'Direct Client'}
                 </span>
               </h1>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400 mt-2">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600 mt-2 font-medium">
                 <span className="flex items-center gap-1.5">
-                  <User size={13} className="text-slate-500" />
-                  Prepared by <strong className="text-slate-200">{quotation.rep?.name || 'Sales Operations'}</strong>
+                  <User size={14} className="text-slate-500" strokeWidth={2.5} />
+                  Prepared by <strong className="text-slate-900 font-bold">{quotation.rep?.name || 'Sales Operations'}</strong>
                 </span>
-                <span className="text-slate-700">•</span>
+                <span className="text-slate-300">•</span>
                 <span className="flex items-center gap-1.5">
-                  <Calendar size={13} className="text-slate-500" />
+                  <Calendar size={14} className="text-slate-500" strokeWidth={2.5} />
                   Valid until{' '}
-                  <strong className="text-slate-200">
+                  <strong className="text-slate-900 font-bold font-mono">
                     {formatDate(quotation.expiry_date || quotation.expiryDate)}
                   </strong>
                 </span>
@@ -570,7 +582,7 @@ export default function CustomerPortal() {
               {/* CountdownTimer pill */}
               {(quotation.expiry_date || quotation.expiryDate) && (
                 <div className="flex flex-col items-end gap-1">
-                  <span className="text-[10px] uppercase font-mono text-slate-500 tracking-widest">
+                  <span className="text-[10px] uppercase font-heading font-extrabold text-slate-500 tracking-wider">
                     Offer Expires In
                   </span>
                   <CountdownTimer
@@ -582,13 +594,13 @@ export default function CustomerPortal() {
               {/* PDF Download button for non-draft quotations */}
               {quotation.status && quotation.status !== 'DRAFT' && (
                 <a
-                  href={`http://localhost:5000/api/quotations/${quotation.id}/pdf`}
+                  href={`http://localhost:5000/api/quotations/${quotation.id}/pdf?token=${token}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs font-semibold transition-colors"
+                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-white hover:bg-slate-100 text-slate-900 border-2 border-slate-900 shadow-pop-sm text-xs font-heading font-bold transition-all"
                 >
-                  <Download size={13} className="text-indigo-400" />
-                  📄 Download PDF
+                  <Download size={14} className="text-violet-700" strokeWidth={2.5} />
+                  <span>Download PDF</span>
                 </a>
               )}
             </div>
@@ -596,32 +608,34 @@ export default function CustomerPortal() {
         </section>
 
         {/* ── 2. ORDER LINES TABLE (Read-Only) ─────────────────────────────── */}
-        <section className="rounded-3xl border border-slate-800/80 bg-slate-900/60 overflow-hidden shadow-xl backdrop-blur-md">
-          <div className="px-6 py-4 border-b border-slate-800/80 flex items-center justify-between">
+        <section className="rounded-3xl border-2 border-slate-900 bg-white overflow-hidden shadow-pop">
+          <div className="px-6 py-4 border-b-2 border-slate-900 bg-slate-50 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Layers size={17} className="text-blue-400" />
-              <h3 className="text-sm font-bold text-white">Itemized Scope & Pricing</h3>
+              <span className="w-7 h-7 rounded-lg bg-violet-100 border border-slate-900 flex items-center justify-center text-violet-700">
+                <Layers size={16} strokeWidth={2.5} />
+              </span>
+              <h3 className="text-sm font-extrabold text-slate-900 font-heading">Itemized Scope & Pricing</h3>
             </div>
-            <span className="text-xs text-slate-400">
+            <span className="text-xs font-mono font-bold text-slate-500 bg-white px-2.5 py-0.5 rounded-full border border-slate-900">
               {lines.length} {lines.length === 1 ? 'item' : 'items'} in proposal
             </span>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-slate-800/80 bg-slate-950/40 text-slate-400">
-                  <th className="py-3.5 px-6 font-semibold">Product & Service</th>
-                  <th className="py-3.5 px-4 font-semibold text-center">Qty</th>
-                  <th className="py-3.5 px-4 font-semibold text-right">Unit Price</th>
-                  <th className="py-3.5 px-4 font-semibold text-center">Discount</th>
-                  <th className="py-3.5 px-6 font-semibold text-right">Total</th>
+              <thead className="bg-slate-100 border-b-2 border-slate-900 text-[11px] font-heading font-extrabold text-slate-800 uppercase tracking-wider">
+                <tr>
+                  <th className="py-3.5 px-6">Product & Service</th>
+                  <th className="py-3.5 px-4 text-center">Qty</th>
+                  <th className="py-3.5 px-4 text-right">Unit Price</th>
+                  <th className="py-3.5 px-4 text-center">Discount</th>
+                  <th className="py-3.5 px-6 text-right">Total</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60">
+              <tbody className="divide-y-2 divide-slate-100">
                 {lines.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-slate-500">
+                    <td colSpan={5} className="py-8 text-center text-slate-500 font-medium">
                       No order lines found.
                     </td>
                   </tr>
@@ -636,38 +650,52 @@ export default function CustomerPortal() {
                       unitPrice * (line.quantity || 1) * (1 - discount / 100);
 
                     return (
-                      <tr key={line.id} className="hover:bg-slate-800/30 transition-colors">
-                        <td className="py-4 px-6 font-medium text-white">
+                      <tr key={line.id} className="hover:bg-amber-50/50 transition-colors">
+                        <td className="py-4 px-6 font-bold text-slate-900 font-heading">
                           <div className="flex items-center gap-2.5">
                             <span>{line.product?.name || line.productName || 'Product'}</span>
                             {isSubscription && (
-                              <span className="px-2 py-0.5 rounded-md bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 font-mono text-[10px] font-bold">
-                                ↺ Monthly
+                              <span className="px-2 py-0.5 rounded-full bg-violet-100 border border-slate-900 text-violet-800 font-mono text-[10px] font-bold">
+                                Recurring
                               </span>
                             )}
                           </div>
                           {line.product?.sku && (
-                            <span className="font-mono text-[11px] text-slate-500">
+                            <span className="font-mono text-[10px] text-slate-500 font-medium">
                               SKU: {line.product.sku}
                             </span>
                           )}
+                          {!isConfirmed && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setMessage(`Regarding ${line.product?.name || 'this line'}: Can we request a special discount or adjust the unit count?`);
+                                const formEl = document.getElementById('negotiation-form');
+                                if (formEl) formEl.scrollIntoView({ behavior: 'smooth' });
+                              }}
+                              className="text-[10px] text-violet-700 hover:text-violet-900 font-heading font-bold flex items-center gap-1 mt-1 cursor-pointer"
+                            >
+                              <MessageSquare size={10} />
+                              <span>Ask question about this item</span>
+                            </button>
+                          )}
                         </td>
-                        <td className="py-4 px-4 text-center font-mono font-bold text-white">
+                        <td className="py-4 px-4 text-center font-mono font-extrabold text-slate-900">
                           {line.quantity}
                         </td>
-                        <td className="py-4 px-4 text-right font-mono text-slate-300">
+                        <td className="py-4 px-4 text-right font-mono font-bold text-slate-700">
                           {formatINR(unitPrice)}
                         </td>
                         <td className="py-4 px-4 text-center">
                           {discount > 0 ? (
-                            <span className="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-mono font-bold text-[11px]">
+                            <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 border border-slate-900 text-emerald-900 font-mono font-bold text-xs shadow-pop-sm">
                               -{discount}%
                             </span>
                           ) : (
-                            <span className="text-slate-600 font-mono">—</span>
+                            <span className="text-slate-400 font-mono">—</span>
                           )}
                         </td>
-                        <td className="py-4 px-6 text-right font-mono font-bold text-white text-sm">
+                        <td className="py-4 px-6 text-right font-mono font-extrabold text-slate-900 text-sm">
                           {formatINR(lineTotal)}
                         </td>
                       </tr>
@@ -677,52 +705,109 @@ export default function CustomerPortal() {
               </tbody>
             </table>
           </div>
+
+          {/* ── Add-on & Companion Equipment Requests (Keyboards, Monitors, Deployment) ── */}
+          {!isConfirmed && (
+            <div className="p-4 sm:p-5 bg-[#FFFDF5] border-t-2 border-slate-900 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                <span className="text-xs font-heading font-black text-slate-900 flex items-center gap-1.5">
+                  <Sparkles size={14} className="text-violet-700" />
+                  <span>Looking to add companion hardware accessories or deployment services?</span>
+                </span>
+                <span className="text-[11px] font-mono text-slate-500 font-bold">1-click attaches request to negotiation thread</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleQuickAddonRequest('Mechanical Keyboard', 4500)}
+                  className="p-3 rounded-2xl bg-white border-2 border-slate-900 hover:bg-amber-100/60 shadow-pop-xs transition-all text-left flex items-center justify-between cursor-pointer active:translate-x-0.5 active:translate-y-0.5"
+                >
+                  <div>
+                    <p className="text-xs font-heading font-black text-slate-900">⌨️ Mechanical Keyboard</p>
+                    <p className="text-[10px] font-mono font-bold text-slate-600">₹4,500 / unit</p>
+                  </div>
+                  <span className="px-2 py-1 rounded-xl bg-violet-100 text-violet-800 text-[10px] font-heading font-black border border-slate-900">
+                    + Request
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleQuickAddonRequest('27" 4K Monitor', 28000)}
+                  className="p-3 rounded-2xl bg-white border-2 border-slate-900 hover:bg-amber-100/60 shadow-pop-xs transition-all text-left flex items-center justify-between cursor-pointer active:translate-x-0.5 active:translate-y-0.5"
+                >
+                  <div>
+                    <p className="text-xs font-heading font-black text-slate-900">🖥️ 27" 4K Monitor</p>
+                    <p className="text-[10px] font-mono font-bold text-slate-600">₹28,000 / unit</p>
+                  </div>
+                  <span className="px-2 py-1 rounded-xl bg-violet-100 text-violet-800 text-[10px] font-heading font-black border border-slate-900">
+                    + Request
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleQuickAddonRequest('On-site Setup & Config', 15000)}
+                  className="p-3 rounded-2xl bg-white border-2 border-slate-900 hover:bg-amber-100/60 shadow-pop-xs transition-all text-left flex items-center justify-between cursor-pointer active:translate-x-0.5 active:translate-y-0.5"
+                >
+                  <div>
+                    <p className="text-xs font-heading font-black text-slate-900">🛠️ On-site Setup</p>
+                    <p className="text-[10px] font-mono font-bold text-slate-600">₹15,000 deployment</p>
+                  </div>
+                  <span className="px-2 py-1 rounded-xl bg-violet-100 text-violet-800 text-[10px] font-heading font-black border border-slate-900">
+                    + Request
+                  </span>
+                </button>
+              </div>
+            </div>
+          )}
         </section>
 
         {/* ── 3. ORDER TOTALS CARD ─────────────────────────────────────────── */}
         <section className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
           {/* Notes or instructions */}
-          <div className="rounded-3xl border border-slate-800/80 bg-slate-900/60 p-6 space-y-3">
-            <h4 className="text-xs uppercase tracking-wider text-slate-400 font-bold">
+          <div className="rounded-3xl border-2 border-slate-900 bg-white p-6 space-y-3 shadow-pop">
+            <h4 className="text-xs uppercase tracking-wider text-slate-700 font-heading font-extrabold">
               Terms & Delivery Remarks
             </h4>
-            <p className="text-xs text-slate-300 leading-relaxed">
+            <p className="text-xs text-slate-600 leading-relaxed font-medium">
               {quotation.rep_notes ||
                 quotation.repNotes ||
-                'All prices are in INR and valid for the indicated duration. Shipping is handled via multi-warehouse direct routing.'}
+                'All prices are in INR and valid for the indicated duration. Commercial fulfillment is governed under standard master service agreement terms.'}
             </p>
-            <div className="pt-3 border-t border-slate-800 flex items-center gap-2 text-xs text-slate-400">
-              <ShieldCheck size={15} className="text-emerald-400" />
+            <div className="pt-3 border-t-2 border-slate-100 flex items-center gap-2 text-xs font-semibold text-slate-700">
+              <ShieldCheck size={16} className="text-emerald-700" strokeWidth={2.5} />
               <span>Includes standard manufacturer warranty and deployment SLA.</span>
             </div>
           </div>
 
           {/* Totals Summary */}
-          <div className="rounded-3xl border border-slate-800/90 bg-slate-900/80 p-6 space-y-3 shadow-xl backdrop-blur-md">
-            <div className="flex justify-between text-xs text-slate-400">
+          <div className="rounded-3xl border-2 border-slate-900 bg-white p-6 space-y-3 shadow-pop">
+            <div className="flex justify-between text-xs font-medium text-slate-600">
               <span>Subtotal:</span>
-              <span className="font-mono font-semibold text-slate-200">
+              <span className="font-mono font-bold text-slate-900">
                 {formatINR(quotation.subtotal || 0)}
               </span>
             </div>
 
-            <div className="flex justify-between text-xs text-slate-400">
+            <div className="flex justify-between text-xs font-medium text-slate-600">
               <span>Discount Savings:</span>
-              <span className="font-mono font-semibold text-emerald-400">
+              <span className="font-mono font-bold text-emerald-700">
                 -{formatINR(quotation.discount_amount || quotation.discountAmount || 0)}
               </span>
             </div>
 
-            <div className="flex justify-between text-xs text-slate-400">
+            <div className="flex justify-between text-xs font-medium text-slate-600">
               <span>Estimated Tax (GST 18%):</span>
-              <span className="font-mono font-semibold text-slate-200">
+              <span className="font-mono font-bold text-slate-900">
                 {formatINR(quotation.tax_amount || quotation.taxAmount || 0)}
               </span>
             </div>
 
-            <div className="pt-3 border-t border-slate-800 flex justify-between items-baseline">
-              <span className="text-sm font-bold text-white">TOTAL COMMITMENT:</span>
-              <span className="font-mono text-2xl sm:text-3xl font-black text-blue-400">
+            <div className="pt-3 border-t-2 border-slate-900 flex justify-between items-baseline">
+              <span className="text-sm font-extrabold text-slate-900 font-heading">TOTAL COMMITMENT:</span>
+              <span className="font-mono text-2xl sm:text-3xl font-extrabold text-violet-700">
                 {formatINR(quotation.total || 0)}
               </span>
             </div>
@@ -734,95 +819,138 @@ export default function CustomerPortal() {
           <section className="pt-2">
             <button
               onClick={() => setIsConfirmModalOpen(true)}
-              className="w-full py-4 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-white font-extrabold text-base sm:text-lg shadow-xl shadow-emerald-600/25 transition-all flex items-center justify-center gap-2.5 cursor-pointer"
+              className="btn-candy w-full py-4 px-6 rounded-2xl bg-emerald-500 hover:bg-emerald-600 active:scale-[0.99] text-white font-heading font-extrabold text-base sm:text-lg border-2 border-slate-900 shadow-pop transition-all flex items-center justify-center gap-2.5 cursor-pointer"
             >
-              <CheckCircle2 size={22} />
-              ✓ Confirm Quotation
+              <CheckCircle2 size={22} strokeWidth={2.5} />
+              <span>Confirm Commercial Quotation</span>
             </button>
-            <p className="text-center text-xs text-slate-500 mt-2">
-              Instant digital agreement. Your account manager is immediately notified.
+            <p className="text-center text-xs font-medium text-slate-500 mt-2">
+              Instant digital agreement. Your account executive is immediately notified.
             </p>
           </section>
         ) : (
-          <div className="p-5 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 text-center space-y-1">
-            <p className="text-base font-extrabold text-emerald-300 flex items-center justify-center gap-2">
-              <CheckCircle2 size={20} />
-              🎉 Order Confirmed! Your rep will be in touch.
+          <div className="p-5 rounded-2xl border-2 border-slate-900 bg-emerald-50 text-center space-y-1 shadow-pop">
+            <p className="text-base font-extrabold text-emerald-900 flex items-center justify-center gap-2 font-heading">
+              <Sparkles size={20} className="text-emerald-700" strokeWidth={2.5} />
+              <span>Order Confirmed! Your account executive will be in touch.</span>
             </p>
-            <p className="text-xs text-emerald-400/80">
-              Thank you for partnering with us. The fulfillment team has reserved your inventory.
+            <p className="text-xs font-medium text-emerald-800">
+              Thank you for partnering with us. The fulfillment team has reserved your deployment inventory.
             </p>
           </div>
         )}
 
-        {/* ── 5. NEGOTIATION PANEL ("💬 Negotiate Terms") ───────────────────── */}
+        {/* ── 5. NEGOTIATION PANEL ("Negotiate Terms") ───────────────────── */}
         {!isConfirmed && (
-          <section className="rounded-3xl border border-slate-800/80 bg-slate-900/60 p-6 sm:p-8 space-y-6 shadow-xl backdrop-blur-md">
+          <section className="rounded-3xl border-2 border-slate-900 bg-white p-6 sm:p-8 space-y-6 shadow-pop">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <span>💬</span> Negotiate Terms
+                <h3 className="text-lg font-extrabold text-slate-900 font-heading flex items-center gap-2">
+                  <span className="w-8 h-8 rounded-xl bg-violet-100 border border-slate-900 flex items-center justify-center text-violet-700">
+                    <MessageSquare size={18} strokeWidth={2.5} />
+                  </span>
+                  <span>Negotiate Terms</span>
                 </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Have questions or want to request changes? Send us a message directly.
+                <p className="text-xs font-medium text-slate-600 mt-1 pl-10">
+                  Have questions or want to request adjustments? Send a message directly to your account executive.
                 </p>
               </div>
             </div>
 
             {/* Negotiation Form */}
-            <form onSubmit={handleNegotiationSubmit} className="space-y-4">
+            <form id="negotiation-form" onSubmit={handleNegotiationSubmit} className="space-y-4">
               {/* Message field */}
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  Your Message or Proposed Adjustments <span className="text-rose-400">*</span>
+                <label className="block text-xs font-heading font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                  Your Message or Proposed Adjustments <span className="text-rose-500">*</span>
                 </label>
                 <textarea
                   required
                   rows={3}
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  placeholder="e.g. Would it be possible to adjust pricing by 5% if we increase volume? Or clarify delivery timelines?"
-                  className="w-full bg-slate-800/80 border border-slate-700 rounded-xl px-4 py-3 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500 transition-colors resize-none"
+                  placeholder="e.g. Can we add a Mechanical Keyboard to this proposal? Or adjust terms for faster delivery?"
+                  className="w-full bg-slate-50 border-2 border-slate-900 rounded-xl px-4 py-3 text-xs text-slate-900 placeholder:text-slate-400 font-medium focus:bg-white focus:outline-none focus:shadow-pop-sm transition-all resize-none"
                 />
+
+                {/* Quick Suggestion Chips */}
+                <div className="flex flex-wrap items-center gap-2 mt-2">
+                  <span className="text-[11px] font-mono text-slate-500 font-bold">Quick requests:</span>
+                  <button
+                    type="button"
+                    onClick={() => setMessage('Can we add 1x Mechanical Keyboard (₹4,500) to this proposal?')}
+                    className="px-2.5 py-1 rounded-xl bg-violet-100 hover:bg-violet-200 text-violet-900 border border-slate-900 text-[10px] font-heading font-black cursor-pointer shadow-pop-xs transition-transform active:scale-95"
+                  >
+                    ⌨️ + Add Keyboard
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMessage('Can we bundle a 27" 4K Monitor with this package?')}
+                    className="px-2.5 py-1 rounded-xl bg-violet-100 hover:bg-violet-200 text-violet-900 border border-slate-900 text-[10px] font-heading font-black cursor-pointer shadow-pop-xs transition-transform active:scale-95"
+                  >
+                    🖥️ + Add 4K Monitor
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCounterDiscount(15)}
+                    className="px-2.5 py-1 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 border border-slate-900 text-[10px] font-heading font-black cursor-pointer shadow-pop-xs transition-transform active:scale-95"
+                  >
+                    🏷️ Propose 15% Discount
+                  </button>
+                </div>
               </div>
 
-              {/* Counter discount slider */}
-              <div className="p-4 rounded-xl border border-slate-800 bg-slate-800/30 space-y-2">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-semibold text-slate-300">
-                    Requested Discount Percentage (Optional)
-                  </span>
-                  <span className="font-mono text-blue-400 font-bold">
-                    Current: {currentAverageDiscount}% — Your Request: {counterDiscount}%
-                  </span>
+              {/* Counter discount slider & Requested Delivery Date (SVG Screen 11) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="p-4 rounded-xl border-2 border-slate-900 bg-slate-50 space-y-2 shadow-pop-xs">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-heading font-bold text-slate-700">
+                      Requested Discount % (Optional)
+                    </span>
+                    <span className="font-mono text-violet-700 font-extrabold">
+                      Current: {currentAverageDiscount}% — Request: {counterDiscount}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="40"
+                    step="1"
+                    value={counterDiscount}
+                    onChange={(e) => setCounterDiscount(Number(e.target.value))}
+                    className="w-full accent-violet-600 cursor-pointer"
+                  />
                 </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="40"
-                  step="1"
-                  value={counterDiscount}
-                  onChange={(e) => setCounterDiscount(Number(e.target.value))}
-                  className="w-full accent-blue-500 cursor-pointer"
-                />
+
+                <div className="p-4 rounded-xl border-2 border-slate-900 bg-slate-50 space-y-2 shadow-pop-xs">
+                  <span className="block text-xs font-heading font-bold text-slate-700">
+                    Requested Delivery Date (Optional)
+                  </span>
+                  <input
+                    type="date"
+                    value={requestedDeliveryDate}
+                    onChange={(e) => setRequestedDeliveryDate(e.target.value)}
+                    className="w-full bg-white border-2 border-slate-900 rounded-xl px-3 py-1.5 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:shadow-pop-xs cursor-pointer"
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end">
                 <button
                   type="submit"
                   disabled={submittingNeg}
-                  className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold shadow-lg shadow-blue-600/20 transition-all cursor-pointer"
+                  className="btn-candy flex items-center gap-2 px-6 py-2.5 rounded-full bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-xs font-heading font-bold border-2 border-slate-900 shadow-pop transition-all cursor-pointer"
                 >
-                  <Send size={13} />
-                  {submittingNeg ? 'Submitting...' : 'Submit Negotiation Request'}
+                  <Send size={14} strokeWidth={2.5} />
+                  <span>{submittingNeg ? 'Submitting...' : 'Submit Negotiation Request'}</span>
                 </button>
               </div>
             </form>
 
             {/* Negotiation Timeline */}
             {negotiations.length > 0 && (
-              <div className="pt-4 border-t border-slate-800/80 space-y-3">
-                <h4 className="text-xs uppercase tracking-wider text-slate-400 font-bold">
+              <div className="pt-4 border-t-2 border-slate-100 space-y-3">
+                <h4 className="text-xs uppercase tracking-wider text-slate-500 font-heading font-extrabold">
                   Negotiation History
                 </h4>
                 <div className="space-y-2.5">
@@ -832,36 +960,36 @@ export default function CustomerPortal() {
                     return (
                       <div
                         key={neg.id}
-                        className={`p-3.5 rounded-xl border text-xs flex items-start justify-between gap-4 ${
+                        className={`p-4 rounded-xl border-2 border-slate-900 text-xs flex items-start justify-between gap-4 shadow-pop-sm ${
                           isFromCustomer
-                            ? 'bg-slate-800/40 border-slate-800'
-                            : 'bg-blue-500/10 border-blue-500/20'
+                            ? 'bg-slate-50'
+                            : 'bg-violet-50'
                         }`}
                       >
                         <div className="space-y-1 flex-1">
                           <div className="flex items-center gap-2">
-                            <span className="font-bold text-white">
+                            <span className="font-heading font-bold text-slate-900">
                               {isFromCustomer ? 'Your Request' : 'Sales Rep Response'}
                             </span>
-                            <span className="text-[11px] text-slate-500">
+                            <span className="text-[11px] font-mono text-slate-500">
                               {getRelativeTime(neg.created_at)}
                             </span>
                           </div>
-                          <p className="text-slate-300 leading-relaxed">{neg.message}</p>
+                          <p className="text-slate-700 leading-relaxed font-medium">{neg.message}</p>
                           {neg.counter_discount && (
-                            <p className="text-[11px] text-blue-400 font-semibold font-mono">
+                            <p className="text-[11px] text-violet-700 font-bold font-mono">
                               Requested Discount: {neg.counter_discount}%
                             </p>
                           )}
                         </div>
 
                         <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide border flex-shrink-0 ${
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-heading font-extrabold tracking-wide border-2 border-slate-900 shadow-pop-sm flex-shrink-0 ${
                             neg.status === 'ACCEPTED'
-                              ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                              ? 'bg-emerald-100 text-emerald-900'
                               : neg.status === 'REJECTED'
-                              ? 'bg-rose-500/15 text-rose-400 border-rose-500/30'
-                              : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                              ? 'bg-rose-100 text-rose-900'
+                              : 'bg-amber-100 text-amber-900'
                           }`}
                         >
                           {neg.status}
@@ -876,34 +1004,40 @@ export default function CustomerPortal() {
         )}
 
         {/* ── 6. STATUS TIMELINE (Chronological Audit Logs) ────────────────── */}
-        <section className="rounded-3xl border border-slate-800/80 bg-slate-900/60 p-6 sm:p-8 space-y-4 shadow-xl backdrop-blur-md">
-          <h3 className="text-sm font-bold text-white flex items-center gap-2">
-            <Clock size={16} className="text-blue-400" />
-            Quotation Activity & Audit History
+        <section className="rounded-3xl border-2 border-slate-900 bg-white p-6 sm:p-8 space-y-4 shadow-pop">
+          <h3 className="text-sm font-extrabold text-slate-900 font-heading flex items-center gap-2">
+            <span className="w-7 h-7 rounded-lg bg-sky-100 border border-slate-900 flex items-center justify-center text-sky-800">
+              <Clock size={16} strokeWidth={2.5} />
+            </span>
+            <span>Quotation Activity & Audit History</span>
           </h3>
 
-          <div className="relative pl-6 space-y-6 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-800">
+          <div className="relative pl-6 space-y-6 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
             {auditEvents.length === 0 ? (
               <div className="relative">
-                <span className="absolute -left-6 top-0.5 w-4 h-4 rounded-full bg-blue-500/20 border-2 border-blue-500" />
-                <p className="text-xs font-semibold text-slate-200">📋 Quotation Created</p>
-                <p className="text-[11px] text-slate-500">{formatDate(quotation.created_at)}</p>
+                <span className="absolute -left-6 top-0.5 w-4 h-4 rounded-full bg-violet-100 border-2 border-slate-900" />
+                <p className="text-xs font-heading font-bold text-slate-900 flex items-center gap-1.5">
+                  <FileText size={14} className="text-violet-700" strokeWidth={2.5} />
+                  <span>Quotation Created</span>
+                </p>
+                <p className="text-[11px] font-mono text-slate-500">{formatDate(quotation.created_at)}</p>
               </div>
             ) : (
               auditEvents.map((event, idx) => {
-                let icon = '📋';
-                if (event.action === 'SENT') icon = '✉️';
-                else if (event.action === 'UPDATED') icon = '💬';
-                else if (event.action === 'CONFIRMED') icon = '✅';
-                else if (event.action === 'APPROVED') icon = '🏆';
+                let ActionIcon = FileText;
+                if (event.action === 'SENT') ActionIcon = Mail;
+                else if (event.action === 'UPDATED') ActionIcon = MessageSquare;
+                else if (event.action === 'CONFIRMED') ActionIcon = CheckCircle2;
+                else if (event.action === 'APPROVED') ActionIcon = Award;
 
                 return (
                   <div key={idx} className="relative group">
-                    <span className="absolute -left-6 top-0.5 w-4 h-4 rounded-full bg-slate-800 border-2 border-blue-500 group-hover:scale-110 transition-transform" />
-                    <p className="text-xs font-semibold text-slate-200">
-                      {icon} {event.details || event.action}
+                    <span className="absolute -left-6 top-0.5 w-4 h-4 rounded-full bg-white border-2 border-slate-900 group-hover:scale-110 transition-transform" />
+                    <p className="text-xs font-heading font-bold text-slate-900 flex items-center gap-1.5">
+                      <ActionIcon size={14} className="text-violet-700" strokeWidth={2.5} />
+                      <span>{event.details || event.action}</span>
                     </p>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
+                    <p className="text-[11px] font-mono text-slate-500 mt-0.5">
                       {getRelativeTime(event.created_at)} · {formatDate(event.created_at)}
                     </p>
                   </div>
@@ -911,38 +1045,6 @@ export default function CustomerPortal() {
               })
             )}
           </div>
-        </section>
-
-        {/* ── 7. QR CODE SHARING CARD ──────────────────────────────────────── */}
-        <section className="rounded-3xl border border-slate-800/80 bg-slate-900/60 p-6 flex flex-col sm:flex-row items-center justify-between gap-6 shadow-xl backdrop-blur-md">
-          <div className="flex items-center gap-5">
-            {/* QR Code Container */}
-            <div className="p-3 bg-white rounded-2xl shadow-xl flex-shrink-0">
-              <QRCodeSVG
-                value={window.location.href}
-                size={96}
-                level="M"
-                includeMargin={false}
-              />
-            </div>
-            <div>
-              <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
-                <Share2 size={15} className="text-blue-400" />
-                Share This Quotation Link
-              </h4>
-              <p className="text-xs text-slate-400 mt-1 max-w-sm">
-                Scan with any smartphone or share this encrypted URL with authorized colleagues on your procurement team.
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={handleCopyLink}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition-colors cursor-pointer flex-shrink-0"
-          >
-            {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
-            {copied ? 'Link Copied!' : 'Copy Portal URL'}
-          </button>
         </section>
       </main>
 

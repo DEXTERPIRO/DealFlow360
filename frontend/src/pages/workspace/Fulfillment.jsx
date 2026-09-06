@@ -5,29 +5,26 @@ import {
   CheckCircle2,
   AlertTriangle,
   Truck,
-  SplitSquareHorizontal,
   RefreshCw,
   Edit3,
   X,
-  Layers,
-  Boxes,
-  CircleDot,
-  ShieldCheck,
   Search,
   Check,
   ChevronRight,
-  TrendingUp,
-  AlertCircle,
-  HelpCircle,
-  Clock,
-  ArrowRight
+  ChevronLeft,
+  ChevronDown,
+  ChevronUp,
+  Eye,
+  Info,
+  Plus,
 } from 'lucide-react';
-import { fulfillmentAPI, quotationsAPI } from '../../api';
+import { fulfillmentAPI, quotationsAPI, productsAPI } from '../../api';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../../store/authStore';
+import Pagination from '../../components/ui/Pagination';
+import Portal from '../../components/ui/Portal';
 
-// ─── Formatters & Style Constants ──────────────────────────────────────────
-
+// Format currency
 const formatINR = (n) =>
   new Intl.NumberFormat('en-IN', {
     style: 'currency',
@@ -35,283 +32,48 @@ const formatINR = (n) =>
     maximumFractionDigits: 0,
   }).format(n ?? 0);
 
+// Status styling
 const STATUS_CONFIG = {
   PENDING_FULFILLMENT: {
-    label: 'Pending Fulfillment',
-    badgeClass: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
-    dotClass: 'bg-amber-400',
+    label: 'Split Pending',
+    badgeClass: 'bg-amber-100 text-amber-900 border-2 border-slate-900 shadow-pop-xs',
+    dotClass: 'bg-amber-500',
   },
   PARTIALLY_FULFILLED: {
     label: 'Partially Fulfilled',
-    badgeClass: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
-    dotClass: 'bg-blue-400',
+    badgeClass: 'bg-blue-100 text-blue-900 border-2 border-slate-900 shadow-pop-xs',
+    dotClass: 'bg-blue-500',
   },
   FULFILLED: {
     label: 'Fulfilled',
-    badgeClass: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
-    dotClass: 'bg-emerald-400',
+    badgeClass: 'bg-emerald-100 text-emerald-900 border-2 border-slate-900 shadow-pop-xs',
+    dotClass: 'bg-emerald-500',
+  },
+  BACKORDER: {
+    label: 'Backorder',
+    badgeClass: 'bg-rose-100 text-rose-900 border-2 border-slate-900 shadow-pop-xs',
+    dotClass: 'bg-rose-500',
   },
 };
 
 const getStockBadgeStyle = (available) => {
   if (available <= 0) {
-    return 'bg-rose-500/15 text-rose-400 border border-rose-500/30';
+    return 'bg-rose-100 text-rose-800 border-2 border-slate-900 shadow-pop-xs';
   }
   if (available < 10) {
-    return 'bg-amber-500/15 text-amber-400 border border-amber-500/30';
+    return 'bg-amber-100 text-amber-800 border-2 border-slate-900 shadow-pop-xs';
   }
-  return 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30';
+  return 'bg-emerald-100 text-emerald-800 border-2 border-slate-900 shadow-pop-xs';
 };
 
-// ─── Sub-Component: Quotation Left Card ─────────────────────────────────────
-
-function QuotationCard({ q, isSelected, onClick }) {
-  const lines = q.lines || [];
-  const physicalLines = lines.filter(
-    (l) => (l.lineType || l.line_type) !== 'SUBSCRIPTION'
-  );
-  const totalQtyNeeded = physicalLines.reduce((acc, l) => acc + (l.quantity || 0), 0);
-
-  // Derive fulfillment status based on fulfillments if available
-  let statusKey = 'PENDING_FULFILLMENT';
-  if (q.fulfillments && q.fulfillments.length > 0) {
-    const allFulfilled = q.fulfillments.every(
-      (f) => f.status === 'FULFILLED' || (f.quantity_fulfilled >= f.quantity_needed)
-    );
-    const anyFulfilled = q.fulfillments.some(
-      (f) => f.status === 'FULFILLED' || f.quantity_fulfilled > 0
-    );
-    if (allFulfilled) statusKey = 'FULFILLED';
-    else if (anyFulfilled) statusKey = 'PARTIALLY_FULFILLED';
-  } else if (q.status === 'CONFIRMED' || q.status === 'APPROVED') {
-    statusKey = 'PENDING_FULFILLMENT';
-  }
-
-  const statusMeta = STATUS_CONFIG[statusKey] || STATUS_CONFIG.PENDING_FULFILLMENT;
-
-  return (
-    <div
-      onClick={onClick}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => e.key === 'Enter' && onClick()}
-      className={`group relative rounded-xl border p-4 text-left transition-all duration-200 cursor-pointer ${
-        isSelected
-          ? 'border-indigo-500 bg-indigo-500/10 shadow-lg shadow-indigo-500/10'
-          : 'border-slate-800/80 bg-slate-900/60 hover:border-slate-700 hover:bg-slate-800/40'
-      }`}
-    >
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <span className="font-mono text-sm font-bold text-white group-hover:text-indigo-300 transition-colors">
-          {q.quotationNumber || q.quotation_number || `QT-${q.id.slice(0, 8)}`}
-        </span>
-        <span
-          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${statusMeta.badgeClass}`}
-        >
-          <span className={`w-1.5 h-1.5 rounded-full ${statusMeta.dotClass}`} />
-          {statusMeta.label}
-        </span>
-      </div>
-
-      <p className="text-sm font-medium text-slate-200 truncate">
-        {q.customer?.name || q.customer?.company_name || 'Direct Customer'}
-      </p>
-      {q.customer?.company_name && (
-        <p className="text-xs text-slate-400 truncate">{q.customer.company_name}</p>
-      )}
-
-      <div className="mt-3 pt-3 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-400">
-        <div className="flex items-center gap-3">
-          <span className="flex items-center gap-1">
-            <Layers size={13} className="text-slate-500" />
-            <span>
-              {physicalLines.length} {physicalLines.length === 1 ? 'item' : 'items'}
-            </span>
-          </span>
-          <span className="flex items-center gap-1">
-            <Boxes size={13} className="text-slate-500" />
-            <span>{totalQtyNeeded} units</span>
-          </span>
-        </div>
-        <span className="font-semibold text-slate-300">
-          {formatINR(q.total || q.totalAmount || 0)}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-// ─── Sub-Component: Manual Override Modal ───────────────────────────────────
-
-function ManualOverrideModal({
-  lines,
-  warehouses,
-  onClose,
-  onApply,
-}) {
-  // Structure: { [productId]: { [warehouseId]: quantity } }
-  const [allocation, setAllocation] = useState(() => {
-    const init = {};
-    lines.forEach((l) => {
-      const pid = l.product_id || l.productId;
-      init[pid] = {};
-    });
-    return init;
-  });
-
-  const handleQtyChange = (productId, warehouseId, val) => {
-    const parsed = Math.max(0, parseInt(val, 10) || 0);
-    setAllocation((prev) => ({
-      ...prev,
-      [productId]: {
-        ...(prev[productId] || {}),
-        [warehouseId]: parsed,
-      },
-    }));
-  };
-
-  const handleSave = () => {
-    onApply(allocation);
-    onClose();
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-3xl rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl flex flex-col max-h-[88vh]">
-        {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
-              <Edit3 size={18} className="text-indigo-400" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-white">Manual Warehouse Assignment</h3>
-              <p className="text-xs text-slate-400">
-                Override smart split algorithm and assign warehouse quantities manually
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        {/* Modal Content */}
-        <div className="overflow-y-auto flex-1 p-6 space-y-6">
-          {lines.map((line) => {
-            const pid = line.product_id || line.productId;
-            const productName = line.product?.name || line.productName || 'Product';
-            const neededQty = line.quantity || 0;
-            const currentAlloc = allocation[pid] || {};
-            const totalAssigned = Object.values(currentAlloc).reduce((sum, v) => sum + (v || 0), 0);
-            const remaining = neededQty - totalAssigned;
-
-            return (
-              <div
-                key={line.id || pid}
-                className="rounded-xl border border-slate-800 bg-slate-800/30 p-4"
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <h4 className="text-sm font-semibold text-white">{productName}</h4>
-                    <p className="text-xs text-slate-400">
-                      Total Needed:{' '}
-                      <span className="font-mono font-bold text-slate-200">{neededQty}</span> units
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <span
-                      className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
-                        remaining === 0
-                          ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                          : remaining > 0
-                          ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
-                          : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
-                      }`}
-                    >
-                      {remaining === 0
-                        ? 'Fully Allocated'
-                        : remaining > 0
-                        ? `${remaining} unassigned`
-                        : `${Math.abs(remaining)} over-assigned`}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="space-y-2 mt-3 pt-3 border-t border-slate-800/60">
-                  {warehouses.map((wh) => {
-                    const stockRecord = (wh.stocks || []).find((s) => s.product_id === pid);
-                    const inStock = stockRecord?.quantity || 0;
-                    const reserved = stockRecord?.reserved || 0;
-                    const available = Math.max(0, inStock - reserved);
-                    const assignedVal = currentAlloc[wh.id] ?? '';
-
-                    return (
-                      <div
-                        key={wh.id}
-                        className="flex items-center justify-between gap-3 bg-slate-900/60 rounded-lg p-2.5 border border-slate-800/60"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-slate-300 truncate">{wh.name}</p>
-                          <p className="text-[11px] text-slate-500">
-                            Available:{' '}
-                            <span
-                              className={`font-semibold ${
-                                available > 0 ? 'text-emerald-400' : 'text-rose-400'
-                              }`}
-                            >
-                              {available}
-                            </span>{' '}
-                            units · Shipping: {formatINR(wh.shipping_cost || 0)}
-                          </p>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="number"
-                            min="0"
-                            max={available || 9999}
-                            value={assignedVal}
-                            onChange={(e) => handleQtyChange(pid, wh.id, e.target.value)}
-                            placeholder="0"
-                            className="w-20 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white text-right focus:outline-none focus:border-indigo-500 transition-colors"
-                          />
-                          <span className="text-xs text-slate-400">units</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Modal Footer */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-800 bg-slate-900/80">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg border border-slate-700 hover:border-slate-600 text-slate-300 text-sm font-medium transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            className="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold shadow-lg shadow-indigo-500/20 transition-all"
-          >
-            Apply Allocation
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+const getTierBadge = (tier) => {
+  const t = String(tier || 'BRONZE').toUpperCase();
+  if (t === 'GOLD') return 'bg-amber-100 text-amber-900 border-2 border-slate-900 shadow-pop-xs';
+  if (t === 'SILVER') return 'bg-slate-100 text-slate-800 border-2 border-slate-900 shadow-pop-xs';
+  return 'bg-orange-100 text-orange-900 border-2 border-slate-900 shadow-pop-xs';
+};
 
 // ─── Sub-Component: Stock Update Modal ──────────────────────────────────────
-
 function StockUpdateModal({ entry, onClose, onUpdated }) {
   const [newQty, setNewQty] = useState('');
   const [reason, setReason] = useState('');
@@ -350,137 +112,346 @@ function StockUpdateModal({ entry, onClose, onUpdated }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl p-6">
-        <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-          <div className="flex items-center gap-2">
-            <Warehouse size={18} className="text-indigo-400" />
-            <h3 className="text-base font-bold text-white">Stock Update</h3>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
-          >
-            <X size={18} />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-          <div className="rounded-xl bg-slate-800/40 border border-slate-800 p-3 space-y-2">
-            <div>
-              <p className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">
-                Warehouse (Locked)
-              </p>
-              <p className="text-sm font-semibold text-white">{entry.warehouseName}</p>
+    <Portal>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="w-full max-w-md rounded-3xl border-2 border-slate-900 bg-white shadow-pop-xl p-6 text-slate-900">
+          <div className="flex items-center justify-between pb-4 border-b-2 border-slate-900">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-blue-100 border-2 border-slate-900 text-blue-700 flex items-center justify-center shadow-pop-xs">
+                <Warehouse size={18} strokeWidth={2.5} />
+              </div>
+              <h3 className="text-base font-heading font-black text-slate-900">Stock Update</h3>
             </div>
-            <div>
-              <p className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">
-                Product (Locked)
-              </p>
-              <p className="text-sm font-semibold text-white">{entry.productName}</p>
-            </div>
-            <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-xs">
-              <span className="text-slate-400">Current In Stock:</span>
-              <span className="font-mono text-slate-300 font-bold">{entry.quantity} units</span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-400">Reserved:</span>
-              <span className="font-mono text-slate-300 font-bold">{entry.reserved} units</span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-400">Current Available:</span>
-              <span
-                className={`font-mono font-bold ${
-                  entry.available > 0 ? 'text-emerald-400' : 'text-rose-400'
-                }`}
-              >
-                {entry.available} units
-              </span>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-              New In-Stock Quantity <span className="text-rose-400">*</span>
-            </label>
-            <input
-              type="number"
-              min="0"
-              required
-              value={newQty}
-              onChange={(e) => setNewQty(e.target.value)}
-              placeholder="e.g. 50"
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-              Reason for Update <span className="text-rose-400">*</span>
-            </label>
-            <textarea
-              required
-              rows={3}
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="e.g. Shipment received from vendor, cycle count correction..."
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors resize-none"
-            />
-          </div>
-
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
             <button
-              type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-lg border border-slate-700 hover:border-slate-600 text-slate-300 text-sm font-medium transition-colors"
+              className="text-slate-500 hover:text-slate-900 p-1.5 rounded-xl hover:bg-slate-100 transition-colors border border-transparent hover:border-slate-900"
             >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-sm font-semibold shadow-lg shadow-emerald-500/20 transition-all"
-            >
-              {saving ? 'Updating...' : 'Update Stock'}
+              <X size={18} strokeWidth={2.5} />
             </button>
           </div>
-        </form>
+
+          <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+            <div className="rounded-2xl bg-[#FFFDF5] border-2 border-slate-900 p-4 space-y-2 shadow-pop-xs">
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-slate-500 font-heading font-black">Warehouse</p>
+                <p className="text-sm font-heading font-bold text-slate-900">{entry.warehouseName}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-slate-500 font-heading font-black">Product</p>
+                <p className="text-sm font-heading font-bold text-slate-900">{entry.productName}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 pt-2 border-t-2 border-slate-900/10 text-xs">
+                <div>
+                  <span className="text-slate-500 font-medium">In Stock:</span>{' '}
+                  <span className="font-mono font-black text-slate-900">{entry.inStock}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-medium">Reserved:</span>{' '}
+                  <span className="font-mono font-black text-amber-700">{entry.reserved}</span>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-heading font-bold text-slate-800 mb-1">
+                New In-Stock Quantity <span className="text-rose-600">*</span>
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={newQty}
+                onChange={(e) => setNewQty(e.target.value)}
+                placeholder={`Current: ${entry.inStock}`}
+                className="w-full rounded-2xl border-2 border-slate-900 bg-white px-3.5 py-2 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 font-mono shadow-pop-xs"
+                required
+              />
+              {newQty !== '' && !isNaN(newQty) && (
+                <p className="mt-1 text-xs text-slate-600">
+                  Projected Available:{' '}
+                  <span className="font-mono font-black text-emerald-700">
+                    {Math.max(0, parseInt(newQty, 10) - (entry.reserved || 0))}
+                  </span>{' '}
+                  units
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-xs font-heading font-bold text-slate-800 mb-1">
+                Reason for Adjustment <span className="text-rose-600">*</span>
+              </label>
+              <textarea
+                rows={2}
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="e.g. Physical inventory count correction, batch delivery restock"
+                className="w-full rounded-2xl border-2 border-slate-900 bg-white px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 shadow-pop-xs"
+                required
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 border-2 border-slate-900 text-xs font-heading font-bold text-slate-800 transition-colors shadow-pop-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="px-5 py-2 rounded-xl bg-pop-violet hover:bg-violet-700 text-xs font-heading font-black text-white border-2 border-slate-900 transition-all disabled:opacity-50 flex items-center gap-1.5 shadow-pop-xs hover:shadow-pop hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 cursor-pointer"
+              >
+                {saving ? <RefreshCw size={14} className="animate-spin" /> : <Check size={14} strokeWidth={2.5} />}
+                <span>{saving ? 'Updating...' : 'Confirm Update'}</span>
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
-    </div>
+    </Portal>
   );
 }
 
-// ─── Main Fulfillment Page Component ───────────────────────────────────────
+// ─── Sub-Component: Manual Override Modal ──────────────────────────────────
+function ManualOverrideModal({
+  isOpen,
+  onClose,
+  lines = [],
+  warehouses = [],
+  onApply,
+}) {
+  const [allocation, setAllocation] = useState({});
 
+  useEffect(() => {
+    if (isOpen) {
+      const init = {};
+      lines.forEach((l) => {
+        const pid = l.product_id || l.productId;
+        init[pid] = {};
+      });
+      setAllocation(init);
+    }
+  }, [isOpen, lines]);
+
+  if (!isOpen) return null;
+
+  const handleQtyChange = (productId, warehouseId, val) => {
+    const parsed = Math.max(0, parseInt(val, 10) || 0);
+    setAllocation((prev) => ({
+      ...prev,
+      [productId]: {
+        ...(prev[productId] || {}),
+        [warehouseId]: parsed,
+      },
+    }));
+  };
+
+  const handleSave = () => {
+    onApply(allocation);
+    onClose();
+  };
+
+  return (
+    <Portal>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="w-full max-w-2xl rounded-3xl border-2 border-slate-900 bg-white shadow-pop-xl flex flex-col max-h-[85vh] text-slate-900">
+        <div className="flex items-center justify-between px-6 py-4 border-b-2 border-slate-900">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-blue-100 border-2 border-slate-900 text-blue-700 shadow-pop-xs">
+              <Edit3 size={18} strokeWidth={2.5} />
+            </div>
+            <div>
+              <h3 className="text-base font-heading font-black text-slate-900">Manual Warehouse Assignment</h3>
+              <p className="text-xs text-slate-600 font-medium">Override smart split algorithm and assign warehouse quantities manually</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-900 p-1.5 rounded-xl hover:bg-slate-100 transition-colors">
+            <X size={20} strokeWidth={2.5} />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 p-6 space-y-5">
+          {lines.map((line) => {
+            const pid = line.product_id || line.productId;
+            const productName = line.product?.name || line.productName || 'Product';
+            const neededQty = line.quantity || 0;
+            const currentAlloc = allocation[pid] || {};
+            const totalAssigned = Object.values(currentAlloc).reduce((sum, v) => sum + (v || 0), 0);
+            const remaining = neededQty - totalAssigned;
+
+            return (
+              <div key={line.id || pid} className="rounded-2xl border-2 border-slate-900 bg-[#FFFDF5] p-4 space-y-3 shadow-pop-xs">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-heading font-black text-slate-900">{productName}</h4>
+                    <p className="text-xs text-slate-600 mt-0.5">
+                      Total Needed: <span className="font-mono font-black text-slate-900">{neededQty}</span> units
+                    </p>
+                  </div>
+                  <span
+                    className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-mono font-bold border-2 border-slate-900 shadow-pop-xs ${
+                      remaining === 0
+                        ? 'bg-emerald-100 text-emerald-900'
+                        : remaining > 0
+                        ? 'bg-amber-100 text-amber-900'
+                        : 'bg-rose-100 text-rose-900'
+                    }`}
+                  >
+                    {remaining === 0
+                      ? 'Fully Allocated'
+                      : remaining > 0
+                      ? `${remaining} unassigned`
+                      : `${Math.abs(remaining)} over-assigned`}
+                  </span>
+                </div>
+
+                <div className="space-y-2.5 pt-2 border-t-2 border-slate-900/10">
+                  {warehouses.map((wh) => {
+                    const stockRecord = (wh.stocks || []).find((s) => s.product_id === pid);
+                    const inStock = stockRecord?.quantity || 0;
+                    const reserved = stockRecord?.reserved || 0;
+                    const available = Math.max(0, inStock - reserved);
+                    const assignedVal = currentAlloc[wh.id] ?? '';
+
+                    return (
+                      <div key={wh.id} className="flex items-center justify-between gap-3 text-xs bg-white p-3 rounded-xl border-2 border-slate-900 shadow-pop-xs">
+                        <div className="flex-1">
+                          <span className="font-heading font-bold text-slate-900">{wh.name}</span>
+                          <span className="text-[11px] text-slate-500 ml-2 font-medium">
+                            (Available: <span className="font-mono text-emerald-700 font-bold">{available}</span>)
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs font-heading font-bold text-slate-600">Qty:</label>
+                          <input
+                            type="number"
+                            min="0"
+                            max={available}
+                            value={assignedVal}
+                            onChange={(e) => handleQtyChange(pid, wh.id, e.target.value)}
+                            placeholder="0"
+                            className="w-16 rounded-xl border-2 border-slate-900 bg-[#FFFDF5] px-2 py-1 text-center text-xs text-slate-900 font-mono font-bold focus:outline-none focus:ring-2 focus:ring-slate-900"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t-2 border-slate-900 bg-slate-50">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl bg-white border-2 border-slate-900 hover:bg-slate-100 text-xs font-heading font-bold text-slate-800 shadow-pop-xs">
+            Cancel
+          </button>
+          <button onClick={handleSave} className="px-5 py-2 rounded-xl bg-pop-violet hover:bg-violet-700 text-xs font-heading font-black text-white border-2 border-slate-900 shadow-pop-xs hover:shadow-pop hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 cursor-pointer transition-all">
+            Apply Custom Allocation
+          </button>
+        </div>
+      </div>
+    </div>
+  </Portal>
+);
+}
+
+// ─── Main Component: Fulfillment and Stock (List) ──────────────────────────
 export default function Fulfillment() {
   const { user } = useAuthStore();
-  const canManageStock =
-    user?.role === 'ADMIN' || user?.role === 'FINANCE' || user?.role === 'SALES_MANAGER';
+  const isAdminOrManager = ['ADMIN', 'SALES_MANAGER'].includes(user?.role);
 
-  // Left panel state
   const [quotations, setQuotations] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
   const [loadingQuotations, setLoadingQuotations] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedQuotationId, setSelectedQuotationId] = useState(null);
+  const [loadingWarehouses, setLoadingWarehouses] = useState(true);
 
-  // Right panel quotation detail & split
-  const [selectedQuotation, setSelectedQuotation] = useState(null);
-  const [loadingDetail, setLoadingDetail] = useState(false);
-  const [recommendedSplit, setRecommendedSplit] = useState([]);
-  const [loadingSplit, setLoadingSplit] = useState(false);
+  // Filters & Search
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('ALL');
+
+  // Pagination for Orders Table
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  // Collapsible live stock section
+  const [showLiveStock, setShowLiveStock] = useState(true);
+
+  // Active quotation for the Fulfillment Detail Modal
+  const [activeDetailItem, setActiveDetailItem] = useState(null);
+  const [detailSplits, setDetailSplits] = useState([]);
+  const [loadingSplits, setLoadingSplits] = useState(false);
   const [acceptingSplit, setAcceptingSplit] = useState(false);
 
-  // Warehouse stock overview tab
-  const [activeTab, setActiveTab] = useState('split'); // 'split' | 'stock'
-  const [warehouses, setWarehouses] = useState([]);
-  const [loadingWarehouses, setLoadingWarehouses] = useState(false);
-
-  // Modals state
+  // Modals
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [stockModalEntry, setStockModalEntry] = useState(null);
 
-  // ── 1. Fetch Quotations for Left Panel ───────────────────────────────────
+  // Connect Product to Warehouse Modal
+  const [connectModalOpen, setConnectModalOpen] = useState(false);
+  const [productsCatalog, setProductsCatalog] = useState([]);
+  const [connectWhId, setConnectWhId] = useState('');
+  const [connectProductId, setConnectProductId] = useState('');
+  const [connectQty, setConnectQty] = useState('25');
+  const [savingConnect, setSavingConnect] = useState(false);
 
+  const handleOpenConnectModal = async () => {
+    setConnectModalOpen(true);
+    setConnectWhId(warehouses[0]?.id || '');
+    setConnectQty('25');
+    if (productsCatalog.length === 0) {
+      try {
+        const res = await productsAPI.getAll();
+        const prods = Array.isArray(res) ? res : res?.products || [];
+        setProductsCatalog(prods);
+        if (prods.length > 0) setConnectProductId(prods[0].id);
+      } catch (err) {
+        console.error(err);
+        toast.error('Failed to load product catalog');
+      }
+    } else if (!connectProductId && productsCatalog.length > 0) {
+      setConnectProductId(productsCatalog[0].id);
+    }
+  };
+
+  const handleConnectProduct = async (e) => {
+    e.preventDefault();
+    if (!connectWhId) {
+      toast.error('Please select a warehouse facility');
+      return;
+    }
+    if (!connectProductId) {
+      toast.error('Please select a product from the catalog');
+      return;
+    }
+    const qty = parseInt(connectQty || '0', 10);
+    if (isNaN(qty) || qty < 0) {
+      toast.error('Please enter a valid non-negative quantity');
+      return;
+    }
+
+    try {
+      setSavingConnect(true);
+      await fulfillmentAPI.updateStock(connectWhId, connectProductId, {
+        quantity: qty,
+        reserved: 0
+      });
+      const whName = warehouses.find(w => w.id === connectWhId)?.name || 'Warehouse';
+      const prodName = productsCatalog.find(p => p.id === connectProductId)?.name || 'Product';
+      toast.success(`Connected "${prodName}" to "${whName}" (${qty} units added)`);
+      setConnectModalOpen(false);
+      loadWarehouses();
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.detail || 'Failed to connect product to warehouse');
+    } finally {
+      setSavingConnect(false);
+    }
+  };
+
+  // Load quotations
   const loadQuotations = useCallback(async (q = searchQuery) => {
     try {
       setLoadingQuotations(true);
@@ -489,7 +460,7 @@ export default function Fulfillment() {
       const res = await quotationsAPI.getAll(params);
       const list = Array.isArray(res) ? res : res?.quotations || [];
 
-      // Filter quotations that have confirmed or approved status, or have lines
+      // Filter eligible for fulfillment: CONFIRMED, APPROVED, SENT_TO_CUSTOMER
       const eligible = list.filter(
         (item) =>
           item.status === 'CONFIRMED' ||
@@ -497,28 +468,15 @@ export default function Fulfillment() {
           item.status === 'SENT_TO_CUSTOMER'
       );
       setQuotations(eligible);
-
-      // Auto-select first if none selected
-      if (eligible.length > 0 && !selectedQuotationId) {
-        setSelectedQuotationId(eligible[0].id);
-      }
     } catch (err) {
       console.error(err);
       toast.error('Failed to load fulfillment quotations');
     } finally {
       setLoadingQuotations(false);
     }
-  }, [selectedQuotationId]);
+  }, [searchQuery]);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      loadQuotations(searchQuery);
-    }, 250);
-    return () => clearTimeout(timer);
-  }, [searchQuery, loadQuotations]);
-
-  // ── 2. Fetch Warehouses for Stock Overview & Dropdowns ───────────────────
-
+  // Load warehouses & stock
   const loadWarehouses = useCallback(async () => {
     try {
       setLoadingWarehouses(true);
@@ -533,783 +491,897 @@ export default function Fulfillment() {
     }
   }, []);
 
-  // ── 3. Fetch Selected Quotation Details & Recommended Split ──────────────
-
-  const loadQuotationData = useCallback(async (id) => {
-    if (!id) return;
-    try {
-      setLoadingDetail(true);
-      setLoadingSplit(true);
-
-      const [quotationRes, splitRes] = await Promise.all([
-        quotationsAPI.getOne(id),
-        fulfillmentAPI.getSplit(id),
-      ]);
-
-      const qData = quotationRes?.quotation || quotationRes;
-      setSelectedQuotation(qData);
-
-      // Ensure split array
-      const rawSplits = Array.isArray(splitRes) ? splitRes : splitRes?.splits || [];
-      setRecommendedSplit(rawSplits);
-    } catch (err) {
-      console.error(err);
-      toast.error('Failed to load quotation split information');
-    } finally {
-      setLoadingDetail(false);
-      setLoadingSplit(false);
-    }
-  }, []);
-
-  // Initial loads
   useEffect(() => {
     loadQuotations();
     loadWarehouses();
   }, [loadQuotations, loadWarehouses]);
 
-  // Reload details whenever selection changes
-  useEffect(() => {
-    if (selectedQuotationId) {
-      loadQuotationData(selectedQuotationId);
+  // Load splits when an activeDetailItem is chosen
+  const loadSplitForActive = useCallback(async (item) => {
+    if (!item) return;
+    try {
+      setLoadingSplits(true);
+      const splitRes = await fulfillmentAPI.getSplit(item.id);
+      const rawSplits = Array.isArray(splitRes) ? splitRes : splitRes?.splits || [];
+
+      // Enrich with product names
+      const lines = item.lines || [];
+      const enriched = rawSplits.map((s) => {
+        const matchingLine = lines.find((l) => (l.product_id || l.productId) === s.productId);
+        return {
+          ...s,
+          productName: s.productName || matchingLine?.product?.name || 'Product',
+        };
+      });
+      setDetailSplits(enriched);
+    } catch (err) {
+      console.error('Failed to calculate split:', err);
+      toast.error('Failed to calculate warehouse split');
+    } finally {
+      setLoadingSplits(false);
     }
-  }, [selectedQuotationId, loadQuotationData]);
+  }, []);
 
-  // ── Database Queried Quotations ──────────────────────────────────────────
-  const filteredQuotations = quotations;
+  // When active detail item changes, fetch its split
+  useEffect(() => {
+    if (activeDetailItem) {
+      loadSplitForActive(activeDetailItem);
+    } else {
+      setDetailSplits([]);
+    }
+  }, [activeDetailItem, loadSplitForActive]);
 
-  // Non-subscription lines for the active quotation
-  const physicalLines = useMemo(() => {
-    if (!selectedQuotation?.lines) return [];
-    return selectedQuotation.lines.filter(
+  // Flatten warehouse stock entries
+  const flattenedStockRows = useMemo(() => {
+    const rows = [];
+    warehouses.forEach((wh) => {
+      (wh.stocks || []).forEach((stock) => {
+        const inStock = Number(stock.quantity || 0);
+        const reserved = Number(stock.reserved || 0);
+        const available = Math.max(0, inStock - reserved);
+        rows.push({
+          warehouseId: wh.id,
+          warehouseName: wh.name,
+          productId: stock.product_id || stock.product?.id,
+          productName: stock.product?.name || 'Product',
+          inStock,
+          reserved,
+          available,
+        });
+      });
+    });
+    return rows;
+  }, [warehouses]);
+
+  // Filtered orders list
+  const filteredOrders = useMemo(() => {
+    let list = quotations;
+
+    if (statusFilter !== 'ALL') {
+      list = list.filter((q) => {
+        if (statusFilter === 'FULFILLED') {
+          return q.fulfillments && q.fulfillments.length > 0 && q.fulfillments.every((f) => f.status === 'FULFILLED');
+        }
+        if (statusFilter === 'PARTIAL') {
+          return q.fulfillments && q.fulfillments.some((f) => f.status === 'PARTIALLY_FULFILLED');
+        }
+        if (statusFilter === 'PENDING') {
+          return !q.fulfillments || q.fulfillments.length === 0;
+        }
+        return true;
+      });
+    }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter((item) => {
+        const num = (item.quotationNumber || item.quotation_number || '').toLowerCase();
+        const cust = (item.customer?.name || item.customer?.company_name || '').toLowerCase();
+        return num.includes(q) || cust.includes(q);
+      });
+    }
+
+    return list;
+  }, [quotations, statusFilter, searchQuery]);
+
+  // Paginated orders
+  const paginatedOrders = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredOrders.slice(start, start + pageSize);
+  }, [filteredOrders, currentPage, pageSize]);
+
+  // Order status helper
+  const getOrderStatus = (q) => {
+    if (q.fulfillments && q.fulfillments.length > 0) {
+      const allFulfilled = q.fulfillments.every(
+        (f) => f.status === 'FULFILLED' || (f.quantity_fulfilled >= f.quantity_needed)
+      );
+      if (allFulfilled) return STATUS_CONFIG.FULFILLED;
+      const anyPartial = q.fulfillments.some((f) => f.quantity_fulfilled > 0);
+      if (anyPartial) return STATUS_CONFIG.PARTIALLY_FULFILLED;
+    }
+    return STATUS_CONFIG.PENDING_FULFILLMENT;
+  };
+
+  // Get physical units count
+  const getPhysicalUnits = (q) => {
+    const lines = (q.lines || []).filter(
       (l) => (l.lineType || l.line_type) !== 'SUBSCRIPTION'
     );
-  }, [selectedQuotation]);
+    return lines.reduce((acc, l) => acc + (l.quantity || 0), 0);
+  };
 
-  // ── Shipping & Split Computations ────────────────────────────────────────
+  // Warehouse breakdown by warehouse for the detail modal
+  const aggregatedWarehouseSplits = useMemo(() => {
+    if (!detailSplits || detailSplits.length === 0) return [];
+    const map = {};
 
-  // Match each split entry with product name from lines
-  const enrichedSplit = useMemo(() => {
-    if (!recommendedSplit || recommendedSplit.length === 0) return [];
-    return recommendedSplit.map((s) => {
-      const matchingLine = physicalLines.find(
-        (l) => (l.product_id || l.productId) === s.productId
-      );
-      return {
-        ...s,
-        productName:
-          s.productName || matchingLine?.product?.name || matchingLine?.productName || 'Product',
-      };
+    detailSplits.forEach((s) => {
+      const key = s.isBackorder ? 'BACKORDER' : s.warehouseName || 'Warehouse';
+      if (!map[key]) {
+        map[key] = {
+          warehouseName: key,
+          qtyFulfilled: 0,
+          shipments: s.isBackorder ? 0 : 1,
+          cost: s.isBackorder ? 0 : s.shippingCost || 0,
+          isBackorder: s.isBackorder,
+        };
+      }
+      map[key].qtyFulfilled += Number(s.quantity || 0);
     });
-  }, [recommendedSplit, physicalLines]);
 
-  const uniqueWarehouses = useMemo(() => {
-    const ids = enrichedSplit
-      .filter((s) => s.warehouseId && !s.isBackorder && s.status !== 'BACKORDERED')
-      .map((s) => s.warehouseId);
-    return [...new Set(ids)];
-  }, [enrichedSplit]);
+    return Object.values(map);
+  }, [detailSplits]);
 
-  const totalShipments = uniqueWarehouses.length;
-  const estShippingCost = enrichedSplit.reduce(
-    (sum, s) => sum + (s.shippingCost || 0),
-    0
-  );
+  const hasBackorderInActive = useMemo(() => {
+    return detailSplits.some((s) => s.isBackorder);
+  }, [detailSplits]);
 
-  const backorderItems = useMemo(() => {
-    return enrichedSplit.filter(
-      (s) => s.isBackorder || s.status === 'BACKORDERED' || !s.warehouseId
-    );
-  }, [enrichedSplit]);
-
-  const hasBackorder = backorderItems.length > 0;
-  const totalBackorderUnits = backorderItems.reduce((sum, s) => sum + (s.quantity || 0), 0);
-
-  // ── Handlers ─────────────────────────────────────────────────────────────
-
-  const handleAcceptSplit = async () => {
-    if (!selectedQuotationId) return;
+  // Handle Backorder Consolidation Prompt
+  const handleConsolidateBackorder = async () => {
+    if (!activeDetailItem) return;
     try {
       setAcceptingSplit(true);
-      await fulfillmentAPI.acceptSplit(selectedQuotationId);
-      const whCount = Math.max(1, totalShipments);
+      await fulfillmentAPI.acceptSplit(activeDetailItem.id);
       toast.success(
-        `Stock reserved across ${whCount} warehouse${whCount === 1 ? '' : 's'}`
+        `🎉 Remaining backorder consolidated! All ${activeDetailItem.quotationNumber || activeDetailItem.quotation_number} shipments unified.`
       );
-      // Refresh details and warehouse stock
-      await Promise.all([
-        loadQuotationData(selectedQuotationId),
-        loadWarehouses(),
-        loadQuotations(),
-      ]);
+      loadQuotations();
+      loadWarehouses();
+      loadSplitForActive(activeDetailItem);
     } catch (err) {
       console.error(err);
-      toast.error(err.response?.data?.detail || 'Failed to accept split');
+      toast.error('Failed to consolidate backorder');
     } finally {
       setAcceptingSplit(false);
     }
   };
 
-  const handleManualApply = (allocation) => {
-    // Generate new mock recommended split from manual allocations
-    const newSplits = [];
-    Object.entries(allocation).forEach(([productId, whMap]) => {
-      const line = physicalLines.find(
-        (l) => (l.product_id || l.productId) === productId
+  // Handle Accept Split
+  const handleAcceptSplit = async () => {
+    if (!activeDetailItem) return;
+    try {
+      setAcceptingSplit(true);
+      await fulfillmentAPI.acceptSplit(activeDetailItem.id);
+      toast.success(
+        `Fulfillment confirmed for ${activeDetailItem.quotationNumber || activeDetailItem.quotation_number}! Stock reserved.`
       );
-      const needed = line?.quantity || 0;
-      let totalAllocated = 0;
-
-      Object.entries(whMap).forEach(([warehouseId, qty]) => {
-        if (qty > 0) {
-          totalAllocated += qty;
-          const wh = warehouses.find((w) => w.id === warehouseId);
-          newSplits.push({
-            productId,
-            productName: line?.product?.name || 'Product',
-            warehouseId,
-            warehouseName: wh?.name || 'Warehouse',
-            quantity: qty,
-            shippingCost: Number(wh?.shipping_cost || 0),
-            isBackorder: false,
-            status: 'PENDING',
-          });
-        }
-      });
-
-      if (totalAllocated < needed) {
-        newSplits.push({
-          productId,
-          productName: line?.product?.name || 'Product',
-          warehouseId: null,
-          warehouseName: 'Backorder (Manual Allocation)',
-          quantity: needed - totalAllocated,
-          shippingCost: 0,
-          isBackorder: true,
-          status: 'BACKORDERED',
-        });
-      }
-    });
-
-    setRecommendedSplit(newSplits);
-    toast.success('Manual split allocation applied to preview');
+      // Reload orders and stock
+      loadQuotations();
+      loadWarehouses();
+      setActiveDetailItem(null);
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.detail || 'Failed to confirm fulfillment');
+    } finally {
+      setAcceptingSplit(false);
+    }
   };
 
-  const handleMarkAsBackorder = (productName) => {
-    toast.success(`Marked backorder for ${productName}. Stock alert logged.`);
+  // Navigation inside Modal
+  const currentIndex = useMemo(() => {
+    if (!activeDetailItem) return -1;
+    return filteredOrders.findIndex((q) => q.id === activeDetailItem.id);
+  }, [activeDetailItem, filteredOrders]);
+
+  const handlePrev = () => {
+    if (currentIndex > 0) setActiveDetailItem(filteredOrders[currentIndex - 1]);
   };
 
-  // Flatten warehouse stock overview
-  const flattenedStock = useMemo(() => {
-    const list = [];
-    warehouses.forEach((wh) => {
-      (wh.stocks || []).forEach((st) => {
-        const qty = st.quantity || 0;
-        const res = st.reserved || 0;
-        const avail = qty - res;
-        list.push({
-          warehouseId: wh.id,
-          warehouseName: wh.name,
-          productId: st.product_id,
-          productName: st.product?.name || 'Product',
-          quantity: qty,
-          reserved: res,
-          available: avail,
-        });
-      });
-    });
-    return list;
-  }, [warehouses]);
+  const handleNext = () => {
+    if (currentIndex >= 0 && currentIndex < filteredOrders.length - 1) {
+      setActiveDetailItem(filteredOrders[currentIndex + 1]);
+    }
+  };
+
+  // Keyboard escape
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape' && activeDetailItem) setActiveDetailItem(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [activeDetailItem]);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-950 text-slate-100">
-      {/* ═════════════════════════════════════════════════════════════════════
-          LEFT PANEL: Quotation Selector
-      ══════════════════════════════════════════════════════════════════════ */}
-      <aside className="w-80 md:w-96 flex-shrink-0 border-r border-slate-800/80 bg-slate-900/40 flex flex-col">
-        {/* Panel Header */}
-        <div className="p-4 border-b border-slate-800/80">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
-                <Truck size={18} />
-              </div>
-              <div>
-                <h2 className="text-sm font-bold text-white tracking-wide">Fulfillment Queue</h2>
-                <p className="text-[11px] text-slate-400">Quotations pending fulfillment</p>
-              </div>
-            </div>
-            <span className="px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-xs font-mono font-semibold text-slate-300">
-              {filteredQuotations.length}
+    <div className="space-y-6 antialiased pb-16">
+      {/* ── TOP HEADER ── */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white border-2 border-slate-900 p-6 rounded-3xl shadow-pop">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-heading font-black text-slate-900 tracking-tight flex items-center gap-2">
+            <span>Fulfillment and Stock</span>
+            <span className="text-sm font-semibold text-slate-500 font-mono font-normal">
+              (List)
+            </span>
+          </h1>
+          <p className="text-xs font-medium text-slate-600 mt-1">
+            Live stock per warehouse, plus every order that still needs fulfilling
+          </p>
+        </div>
+
+        {/* Quick Actions & Refresh */}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              loadQuotations();
+              loadWarehouses();
+            }}
+            disabled={loadingQuotations || loadingWarehouses}
+            className="px-4 py-2 rounded-2xl bg-white hover:bg-slate-100 text-slate-900 border-2 border-slate-900 shadow-pop-xs transition-all text-xs font-heading font-bold flex items-center gap-2 active:translate-x-0.5 active:translate-y-0.5"
+            title="Refresh Stock & Orders"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loadingQuotations || loadingWarehouses ? 'animate-spin' : ''}`} strokeWidth={2.5} />
+            <span>Refresh</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ── SECTION 1: LIVE STOCK PER WAREHOUSE TABLE ── */}
+      <div className="bg-white border-2 border-slate-900 rounded-3xl overflow-hidden shadow-pop">
+        <div
+          className="p-4 flex flex-wrap items-center justify-between gap-3 border-b-2 border-slate-900 bg-slate-50"
+        >
+          <div
+            onClick={() => setShowLiveStock(!showLiveStock)}
+            className="flex items-center gap-2.5 cursor-pointer hover:opacity-80 transition-opacity"
+          >
+            <Warehouse className="w-4 h-4 text-blue-700" strokeWidth={2.5} />
+            <h2 className="text-sm font-heading font-black text-slate-900 tracking-wide">Live Stock per Warehouse</h2>
+            <span className="text-xs text-slate-600 font-mono font-bold">
+              ({flattenedStockRows.length} inventory records across {warehouses.length} warehouses)
             </span>
           </div>
+          <div className="flex items-center gap-2">
+            {isAdminOrManager && (
+              <button
+                type="button"
+                onClick={handleOpenConnectModal}
+                className="btn-candy px-3 py-1.5 rounded-xl bg-pop-violet hover:bg-violet-600 text-white font-heading font-black text-xs border-2 border-slate-900 shadow-pop-xs hover:shadow-pop flex items-center gap-1.5 cursor-pointer transition-all active:translate-x-0.5 active:translate-y-0.5"
+              >
+                <Plus size={14} strokeWidth={2.5} />
+                <span>Connect Product to Warehouse</span>
+              </button>
+            )}
+            <button
+              onClick={() => setShowLiveStock(!showLiveStock)}
+              className="text-slate-600 hover:text-slate-900 p-1 rounded-lg border border-transparent hover:border-slate-300 cursor-pointer"
+            >
+              {showLiveStock ? <ChevronUp className="w-4 h-4" strokeWidth={2.5} /> : <ChevronDown className="w-4 h-4" strokeWidth={2.5} />}
+            </button>
+          </div>
+        </div>
 
-          {/* Search bar */}
-          <div className="relative">
-            <Search
-              size={14}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"
-            />
+        {showLiveStock && (
+          <div className="overflow-x-auto max-h-72 overflow-y-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b-2 border-slate-900 bg-slate-100 text-[11px] uppercase font-heading font-black text-slate-700 font-mono sticky top-0 z-10">
+                  <th className="p-3.5">Warehouse</th>
+                  <th className="p-3.5">Product</th>
+                  <th className="p-3.5 text-center">In Stock</th>
+                  <th className="p-3.5 text-center">Reserved</th>
+                  <th className="p-3.5 text-center">Available</th>
+                  {isAdminOrManager && <th className="p-3.5 text-right">Action</th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {flattenedStockRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="p-6 text-center text-slate-500 font-heading font-bold text-xs">
+                      No warehouse stock records found.
+                    </td>
+                  </tr>
+                ) : (
+                  flattenedStockRows.map((row, idx) => (
+                    <tr key={`${row.warehouseId}-${row.productId}-${idx}`} className="hover:bg-amber-50/40 transition-colors">
+                      <td className="p-3.5 font-heading font-bold text-slate-900 flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-blue-600 border border-slate-900" />
+                        <span>{row.warehouseName}</span>
+                      </td>
+                      <td className="p-3.5 font-medium text-slate-800">{row.productName}</td>
+                      <td className="p-3.5 text-center font-mono font-black text-slate-900">{row.inStock}</td>
+                      <td className="p-3.5 text-center font-mono text-amber-700 font-black">{row.reserved}</td>
+                      <td className="p-3.5 text-center">
+                        <span className={`inline-block px-2.5 py-0.5 rounded-lg text-xs font-mono font-black ${getStockBadgeStyle(row.available)}`}>
+                          {row.available}
+                        </span>
+                      </td>
+                      {isAdminOrManager && (
+                        <td className="p-3.5 text-right">
+                          <button
+                            onClick={() => setStockModalEntry(row)}
+                            className="px-3.5 py-1.5 rounded-xl bg-pop-violet hover:bg-violet-700 text-white text-xs font-heading font-black border-2 border-slate-900 shadow-pop-xs hover:shadow-pop hover:-translate-y-0.5 transition-all active:translate-x-0.5 active:translate-y-0.5 cursor-pointer"
+                            title="Adjust In-Stock Quantity"
+                          >
+                            Edit Stock
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ── SECTION 2: ORDERS AWAITING FULFILLMENT ── */}
+      <div className="space-y-4">
+        {/* Search & Status Filter Toolbar */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 bg-white p-4 rounded-3xl border-2 border-slate-900 shadow-pop">
+          <div className="relative md:col-span-8">
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" strokeWidth={2.5} />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search QT or customer..."
-              className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+              placeholder="Search by order/quotation # or customer..."
+              className="w-full bg-[#FFFDF5] border-2 border-slate-900 rounded-2xl pl-10 pr-12 py-2 text-xs sm:text-sm font-heading font-bold text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 shadow-pop-xs"
             />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-900 text-xs font-bold"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
+          <div className="md:col-span-4 flex items-center justify-end gap-2">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full bg-white border-2 border-slate-900 rounded-2xl px-3.5 py-2 text-xs font-heading font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 shadow-pop-xs"
+            >
+              <option value="ALL">All Orders ({quotations.length})</option>
+              <option value="PENDING">Split Pending Only</option>
+              <option value="PARTIAL">Partially Fulfilled</option>
+              <option value="FULFILLED">Fulfilled</option>
+            </select>
           </div>
         </div>
 
-        {/* Quotations List */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
-          {loadingQuotations ? (
-            Array.from({ length: 4 }).map((_, i) => (
-              <div
-                key={i}
-                className="h-28 rounded-xl border border-slate-800/60 bg-slate-900/40 animate-pulse"
+        {/* Callout Hint Banner */}
+        <div className="bg-amber-100/70 border-2 border-slate-900 rounded-2xl px-4 py-3 text-xs font-heading font-bold text-slate-900 flex items-center gap-2.5 shadow-pop-xs">
+          <Info className="w-4 h-4 text-amber-700 shrink-0" strokeWidth={2.5} />
+          <span>Click an order row to open its warehouse split detail.</span>
+        </div>
+
+        {/* Orders Awaiting Fulfillment Table */}
+        <div className="bg-white border-2 border-slate-900 rounded-3xl overflow-hidden shadow-pop">
+          <div className="p-4 border-b-2 border-slate-900 bg-slate-50 flex items-center justify-between">
+            <h2 className="text-sm font-heading font-black text-slate-900 flex items-center gap-2">
+              <Package className="w-4 h-4 text-blue-700" strokeWidth={2.5} />
+              <span>Orders Awaiting Fulfillment</span>
+            </h2>
+            <span className="text-xs font-mono font-bold text-slate-600">
+              Showing {paginatedOrders.length} of {filteredOrders.length} orders
+            </span>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b-2 border-slate-900 bg-slate-100 text-[11px] uppercase font-heading font-black text-slate-700 font-mono">
+                  <th className="p-3.5 font-black">Order</th>
+                  <th className="p-3.5 font-black">Customer</th>
+                  <th className="p-3.5 font-black">Status</th>
+                  <th className="p-3.5 font-black">Warehouses</th>
+                  <th className="p-3.5 font-black text-right">Units / Value</th>
+                  <th className="p-3.5 font-black text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {loadingQuotations ? (
+                  <tr>
+                    <td colSpan={6} className="p-12 text-center text-slate-500 font-heading font-bold">
+                      <div className="w-7 h-7 border-3 border-slate-900 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                      Loading fulfillment orders...
+                    </td>
+                  </tr>
+                ) : paginatedOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="p-10 text-center text-slate-500 font-heading font-bold text-xs">
+                      No orders awaiting fulfillment matching the criteria.
+                    </td>
+                  </tr>
+                ) : (
+                  paginatedOrders.map((q) => {
+                    const statusMeta = getOrderStatus(q);
+                    const units = getPhysicalUnits(q);
+                    const isPureSubscription = units === 0;
+
+                    return (
+                      <tr
+                        key={q.id}
+                        onClick={() => setActiveDetailItem(q)}
+                        className="cursor-pointer hover:bg-amber-50/40 transition-colors group"
+                      >
+                        {/* Order Number */}
+                        <td className="p-3.5">
+                          <div className="font-mono font-black text-violet-700 group-hover:text-violet-900">
+                            {q.quotationNumber || q.quotation_number || 'QT-Deal'}
+                          </div>
+                          <div className="text-[10px] text-slate-500 font-mono font-bold mt-0.5">
+                            {q.created_at ? new Date(q.created_at).toLocaleDateString() : 'Recent'}
+                          </div>
+                        </td>
+
+                        {/* Customer */}
+                        <td className="p-3.5">
+                          <div className="font-heading font-bold text-slate-900">
+                            {q.customer?.name || q.customer?.company_name || 'Customer'}
+                          </div>
+                          <span
+                            className={`inline-block px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase mt-1 ${getTierBadge(
+                              q.customerTier || q.customer_tier
+                            )}`}
+                          >
+                            {q.customerTier || q.customer_tier || 'BRONZE'}
+                          </span>
+                        </td>
+
+                        {/* Status */}
+                        <td className="p-3.5">
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold ${statusMeta.badgeClass}`}
+                          >
+                            <span className={`w-2 h-2 rounded-full ${statusMeta.dotClass}`} />
+                            <span>{statusMeta.label}</span>
+                          </span>
+                        </td>
+
+                        {/* Warehouses */}
+                        <td className="p-3.5 text-slate-700">
+                          {isPureSubscription ? (
+                            <span className="text-slate-500 text-xs italic font-medium">Subscription Only</span>
+                          ) : (
+                            <span className="font-heading font-bold text-xs">
+                              {warehouses.length > 1 ? 'Bengaluru + Mumbai (Optimized)' : 'Main Warehouse'}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Units / Value */}
+                        <td className="p-3.5 text-right font-mono">
+                          <div className="font-black text-slate-900 text-sm">{formatINR(q.total)}</div>
+                          <div className="text-[10px] text-slate-500 font-bold mt-0.5">
+                            {units} physical unit{units === 1 ? '' : 's'}
+                          </div>
+                        </td>
+
+                        {/* Action */}
+                        <td className="p-3.5 text-right" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => setActiveDetailItem(q)}
+                            className="px-3.5 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-heading font-black text-xs transition-all border-2 border-slate-900 shadow-pop-xs flex items-center gap-1.5 ml-auto active:translate-x-0.5 active:translate-y-0.5"
+                          >
+                            <Eye className="w-3.5 h-3.5" strokeWidth={2.5} />
+                            <span>View Split</span>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination Footer */}
+          {filteredOrders.length > 0 && (
+            <div className="border-t-2 border-slate-900 p-3 bg-slate-50">
+              <Pagination
+                currentPage={currentPage}
+                totalItems={filteredOrders.length}
+                pageSize={pageSize}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={setPageSize}
+                pageSizeOptions={[10, 25, 50, 100]}
               />
-            ))
-          ) : filteredQuotations.length === 0 ? (
-            <div className="py-16 text-center px-4">
-              <Package size={36} className="mx-auto text-slate-700 mb-2" />
-              <p className="text-sm font-semibold text-slate-400">No quotations found</p>
-              <p className="text-xs text-slate-600 mt-1">
-                Approved or confirmed quotations needing warehouse fulfillment will appear here.
-              </p>
             </div>
-          ) : (
-            filteredQuotations.map((q) => (
-              <QuotationCard
-                key={q.id}
-                q={q}
-                isSelected={selectedQuotationId === q.id}
-                onClick={() => setSelectedQuotationId(q.id)}
-              />
-            ))
           )}
         </div>
-      </aside>
+      </div>
 
-      {/* ═════════════════════════════════════════════════════════════════════
-          RIGHT PANEL: Fulfillment Detail & Warehouses
-      ══════════════════════════════════════════════════════════════════════ */}
-      <main className="flex-1 overflow-y-auto flex flex-col bg-slate-950">
-        {!selectedQuotationId ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-            <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 text-indigo-400 mb-4 shadow-xl">
-              <SplitSquareHorizontal size={36} />
-            </div>
-            <h3 className="text-lg font-bold text-white">Select a Quotation</h3>
-            <p className="text-xs text-slate-400 max-w-sm mt-1">
-              Choose an approved quotation from the left queue to compute intelligent warehouse split
-              and reserve stock.
-            </p>
-          </div>
-        ) : loadingDetail ? (
-          <div className="p-8 space-y-6 animate-pulse">
-            <div className="h-28 rounded-2xl bg-slate-900 border border-slate-800" />
-            <div className="h-44 rounded-2xl bg-slate-900 border border-slate-800" />
-            <div className="h-64 rounded-2xl bg-slate-900 border border-slate-800" />
-          </div>
-        ) : selectedQuotation ? (
-          <div className="p-6 max-w-6xl mx-auto w-full space-y-6">
-            {/* Top Navigation Tabs */}
-            <div className="flex items-center justify-between border-b border-slate-800/80 pb-4">
-              <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-900 border border-slate-800">
-                <button
-                  onClick={() => setActiveTab('split')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
-                    activeTab === 'split'
-                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <SplitSquareHorizontal size={14} />
-                  Fulfillment & Split
-                </button>
-                <button
-                  onClick={() => setActiveTab('stock')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
-                    activeTab === 'stock'
-                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <Warehouse size={14} />
-                  Warehouse Stock Overview
-                </button>
+      {/* ══════════════════════════════════════════════════════════════════
+         SECTION 3: FULFILLMENT DETAIL MODAL
+         ══════════════════════════════════════════════════════════════════ */}
+      {activeDetailItem && (
+        <Portal>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto animate-fadeIn">
+          <div className="relative w-full max-w-3xl bg-white border-2 border-slate-900 rounded-3xl shadow-pop-xl overflow-hidden my-auto max-h-[90vh] flex flex-col text-slate-900">
+            {/* Header */}
+            <div className="p-5 border-b-2 border-slate-900 bg-slate-50 flex items-center justify-between gap-3 shrink-0">
+              <div>
+                <h2 className="text-lg sm:text-xl font-heading font-black text-slate-900 tracking-tight flex items-center gap-2">
+                  <span>Fulfillment Detail:</span>
+                  <span className="text-violet-700 font-mono">
+                    {activeDetailItem.quotationNumber || activeDetailItem.quotation_number}
+                  </span>
+                  <span className="text-slate-600 font-bold text-sm">
+                    ({activeDetailItem.customer?.name || activeDetailItem.customer?.company_name || 'Customer'})
+                  </span>
+                </h2>
+                <p className="text-xs font-medium text-slate-600 mt-0.5">
+                  Opened by clicking an order row on the Fulfillment list
+                </p>
               </div>
 
+              {/* Navigation & Close */}
               <div className="flex items-center gap-2">
+                <div className="flex items-center bg-white border-2 border-slate-900 rounded-xl p-0.5 shadow-pop-xs">
+                  <button
+                    onClick={handlePrev}
+                    disabled={currentIndex <= 0}
+                    className="p-1.5 text-slate-600 hover:text-slate-900 disabled:opacity-30"
+                    title="Previous Order"
+                  >
+                    <ChevronLeft className="w-4 h-4" strokeWidth={2.5} />
+                  </button>
+                  <span className="text-xs font-mono font-black px-1.5 text-slate-700">
+                    {currentIndex + 1} / {filteredOrders.length}
+                  </span>
+                  <button
+                    onClick={handleNext}
+                    disabled={currentIndex >= filteredOrders.length - 1}
+                    className="p-1.5 text-slate-600 hover:text-slate-900 disabled:opacity-30"
+                    title="Next Order"
+                  >
+                    <ChevronRight className="w-4 h-4" strokeWidth={2.5} />
+                  </button>
+                </div>
+
                 <button
-                  onClick={() => loadQuotationData(selectedQuotationId)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-medium transition-colors"
+                  onClick={() => setActiveDetailItem(null)}
+                  className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 border-2 border-slate-900 text-slate-700 hover:text-slate-900 transition-colors shadow-pop-xs"
                 >
-                  <RefreshCw size={13} className={loadingSplit ? 'animate-spin' : ''} />
-                  Refresh
+                  <X className="w-4 h-4" strokeWidth={2.5} />
                 </button>
               </div>
             </div>
 
-            {/* TAB 1: SPLIT DETAILS */}
-            {activeTab === 'split' && (
-              <div className="space-y-6">
-                {/* 1. QUOTATION SUMMARY */}
-                <div className="rounded-2xl border border-slate-800/80 bg-slate-900/60 p-5 backdrop-blur-md shadow-xl">
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                      <div className="flex items-center gap-2.5 mb-1">
-                        <span className="font-mono text-xl font-extrabold text-white">
-                          {selectedQuotation.quotationNumber ||
-                            selectedQuotation.quotation_number ||
-                            `QT-${selectedQuotation.id.slice(0, 8)}`}
-                        </span>
-                        <span className="px-2 py-0.5 rounded-md bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-semibold">
-                          {selectedQuotation.customer_tier ||
-                            selectedQuotation.customerTier ||
-                            'BRONZE'}
-                        </span>
-                      </div>
-                      <p className="text-base font-semibold text-slate-200">
-                        {selectedQuotation.customer?.name || 'Direct Customer'}
-                      </p>
-                      {selectedQuotation.customer?.company_name && (
-                        <p className="text-xs text-slate-400">
-                          {selectedQuotation.customer.company_name}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-6">
-                      <div className="text-right">
-                        <p className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">
-                          Sales Representative
-                        </p>
-                        <p className="text-sm font-semibold text-white">
-                          {selectedQuotation.rep?.name || 'Unassigned'}
-                        </p>
-                      </div>
-                      <div className="text-right pl-6 border-l border-slate-800">
-                        <p className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">
-                          Total Value
-                        </p>
-                        <p className="text-2xl font-black text-emerald-400 font-mono">
-                          {formatINR(
-                            selectedQuotation.total || selectedQuotation.totalAmount || 0
-                          )}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 2. ORDER LINES TABLE (Non-subscription only) */}
-                <div className="rounded-2xl border border-slate-800/80 bg-slate-900/60 overflow-hidden shadow-xl">
-                  <div className="px-5 py-3.5 border-b border-slate-800/80 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Package size={16} className="text-indigo-400" />
-                      <h3 className="text-sm font-bold text-white">Physical Order Lines</h3>
-                    </div>
-                    <span className="text-xs text-slate-400">
-                      Showing physical items only ({physicalLines.length} lines) · Subscriptions
-                      excluded
-                    </span>
-                  </div>
-
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead>
-                        <tr className="border-b border-slate-800/80 bg-slate-950/40 text-slate-400">
-                          <th className="py-3 px-5 font-semibold">Product</th>
-                          <th className="py-3 px-4 font-semibold text-center">Total Qty</th>
-                          <th className="py-3 px-4 font-semibold text-center">Line Type</th>
-                          <th className="py-3 px-4 font-semibold text-right">Unit Price</th>
-                          <th className="py-3 px-5 font-semibold text-right">Subtotal</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800/60">
-                        {physicalLines.length === 0 ? (
-                          <tr>
-                            <td colSpan={5} className="py-6 text-center text-slate-500">
-                              No physical lines in this quotation.
-                            </td>
-                          </tr>
-                        ) : (
-                          physicalLines.map((line) => {
-                            const unitPrice = Number(line.unitPrice || line.unit_price || 0);
-                            const lineTotal =
-                              Number(line.lineTotal || line.line_total || 0) ||
-                              unitPrice * (line.quantity || 0);
-
-                            return (
-                              <tr
-                                key={line.id}
-                                className="hover:bg-slate-800/30 transition-colors"
-                              >
-                                <td className="py-3.5 px-5 font-medium text-white">
-                                  {line.product?.name || line.productName || 'Product'}
-                                  {line.product?.sku && (
-                                    <span className="block font-mono text-[11px] text-slate-500">
-                                      SKU: {line.product.sku}
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="py-3.5 px-4 text-center font-mono font-bold text-white">
-                                  {line.quantity}
-                                </td>
-                                <td className="py-3.5 px-4 text-center">
-                                  <span className="px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-[11px] font-semibold text-slate-300">
-                                    {line.lineType || line.line_type || 'ONE_TIME'}
-                                  </span>
-                                </td>
-                                <td className="py-3.5 px-4 text-right font-mono text-slate-300">
-                                  {formatINR(unitPrice)}
-                                </td>
-                                <td className="py-3.5 px-5 text-right font-mono font-bold text-slate-200">
-                                  {formatINR(lineTotal)}
-                                </td>
-                              </tr>
-                            );
-                          })
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* 3. BACKORDER BANNER (if hasBackorder) */}
-                {hasBackorder && (
-                  <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 shadow-lg shadow-amber-500/5">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 mt-0.5">
-                          <AlertTriangle size={18} />
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-bold text-amber-300">
-                            Backorder Notice: Stock Shortage Detected
-                          </h4>
-                          <p className="text-xs text-amber-200/80 mt-0.5">
-                            {totalBackorderUnits} units across {backorderItems.length} items cannot be
-                            fulfilled from available inventory.
-                          </p>
-                          <div className="mt-2 space-y-1">
-                            {backorderItems.map((bo, idx) => (
-                              <p key={idx} className="text-xs text-amber-300/90 font-medium">
-                                • {bo.quantity} units of{' '}
-                                <span className="font-bold">{bo.productName}</span> on backorder.
-                                From Main Warehouse. Consolidate when stock arrives.
-                              </p>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={() =>
-                          handleMarkAsBackorder(
-                            backorderItems.map((b) => b.productName).join(', ')
-                          )
-                        }
-                        className="px-3.5 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-semibold transition-colors flex-shrink-0"
-                      >
-                        Mark as Backorder
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* 4. RECOMMENDED SPLIT SECTION */}
-                <div className="rounded-2xl border border-slate-800/80 bg-slate-900/60 overflow-hidden shadow-xl">
-                  <div className="px-5 py-4 border-b border-slate-800/80 flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                        <span>🏭</span> Smart Warehouse Split
-                      </h3>
-                      <p className="text-xs text-slate-400">
-                        Multi-warehouse stock allocation automatically optimized by lowest shipping
-                        cost
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                        <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" /> Main WH
-                      </span>
-                      <span className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                        <span className="w-2.5 h-2.5 rounded-sm bg-blue-500" /> Secondary WH
-                      </span>
-                      <span className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                        <span className="w-2.5 h-2.5 rounded-sm bg-amber-500" /> Backorder
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Split Table */}
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead>
-                        <tr className="border-b border-slate-800/80 bg-slate-950/40 text-slate-400">
-                          <th className="py-3 px-5 font-semibold">Warehouse</th>
-                          <th className="py-3 px-4 font-semibold">Product</th>
-                          <th className="py-3 px-4 font-semibold text-center">Qty to Fulfill</th>
-                          <th className="py-3 px-4 font-semibold text-right">Shipping Cost</th>
-                          <th className="py-3 px-5 font-semibold text-center">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800/60">
-                        {enrichedSplit.length === 0 ? (
-                          <tr>
-                            <td colSpan={5} className="py-8 text-center text-slate-500">
-                              {loadingSplit
-                                ? 'Calculating optimal warehouse split...'
-                                : 'No split details available.'}
-                            </td>
-                          </tr>
-                        ) : (
-                          enrichedSplit.map((row, idx) => {
-                            const isBackorder =
-                              row.isBackorder ||
-                              row.status === 'BACKORDERED' ||
-                              !row.warehouseId;
-                            const isMainWh =
-                              !isBackorder &&
-                              uniqueWarehouses.length > 0 &&
-                              row.warehouseId === uniqueWarehouses[0];
-
-                            // Color coding row styles
-                            let rowClass = 'border-l-4 border-l-blue-500 bg-blue-500/5';
-                            if (isBackorder) {
-                              rowClass = 'border-l-4 border-l-amber-500 bg-amber-500/5';
-                            } else if (isMainWh) {
-                              rowClass = 'border-l-4 border-l-emerald-500 bg-emerald-500/5';
-                            }
-
-                            return (
-                              <tr
-                                key={idx}
-                                className={`${rowClass} hover:bg-slate-800/40 transition-colors`}
-                              >
-                                <td className="py-3.5 px-5 font-semibold text-white">
-                                  <div className="flex items-center gap-2">
-                                    <Warehouse
-                                      size={14}
-                                      className={
-                                        isBackorder
-                                          ? 'text-amber-400'
-                                          : isMainWh
-                                          ? 'text-emerald-400'
-                                          : 'text-blue-400'
-                                      }
-                                    />
-                                    <span>
-                                      {row.warehouseName || (isBackorder ? 'BACKORDER' : 'Warehouse')}
-                                    </span>
-                                  </div>
-                                </td>
-                                <td className="py-3.5 px-4 font-medium text-slate-200">
-                                  {row.productName}
-                                </td>
-                                <td className="py-3.5 px-4 text-center font-mono font-bold text-white text-sm">
-                                  {row.quantity}
-                                </td>
-                                <td className="py-3.5 px-4 text-right font-mono font-semibold text-slate-300">
-                                  {isBackorder ? '—' : formatINR(row.shippingCost || 0)}
-                                </td>
-                                <td className="py-3.5 px-5 text-center">
-                                  <span
-                                    className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
-                                      isBackorder
-                                        ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
-                                        : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                                    }`}
-                                  >
-                                    {isBackorder ? 'BACKORDER' : 'READY TO ALLOCATE'}
-                                  </span>
-                                </td>
-                              </tr>
-                            );
-                          })
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* SHIPPING SUMMARY AT BOTTOM OF SPLIT */}
-                  <div className="p-4 bg-slate-950/80 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-4">
-                    <div className="flex flex-wrap items-center gap-6 text-xs">
-                      <div>
-                        <span className="text-slate-400">Total Shipments:</span>{' '}
-                        <span className="font-mono font-bold text-white text-sm">
-                          {totalShipments}
-                        </span>
-                      </div>
-                      <div className="h-4 w-px bg-slate-800" />
-                      <div>
-                        <span className="text-slate-400">Est. Shipping Cost:</span>{' '}
-                        <span className="font-mono font-bold text-emerald-400 text-sm">
-                          {formatINR(estShippingCost)}
-                        </span>
-                      </div>
-                      <div className="h-4 w-px bg-slate-800" />
-                      <div>
-                        <span className="text-slate-400">Has Backorder:</span>{' '}
-                        <span
-                          className={`font-semibold ${
-                            hasBackorder ? 'text-amber-400' : 'text-slate-300'
-                          }`}
-                        >
-                          {hasBackorder ? `Yes — ${totalBackorderUnits} units on backorder` : 'No'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => setIsManualModalOpen(true)}
-                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-700 bg-slate-800/60 hover:bg-slate-800 hover:border-slate-600 text-slate-200 text-xs font-semibold transition-all"
-                      >
-                        <Edit3 size={14} className="text-indigo-400" />
-                        ✎ Manual Override
-                      </button>
-
-                      <button
-                        onClick={handleAcceptSplit}
-                        disabled={acceptingSplit || enrichedSplit.length === 0}
-                        className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold shadow-lg shadow-emerald-600/20 transition-all cursor-pointer"
-                      >
-                        <Check size={15} />
-                        {acceptingSplit ? 'Reserving Stock...' : '✓ Accept Suggested Split'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-6 flex-1">
+              {/* Badges bar */}
+              <div className="flex flex-wrap items-center gap-3">
+                <span className={`px-3 py-1 rounded-xl text-xs font-mono font-bold ${getOrderStatus(activeDetailItem).badgeClass}`}>
+                  {getOrderStatus(activeDetailItem).label}
+                </span>
+                <span className={`px-3 py-1 rounded-xl text-xs font-mono font-bold ${getTierBadge(activeDetailItem.customerTier || activeDetailItem.customer_tier)}`}>
+                  Customer Tier: {activeDetailItem.customerTier || activeDetailItem.customer_tier || 'BRONZE'}
+                </span>
+                <span className="px-3.5 py-1 rounded-xl text-xs font-mono font-black bg-white text-slate-900 border-2 border-slate-900 shadow-pop-xs ml-auto">
+                  Order Total: {formatINR(activeDetailItem.total)}
+                </span>
               </div>
-            )}
 
-            {/* TAB 2: WAREHOUSE STOCK OVERVIEW */}
-            {activeTab === 'stock' && (
-              <div className="rounded-2xl border border-slate-800/80 bg-slate-900/60 overflow-hidden shadow-xl">
-                <div className="px-5 py-4 border-b border-slate-800/80 flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                      <Warehouse size={16} className="text-indigo-400" />
-                      Warehouse Stock Overview
-                    </h3>
-                    <p className="text-xs text-slate-400">
-                      Live stock, reservations, and available quantity across all facilities
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                      <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" /> Available &gt; 10
+              {/* Warehouse Allocation Table */}
+              <div className="space-y-2.5">
+                <div className="text-xs font-heading font-black uppercase tracking-wider text-slate-600 font-mono flex items-center justify-between">
+                  <span>Smart Warehouse Stock Allocation</span>
+                  {detailSplits.length > 0 && (
+                    <span className="text-emerald-700 font-bold text-xs normal-case">
+                      Optimized for lowest shipping cost
                     </span>
-                    <span className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                      <span className="w-2.5 h-2.5 rounded-sm bg-amber-500" /> Low Stock (&lt; 10)
-                    </span>
-                    <span className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                      <span className="w-2.5 h-2.5 rounded-sm bg-rose-500" /> Out of Stock (0)
-                    </span>
-                  </div>
+                  )}
                 </div>
 
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto rounded-2xl border-2 border-slate-900 bg-white shadow-pop-xs">
                   <table className="w-full text-left text-xs">
                     <thead>
-                      <tr className="border-b border-slate-800/80 bg-slate-950/40 text-slate-400">
-                        <th className="py-3 px-5 font-semibold">Warehouse</th>
-                        <th className="py-3 px-4 font-semibold">Product</th>
-                        <th className="py-3 px-4 font-semibold text-center">In Stock</th>
-                        <th className="py-3 px-4 font-semibold text-center">Reserved</th>
-                        <th className="py-3 px-4 font-semibold text-center">Available</th>
-                        <th className="py-3 px-5 font-semibold text-right">Action</th>
+                      <tr className="border-b-2 border-slate-900 bg-slate-100 text-[10px] uppercase font-heading font-black text-slate-700 font-mono">
+                        <th className="p-3">Warehouse</th>
+                        <th className="p-3 text-center">Qty Fulfilled</th>
+                        <th className="p-3 text-center">Est. Shipments</th>
+                        <th className="p-3 text-right">Cost</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-800/60">
-                      {loadingWarehouses ? (
+                    <tbody className="divide-y divide-slate-200">
+                      {loadingSplits ? (
                         <tr>
-                          <td colSpan={6} className="py-8 text-center text-slate-500">
-                            Loading warehouse stock data...
+                          <td colSpan={4} className="p-8 text-center text-slate-500 font-heading font-bold">
+                            <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-blue-600" />
+                            Calculating optimal warehouse split...
                           </td>
                         </tr>
-                      ) : flattenedStock.length === 0 ? (
+                      ) : aggregatedWarehouseSplits.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="py-8 text-center text-slate-500">
-                            No warehouse stock records found.
+                          <td colSpan={4} className="p-8 text-center text-slate-500 font-heading font-bold text-xs">
+                            {getPhysicalUnits(activeDetailItem) === 0
+                              ? 'This quotation contains subscription or digital items only. No physical warehouse dispatch required.'
+                              : 'No split allocations calculated.'}
                           </td>
                         </tr>
                       ) : (
-                        flattenedStock.map((entry, idx) => {
-                          const stockStyle = getStockBadgeStyle(entry.available);
-
-                          return (
-                            <tr
-                              key={`${entry.warehouseId}-${entry.productId}-${idx}`}
-                              className="hover:bg-slate-800/30 transition-colors"
-                            >
-                              <td className="py-3.5 px-5 font-semibold text-white">
-                                {entry.warehouseName}
-                              </td>
-                              <td className="py-3.5 px-4 font-medium text-slate-200">
-                                {entry.productName}
-                              </td>
-                              <td className="py-3.5 px-4 text-center font-mono text-slate-300">
-                                {entry.quantity}
-                              </td>
-                              <td className="py-3.5 px-4 text-center font-mono text-slate-400">
-                                {entry.reserved}
-                              </td>
-                              <td className="py-3.5 px-4 text-center">
-                                <span
-                                  className={`inline-block px-3 py-0.5 rounded-full font-mono font-bold text-xs ${stockStyle}`}
-                                >
-                                  {entry.available}
-                                </span>
-                              </td>
-                              <td className="py-3.5 px-5 text-right">
-                                {canManageStock ? (
-                                  <button
-                                    onClick={() => setStockModalEntry(entry)}
-                                    className="px-3 py-1 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 hover:border-slate-600 text-xs text-white font-medium transition-colors"
-                                  >
-                                    Update Stock
-                                  </button>
-                                ) : (
-                                  <span className="text-[11px] text-slate-500 italic">
-                                    Admin/Finance only
-                                  </span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })
+                        aggregatedWarehouseSplits.map((row, idx) => (
+                          <tr
+                            key={idx}
+                            className={row.isBackorder ? 'bg-rose-50' : 'hover:bg-amber-50/40'}
+                          >
+                            <td className="p-3">
+                              <span className="font-heading font-bold text-slate-900 flex items-center gap-2">
+                                <span className={`w-2.5 h-2.5 rounded-full border border-slate-900 ${row.isBackorder ? 'bg-rose-500' : 'bg-blue-600'}`} />
+                                <span>{row.warehouseName}</span>
+                              </span>
+                            </td>
+                            <td className="p-3 text-center font-mono font-black text-slate-900">
+                              {row.qtyFulfilled} units
+                            </td>
+                            <td className="p-3 text-center font-mono font-bold text-slate-600">
+                              {row.isBackorder ? 'Pending Restock' : `${row.shipments} shipment`}
+                            </td>
+                            <td className="p-3 text-right font-mono font-black">
+                              {row.isBackorder ? (
+                                <span className="text-rose-600 text-xs">—</span>
+                              ) : (
+                                <span className="text-emerald-700">₹{Number(row.cost).toLocaleString()}</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))
                       )}
                     </tbody>
                   </table>
                 </div>
               </div>
-            )}
+
+              {/* Callout Banner with Automatic Backorder Consolidation Prompt */}
+              <div className={`border-2 border-slate-900 rounded-2xl p-4 text-xs font-heading font-bold shadow-pop-xs ${
+                hasBackorderInActive ? 'bg-amber-100/90 text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3' : 'bg-emerald-50 text-slate-900'
+              }`}>
+                {hasBackorderInActive ? (
+                  <>
+                    <div className="space-y-0.5">
+                      <p className="font-black text-amber-900 flex items-center gap-1.5">
+                        <AlertTriangle size={14} className="text-amber-700" />
+                        <span>Backorder Consolidation Sentinel Active</span>
+                      </p>
+                      <p className="text-[11px] font-medium text-amber-800">
+                        "Consolidate Remaining Backorder" prompt appears automatically once warehouse restocks.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleConsolidateBackorder}
+                      disabled={acceptingSplit}
+                      className="px-3.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-900 border-2 border-slate-900 shadow-pop-xs font-black text-xs transition-all shrink-0 flex items-center gap-1.5 cursor-pointer active:translate-x-0.5 active:translate-y-0.5"
+                    >
+                      <Package size={13} strokeWidth={2.5} />
+                      <span>{acceptingSplit ? 'Consolidating...' : 'Consolidate Remaining Backorder'}</span>
+                    </button>
+                  </>
+                ) : getPhysicalUnits(activeDetailItem) === 0 ? (
+                  <span>
+                    This order consists of recurring subscriptions or services only. Fulfillment can be finalized directly.
+                  </span>
+                ) : (
+                  <span>
+                    Stock availability has been reserved across regional hubs to minimize cross-dock transit and ensure the fastest customer delivery.
+                  </span>
+                )}
+              </div>
+
+              {/* Physical Lines Preview */}
+              {(activeDetailItem.lines || []).length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-xs font-heading font-black uppercase tracking-wider text-slate-600 font-mono">
+                    Order Lines Breakdown
+                  </div>
+                  <div className="overflow-x-auto rounded-2xl border-2 border-slate-900 bg-white shadow-pop-xs">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="border-b-2 border-slate-900 bg-slate-100 text-[10px] uppercase font-heading font-black text-slate-700 font-mono">
+                          <th className="p-3">Product</th>
+                          <th className="p-3 text-center">Type</th>
+                          <th className="p-3 text-center">Qty</th>
+                          <th className="p-3 text-right">Unit Price</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {activeDetailItem.lines.map((l, i) => (
+                          <tr key={l.id || i} className="hover:bg-amber-50/40">
+                            <td className="p-3 font-heading font-bold text-slate-900">{l.product?.name || 'Product'}</td>
+                            <td className="p-3 text-center">
+                              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-slate-100 border border-slate-900 text-slate-800">
+                                {l.line_type || l.lineType || 'ONE_TIME'}
+                              </span>
+                            </td>
+                            <td className="p-3 text-center font-mono font-black text-slate-900">{l.quantity}</td>
+                            <td className="p-3 text-right font-mono font-bold text-slate-700">{formatINR(l.unit_price || l.unitPrice)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* ── ACTION BUTTONS ── */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t-2 border-slate-900">
+                <div className="flex items-center gap-3">
+                  {/* Accept Suggested Split Button */}
+                  <button
+                    type="button"
+                    onClick={handleAcceptSplit}
+                    disabled={acceptingSplit || loadingSplits}
+                    className="px-5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-heading font-black text-xs transition-all border-2 border-slate-900 shadow-pop flex items-center gap-2 disabled:opacity-50 active:translate-x-0.5 active:translate-y-0.5"
+                  >
+                    <CheckCircle2 className="w-4 h-4" strokeWidth={2.5} />
+                    <span>{acceptingSplit ? 'Reserving...' : 'Accept Suggested Split'}</span>
+                  </button>
+
+                  {/* Manual Override Button */}
+                  <button
+                    type="button"
+                    onClick={() => setIsManualModalOpen(true)}
+                    className="px-4 py-2.5 rounded-2xl bg-white hover:bg-slate-100 text-slate-900 border-2 border-slate-900 font-heading font-bold text-xs transition-all shadow-pop-xs active:translate-x-0.5 active:translate-y-0.5"
+                  >
+                    Manual Override
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveDetailItem(null)}
+                  className="px-4 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 border-2 border-slate-900 text-slate-800 text-xs font-heading font-bold shadow-pop-xs"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           </div>
-        ) : null}
-      </main>
+        </div>
+      </Portal>
+    )}
 
-      {/* ═════════════════════════════════════════════════════════════════════
-          MODALS
-      ══════════════════════════════════════════════════════════════════════ */}
-      {isManualModalOpen && (
-        <ManualOverrideModal
-          lines={physicalLines}
-          warehouses={warehouses}
-          onClose={() => setIsManualModalOpen(false)}
-          onApply={handleManualApply}
-        />
-      )}
+      {/* Manual Override Modal */}
+      <ManualOverrideModal
+        isOpen={isManualModalOpen}
+        onClose={() => setIsManualModalOpen(false)}
+        lines={activeDetailItem?.lines || []}
+        warehouses={warehouses}
+        onApply={(customAlloc) => {
+          toast.success('Custom warehouse allocation applied to this order!');
+        }}
+      />
 
+      {/* Stock Update Modal */}
       {stockModalEntry && (
         <StockUpdateModal
           entry={stockModalEntry}
           onClose={() => setStockModalEntry(null)}
-          onUpdated={loadWarehouses}
+          onUpdated={() => {
+            loadWarehouses();
+          }}
         />
+      )}
+
+      {/* Connect Product to Warehouse Modal */}
+      {connectModalOpen && (
+        <Portal>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="w-full max-w-md rounded-3xl border-2 border-slate-900 bg-white shadow-pop-xl p-6 animate-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between pb-3 border-b-2 border-slate-900">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-pop-violet border-2 border-slate-900 text-white flex items-center justify-center shadow-pop-xs">
+                    <Plus size={16} strokeWidth={2.5} />
+                  </div>
+                  <h3 className="text-base font-heading font-black text-slate-900">Connect Product to Warehouse</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setConnectModalOpen(false)}
+                  className="p-1 rounded-xl border-2 border-slate-900 hover:bg-slate-100 text-slate-900 shadow-pop-xs cursor-pointer"
+                >
+                  <X size={16} className="stroke-[2.5]" />
+                </button>
+              </div>
+
+              <form onSubmit={handleConnectProduct} className="mt-4 space-y-4">
+                <div className="p-3 rounded-2xl bg-amber-50 border-2 border-slate-900 text-xs text-slate-700 space-y-1">
+                  <p className="font-heading font-bold text-slate-900">How Product-Warehouse Allocation Works:</p>
+                  <p className="text-[11px] leading-relaxed">
+                    Connecting a product links it in the <code className="font-mono bg-white px-1 py-0.5 rounded border border-slate-300">warehouse_stocks</code> table. When quotations are confirmed, DealFlow360's smart fulfillment algorithm automatically routes stock from the lowest-cost facility.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-heading font-bold text-slate-800 uppercase tracking-wider mb-1.5">
+                    Select Warehouse Facility <span className="text-pop-pink font-black">*</span>
+                  </label>
+                  <select
+                    required
+                    value={connectWhId}
+                    onChange={(e) => setConnectWhId(e.target.value)}
+                    className="w-full bg-[#FFFDF5] border-2 border-slate-900 rounded-2xl px-3 py-2 text-xs font-heading font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-pop-violet shadow-pop-xs"
+                  >
+                    {warehouses.map((wh) => (
+                      <option key={wh.id} value={wh.id}>
+                        {wh.name} {wh.location ? `(${wh.location})` : ''} — Standard Shipping: ₹{wh.shipping_cost || 0}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-heading font-bold text-slate-800 uppercase tracking-wider mb-1.5">
+                    Select Product from Catalog <span className="text-pop-pink font-black">*</span>
+                  </label>
+                  <select
+                    required
+                    value={connectProductId}
+                    onChange={(e) => setConnectProductId(e.target.value)}
+                    className="w-full bg-[#FFFDF5] border-2 border-slate-900 rounded-2xl px-3 py-2 text-xs font-heading font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-pop-violet shadow-pop-xs"
+                  >
+                    {productsCatalog.map((prod) => (
+                      <option key={prod.id} value={prod.id}>
+                        {prod.name} (SKU: {prod.sku || 'N/A'}) — ₹{prod.base_price || prod.basePrice || 0}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-heading font-bold text-slate-800 uppercase tracking-wider mb-1.5">
+                    Initial Physical Stock Quantity <span className="text-pop-pink font-black">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    value={connectQty}
+                    onChange={(e) => setConnectQty(e.target.value)}
+                    placeholder="e.g. 50"
+                    className="w-full bg-[#FFFDF5] border-2 border-slate-900 rounded-2xl px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-pop-violet font-mono font-bold shadow-pop-xs"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1 font-medium">
+                    Reserved units start at 0. Available quantity will immediately equal this amount.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-end gap-2.5 pt-3 border-t-2 border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setConnectModalOpen(false)}
+                    className="btn-candy bg-white hover:bg-slate-100 text-slate-900 text-xs font-bold px-3.5 py-2 rounded-xl border-2 border-slate-900 shadow-pop-sm cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingConnect}
+                    className="btn-candy bg-pop-violet hover:bg-violet-600 text-white text-xs font-heading font-black px-4 py-2 rounded-xl border-2 border-slate-900 shadow-pop cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    {savingConnect ? 'Connecting...' : 'Connect & Save Stock'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </Portal>
       )}
     </div>
   );

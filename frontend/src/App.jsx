@@ -28,6 +28,8 @@ import ApprovalQueue from './pages/workspace/ApprovalQueue';
 import FulfillmentPage from './pages/workspace/Fulfillment';
 import SubscriptionsPage from './pages/workspace/Subscriptions';
 import InvoicesPage from './pages/workspace/Invoices';
+import DealHealthPage from './pages/workspace/DealHealth';
+import ReportsPage from './pages/workspace/Reports';
 
 // Customer Portal
 import CustomerPortal from './pages/portal/CustomerPortal';
@@ -126,6 +128,8 @@ export default function App() {
             <Route path="fulfillment" element={<FulfillmentPage />} />
             <Route path="subscriptions" element={<SubscriptionsPage />} />
             <Route path="invoices" element={<InvoicesPage />} />
+            <Route path="deal-health" element={<DealHealthPage />} />
+            <Route path="reports" element={<ReportsPage />} />
           </Route>
 
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

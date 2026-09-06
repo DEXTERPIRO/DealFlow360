@@ -6,29 +6,24 @@ import {
   Shield,
   KeyRound,
   CheckCircle2,
-  XCircle,
   Copy,
   ExternalLink,
-  Eye,
   Search,
   RefreshCw,
   Mail,
   Building,
-  Lock,
-  Sparkles,
+  Edit3,
+  ShieldCheck,
+  X,
   ToggleLeft,
   ToggleRight,
-  Send,
-  AlertCircle,
   FileText,
-  Database,
-  Edit3,
-  ShieldCheck
 } from 'lucide-react';
 import { usersAPI } from '../../api';
 import { useAuthStore } from '../../store/authStore';
 import toast from 'react-hot-toast';
 import Pagination from '../../components/ui/Pagination';
+import Portal from '../../components/ui/Portal';
 
 export default function UsersPage() {
   const navigate = useNavigate();
@@ -42,7 +37,7 @@ export default function UsersPage() {
   // Pagination
   const [internalPage, setInternalPage] = useState(1);
   const [customerPage, setCustomerPage] = useState(1);
-  const [pageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(20);
 
   // Add User State
   const [showAddModal, setShowAddModal] = useState(false);
@@ -105,9 +100,11 @@ export default function UsersPage() {
   const loadUsers = async (q = searchQuery, role = roleFilter) => {
     setLoading(true);
     try {
+      const searchStr = typeof q === 'string' ? q : (typeof searchQuery === 'string' ? searchQuery : '');
+      const roleStr = typeof role === 'string' ? role : (typeof roleFilter === 'string' ? roleFilter : 'ALL');
       const params = {};
-      if (q && q.trim()) params.search = q.trim();
-      if (role && role !== 'ALL') params.role = role;
+      if (searchStr.trim()) params.search = searchStr.trim();
+      if (roleStr !== 'ALL') params.role = roleStr;
       const res = await usersAPI.getAll(params);
       setUsers(Array.isArray(res) ? res : []);
     } catch (err) {
@@ -129,32 +126,32 @@ export default function UsersPage() {
     switch (role) {
       case 'ADMIN':
         return {
-          bg: 'bg-rose-500/15 text-rose-400 border-rose-500/30',
+          bg: 'bg-rose-100 text-rose-800 border-2 border-slate-900 shadow-pop-xs',
           label: 'Admin',
         };
       case 'SALES_REP':
         return {
-          bg: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
+          bg: 'bg-blue-100 text-blue-800 border-2 border-slate-900 shadow-pop-xs',
           label: 'Sales Rep',
         };
       case 'SALES_MANAGER':
         return {
-          bg: 'bg-purple-500/15 text-purple-400 border-purple-500/30',
+          bg: 'bg-purple-100 text-purple-800 border-2 border-slate-900 shadow-pop-xs',
           label: 'Sales Manager',
         };
       case 'FINANCE':
         return {
-          bg: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+          bg: 'bg-emerald-100 text-emerald-800 border-2 border-slate-900 shadow-pop-xs',
           label: 'Finance',
         };
       case 'CUSTOMER':
         return {
-          bg: 'bg-slate-500/15 text-slate-300 border-slate-500/30',
+          bg: 'bg-slate-100 text-slate-800 border-2 border-slate-900 shadow-pop-xs',
           label: 'Customer',
         };
       default:
         return {
-          bg: 'bg-slate-500/15 text-slate-400 border-slate-500/30',
+          bg: 'bg-slate-100 text-slate-700 border-2 border-slate-900 shadow-pop-xs',
           label: role || 'Unknown',
         };
     }
@@ -163,9 +160,9 @@ export default function UsersPage() {
   // Tier Badge Styling
   const getTierBadge = (tier) => {
     const t = (tier || 'BRONZE').toUpperCase();
-    if (t === 'GOLD') return 'bg-amber-500/20 text-amber-300 border-amber-500/40';
-    if (t === 'SILVER') return 'bg-slate-300/20 text-slate-200 border-slate-300/40';
-    return 'bg-orange-600/20 text-orange-300 border-orange-500/40';
+    if (t === 'GOLD') return 'bg-amber-100 text-amber-900 border-2 border-slate-900 shadow-pop-xs';
+    if (t === 'SILVER') return 'bg-slate-100 text-slate-800 border-2 border-slate-900 shadow-pop-xs';
+    return 'bg-orange-100 text-orange-900 border-2 border-slate-900 shadow-pop-xs';
   };
 
   // Toggle Active/Inactive
@@ -203,7 +200,7 @@ export default function UsersPage() {
     setSubmittingAdd(true);
     try {
       await usersAPI.create(addForm);
-      toast.success(`User ${addForm.name} created successfully!`, { icon: '🎉' });
+      toast.success(`User ${addForm.name} created successfully!`);
       setShowAddModal(false);
       setAddForm({
         name: '',
@@ -253,11 +250,10 @@ export default function UsersPage() {
 
   // Copy Portal Link
   const copyPortalLink = (user) => {
-    // Generate portal url or magic link
     const token = user.magic_link_token || user.id;
     const url = `${window.location.origin}/portal/${token}`;
     navigator.clipboard.writeText(url);
-    toast.success('Customer Portal URL copied to clipboard!', { icon: '🔗' });
+    toast.success('Customer Portal URL copied to clipboard!');
   };
 
   // Internal Users vs Customer Users
@@ -269,19 +265,14 @@ export default function UsersPage() {
     return users.filter((u) => u.role === 'CUSTOMER');
   }, [users]);
 
-  // Filtered internal users from PostgreSQL database
-  const filteredInternalUsers = useMemo(() => {
-    return internalUsers;
-  }, [internalUsers]);
-
   // Reset page on filter change
   useEffect(() => { setInternalPage(1); }, [roleFilter, searchQuery]);
 
   // Paged slices
   const pagedInternalUsers = useMemo(() => {
     const start = (internalPage - 1) * pageSize;
-    return filteredInternalUsers.slice(start, start + pageSize);
-  }, [filteredInternalUsers, internalPage, pageSize]);
+    return internalUsers.slice(start, start + pageSize);
+  }, [internalUsers, internalPage, pageSize]);
 
   const pagedCustomerUsers = useMemo(() => {
     const start = (customerPage - 1) * pageSize;
@@ -289,35 +280,35 @@ export default function UsersPage() {
   }, [customerUsers, customerPage, pageSize]);
 
   return (
-    <div className="space-y-8 pb-12">
+    <div className="space-y-8 pb-12 antialiased">
       {/* ── HEADER & ACTIONS ────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/60 p-5 rounded-2xl border border-slate-800">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl border-2 border-slate-900 shadow-pop">
         <div>
-          <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
-            <UsersIcon className="w-6 h-6 text-blue-400" />
+          <h1 className="text-xl sm:text-2xl font-heading font-black text-slate-900 tracking-tight flex items-center gap-2.5">
+            <UsersIcon className="w-6 h-6 text-blue-700" strokeWidth={2.5} />
             User Management
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs font-medium text-slate-600 mt-1">
             Manage enterprise team members, roles, governance access, and customer portal accounts
           </p>
         </div>
 
         <div className="flex items-center gap-3">
           <button
-            onClick={loadUsers}
+            onClick={() => loadUsers()}
             disabled={loading}
-            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-all disabled:opacity-50"
+            className="p-2.5 rounded-2xl bg-white hover:bg-slate-100 text-slate-900 border-2 border-slate-900 shadow-pop-xs transition-all disabled:opacity-50 active:translate-x-0.5 active:translate-y-0.5"
             title="Refresh"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} strokeWidth={2.5} />
           </button>
 
           <button
             onClick={() => setShowAddModal(true)}
-            className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-lg shadow-blue-600/25 transition-all"
+            className="px-4 py-2.5 rounded-2xl bg-pop-violet hover:bg-violet-700 text-white font-heading font-black text-xs sm:text-sm flex items-center gap-2 border-2 border-slate-900 shadow-pop-xs hover:shadow-pop hover:-translate-y-0.5 transition-all active:translate-x-0.5 active:translate-y-0.5 cursor-pointer"
           >
-            <UserPlus className="w-4 h-4" />
-            <span>+ Add New User</span>
+            <UserPlus className="w-4 h-4" strokeWidth={2.5} />
+            <span>Add New User</span>
           </button>
         </div>
       </div>
@@ -325,24 +316,24 @@ export default function UsersPage() {
       {/* ── SECTION 1: INTERNAL USERS TABLE ─────────────────────────── */}
       <div className="space-y-4">
         {/* Filters */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/40 p-3 rounded-xl border border-slate-800">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 rounded-3xl border-2 border-slate-900 shadow-pop">
           <div className="relative flex-1 max-w-md">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" strokeWidth={2.5} />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search team members by name or email..."
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+              className="w-full bg-[#FFFDF5] border-2 border-slate-900 rounded-2xl pl-10 pr-4 py-2 text-xs font-heading font-bold text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 shadow-pop-xs"
             />
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-400">Role:</span>
+            <span className="text-xs font-heading font-bold text-slate-700">Role:</span>
             <select
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
-              className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
+              className="bg-white border-2 border-slate-900 rounded-2xl px-3.5 py-2 text-xs font-heading font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 shadow-pop-xs"
             >
               <option value="ALL">All Internal Roles</option>
               <option value="ADMIN">Admin</option>
@@ -354,30 +345,30 @@ export default function UsersPage() {
         </div>
 
         {/* Table */}
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+        <div className="bg-white border-2 border-slate-900 rounded-3xl overflow-hidden shadow-pop">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-950/80 border-b border-slate-800 text-[11px] font-mono text-slate-400 uppercase tracking-wider">
+              <thead className="bg-slate-100 border-b-2 border-slate-900 text-[11px] font-mono font-black text-slate-700 uppercase tracking-wider">
                 <tr>
-                  <th className="py-3 px-4">Name</th>
-                  <th className="py-3 px-4">Email</th>
-                  <th className="py-3 px-4 text-center">Role</th>
-                  <th className="py-3 px-4 text-center">Status</th>
-                  <th className="py-3 px-4 text-center">Created</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
+                  <th className="py-3.5 px-4 font-black">Name</th>
+                  <th className="py-3.5 px-4 font-black">Email</th>
+                  <th className="py-3.5 px-4 text-center font-black">Role</th>
+                  <th className="py-3.5 px-4 text-center font-black">Status</th>
+                  <th className="py-3.5 px-4 text-center font-black">Created</th>
+                  <th className="py-3.5 px-4 text-right font-black">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60">
+              <tbody className="divide-y divide-slate-200">
                 {loading ? (
                   <tr>
-                    <td colSpan="6" className="py-12 text-center text-slate-500">
-                      <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-blue-500" />
+                    <td colSpan="6" className="py-12 text-center text-slate-500 font-heading font-bold">
+                      <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-blue-600" />
                       Loading users...
                     </td>
                   </tr>
-                ) : filteredInternalUsers.length === 0 ? (
+                ) : pagedInternalUsers.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="py-10 text-center text-slate-400">
+                    <td colSpan="6" className="py-10 text-center text-slate-500 font-heading font-bold text-xs">
                       No internal team members found matching your search.
                     </td>
                   </tr>
@@ -389,20 +380,20 @@ export default function UsersPage() {
                     return (
                       <tr
                         key={u.id}
-                        className="group hover:bg-slate-800/50 transition-colors"
+                        className="group hover:bg-amber-50/40 transition-colors"
                       >
                         {/* Name */}
-                        <td className="py-3 px-4">
+                        <td className="py-3.5 px-4">
                           <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-xs flex items-center justify-center shrink-0 shadow-sm">
+                            <div className="w-8 h-8 rounded-xl bg-violet-600 text-white font-heading font-black text-xs flex items-center justify-center shrink-0 border-2 border-slate-900 shadow-pop-xs">
                               {u.name ? u.name[0].toUpperCase() : 'U'}
                             </div>
                             <div>
-                              <span className="font-bold text-slate-200">
+                              <span className="font-heading font-bold text-slate-900">
                                 {u.name}
                               </span>
                               {isSelf && (
-                                <span className="ml-2 px-1.5 py-0.2 rounded text-[9px] bg-blue-500/20 text-blue-400 border border-blue-500/30 font-mono">
+                                <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] bg-blue-100 text-blue-900 border border-slate-900 font-mono font-bold">
                                   You
                                 </span>
                               )}
@@ -411,34 +402,34 @@ export default function UsersPage() {
                         </td>
 
                         {/* Email */}
-                        <td className="py-3 px-4 text-slate-400 font-mono text-[11px]">
+                        <td className="py-3.5 px-4 text-slate-600 font-mono text-xs font-bold">
                           {u.email}
                         </td>
 
                         {/* Role Badge */}
-                        <td className="py-3 px-4 text-center">
+                        <td className="py-3.5 px-4 text-center">
                           <button
                             onClick={() => openEditRoleModal(u)}
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase border hover:scale-105 hover:shadow-md transition-all cursor-pointer ${roleBadge.bg}`}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold uppercase hover:scale-105 transition-all cursor-pointer ${roleBadge.bg}`}
                             title="Click to edit user role & permissions"
                           >
                             <span>{roleBadge.label}</span>
-                            <Edit3 className="w-2.5 h-2.5 opacity-60" />
+                            <Edit3 className="w-3 h-3 opacity-70" />
                           </button>
                         </td>
 
                         {/* Status */}
-                        <td className="py-3 px-4 text-center">
+                        <td className="py-3.5 px-4 text-center">
                           <span
-                            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono font-bold border-2 border-slate-900 shadow-pop-xs ${
                               u.is_active
-                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                                : 'bg-slate-500/10 text-slate-500 border-slate-500/30'
+                                ? 'bg-emerald-100 text-emerald-900'
+                                : 'bg-slate-100 text-slate-700'
                             }`}
                           >
                             <span
-                              className={`w-1.5 h-1.5 rounded-full ${
-                                u.is_active ? 'bg-emerald-400' : 'bg-slate-500'
+                              className={`w-2 h-2 rounded-full ${
+                                u.is_active ? 'bg-emerald-500' : 'bg-slate-400'
                               }`}
                             />
                             {u.is_active ? 'Active' : 'Inactive'}
@@ -446,22 +437,22 @@ export default function UsersPage() {
                         </td>
 
                         {/* Created */}
-                        <td className="py-3 px-4 text-center text-slate-400 font-mono text-[11px]">
+                        <td className="py-3.5 px-4 text-center text-slate-600 font-mono text-xs">
                           {u.created_at
                             ? new Date(u.created_at).toLocaleDateString()
                             : '—'}
                         </td>
 
                         {/* Actions */}
-                        <td className="py-3 px-4 text-right">
+                        <td className="py-3.5 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             {/* Edit Role */}
                             <button
                               onClick={() => openEditRoleModal(u)}
-                              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-purple-400 hover:text-purple-300 transition-colors"
+                              className="p-2 rounded-xl bg-white hover:bg-slate-100 border-2 border-slate-900 text-purple-700 shadow-pop-xs transition-all"
                               title="Edit User Role & Permissions"
                             >
-                              <Shield className="w-3.5 h-3.5" />
+                              <Shield className="w-3.5 h-3.5" strokeWidth={2.5} />
                             </button>
 
                             {/* View their quotations */}
@@ -471,10 +462,10 @@ export default function UsersPage() {
                                   `/quotations?search=${encodeURIComponent(u.name)}`
                                 )
                               }
-                              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+                              className="p-2 rounded-xl bg-white hover:bg-slate-100 border-2 border-slate-900 text-slate-700 shadow-pop-xs transition-all"
                               title="View user's quotations"
                             >
-                              <FileText className="w-3.5 h-3.5" />
+                              <FileText className="w-3.5 h-3.5" strokeWidth={2.5} />
                             </button>
 
                             {/* Reset Password */}
@@ -483,20 +474,20 @@ export default function UsersPage() {
                                 setResetModalUser(u);
                                 setNewPassword('');
                               }}
-                              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 transition-colors"
+                              className="p-2 rounded-xl bg-white hover:bg-slate-100 border-2 border-slate-900 text-amber-700 shadow-pop-xs transition-all"
                               title="Reset Password"
                             >
-                              <KeyRound className="w-3.5 h-3.5" />
+                              <KeyRound className="w-3.5 h-3.5" strokeWidth={2.5} />
                             </button>
 
                             {/* Toggle Active/Inactive */}
                             {!isSelf ? (
                               <button
                                 onClick={() => handleToggleStatus(u)}
-                                className={`p-1.5 rounded-lg transition-colors ${
+                                className={`p-2 rounded-xl border-2 border-slate-900 shadow-pop-xs transition-all ${
                                   u.is_active
-                                    ? 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-400'
-                                    : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400'
+                                    ? 'bg-rose-100 hover:bg-rose-200 text-rose-700'
+                                    : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-700'
                                 }`}
                                 title={
                                   u.is_active
@@ -505,13 +496,13 @@ export default function UsersPage() {
                                 }
                               >
                                 {u.is_active ? (
-                                  <ToggleRight className="w-4 h-4" />
+                                  <ToggleRight className="w-4 h-4" strokeWidth={2.5} />
                                 ) : (
-                                  <ToggleLeft className="w-4 h-4" />
+                                  <ToggleLeft className="w-4 h-4" strokeWidth={2.5} />
                                 )}
                               </button>
                             ) : (
-                              <div className="w-7" />
+                              <div className="w-8" />
                             )}
                           </div>
                         </td>
@@ -522,45 +513,47 @@ export default function UsersPage() {
               </tbody>
             </table>
           </div>
-          <div className="p-4">
+          <div className="p-4 border-t-2 border-slate-900 bg-slate-50">
             <Pagination
               currentPage={internalPage}
-              totalItems={filteredInternalUsers.length}
+              totalItems={internalUsers.length}
               pageSize={pageSize}
               onPageChange={setInternalPage}
+              onPageSizeChange={setPageSize}
+              pageSizeOptions={[10, 20, 50, 100]}
             />
           </div>
         </div>
       </div>
 
-      {/* ── SECTION 2: CUSTOMER SECTION (SEPARATE BELOW) ────────────── */}
-      <div className="space-y-4 pt-4 border-t border-slate-800">
+      {/* ── SECTION 2: CUSTOMER SECTION ────────────── */}
+      <div className="space-y-4 pt-6 border-t-2 border-slate-900">
         <div>
-          <h2 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
-            <Building className="w-5 h-5 text-indigo-400" />
+          <h2 className="text-lg font-heading font-black text-slate-900 tracking-tight flex items-center gap-2">
+            <Building className="w-5 h-5 text-violet-700" strokeWidth={2.5} />
             Customer Portal Accounts
           </h2>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-xs font-medium text-slate-600 mt-0.5">
             External customers with dedicated portal access for quote review, interactive negotiation, and deal confirmation
           </p>
         </div>
 
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+        <div className="bg-white border-2 border-slate-900 rounded-3xl overflow-hidden shadow-pop">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-950/80 border-b border-slate-800 text-[11px] font-mono text-slate-400 uppercase tracking-wider">
+              <thead className="bg-slate-100 border-b-2 border-slate-900 text-[11px] font-mono font-black text-slate-700 uppercase tracking-wider">
                 <tr>
-                  <th className="py-3 px-4">Company Name</th>
-                  <th className="py-3 px-4 text-center">Tier</th>
-                  <th className="py-3 px-4">Contact Email</th>
-                  <th className="py-3 px-4 text-center">Linked Quotations</th>
-                  <th className="py-3 px-4 text-right">Portal Access</th>
+                  <th className="py-3.5 px-4 font-black">Company Name</th>
+                  <th className="py-3.5 px-4 text-center font-black">Tier</th>
+                  <th className="py-3.5 px-4 font-black">Contact Email</th>
+                  <th className="py-3.5 px-4 text-center font-black">Linked Quotations</th>
+                  <th className="py-3.5 px-4 text-right font-black">Portal Access</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60">
+              <tbody className="divide-y divide-slate-200">
                 {customerUsers.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="py-8 text-center text-slate-400">
+                    <td colSpan="5" className="py-8 text-center text-slate-500 font-heading font-bold text-xs">
                       No customer users found. Create customer accounts using the "+ Add New User" button above.
                     </td>
                   </tr>
@@ -573,16 +566,16 @@ export default function UsersPage() {
                     return (
                       <tr
                         key={c.id}
-                        className="group hover:bg-slate-800/50 transition-colors"
+                        className="group hover:bg-amber-50/40 transition-colors"
                       >
                         {/* Company Name */}
                         <td className="py-3.5 px-4">
                           <div className="flex flex-col">
-                            <span className="font-bold text-slate-200 flex items-center gap-1.5">
-                              <Building className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                            <span className="font-heading font-bold text-slate-900 flex items-center gap-1.5">
+                              <Building className="w-3.5 h-3.5 text-violet-700 shrink-0" strokeWidth={2.5} />
                               {compName}
                             </span>
-                            <span className="text-[11px] text-slate-400 pl-5">
+                            <span className="text-xs text-slate-500 pl-5 font-medium">
                               Contact: {c.name}
                             </span>
                           </div>
@@ -591,7 +584,7 @@ export default function UsersPage() {
                         {/* Tier Badge */}
                         <td className="py-3.5 px-4 text-center">
                           <span
-                            className={`inline-block px-2.5 py-0.5 rounded text-[10px] font-mono font-bold border uppercase ${getTierBadge(
+                            className={`inline-block px-2.5 py-0.5 rounded text-xs font-mono font-bold uppercase ${getTierBadge(
                               tier
                             )}`}
                           >
@@ -600,13 +593,13 @@ export default function UsersPage() {
                         </td>
 
                         {/* Email */}
-                        <td className="py-3.5 px-4 text-slate-400 font-mono text-[11px]">
+                        <td className="py-3.5 px-4 text-slate-600 font-mono text-xs font-bold">
                           {c.email}
                         </td>
 
                         {/* Linked Quotations Count */}
                         <td className="py-3.5 px-4 text-center">
-                          <span className="px-2.5 py-1 rounded-lg bg-slate-950 font-mono text-xs font-bold text-blue-400 border border-slate-800">
+                          <span className="px-3 py-1 rounded-xl bg-blue-50 font-mono text-xs font-black text-blue-900 border-2 border-slate-900 shadow-pop-xs">
                             {c.quotations_count || 0} Quotes
                           </span>
                         </td>
@@ -616,18 +609,18 @@ export default function UsersPage() {
                           <div className="flex items-center justify-end gap-2">
                             <button
                               onClick={() => openEditRoleModal(c)}
-                              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-purple-400 hover:text-purple-300 transition-colors"
+                              className="p-2 rounded-xl bg-white hover:bg-slate-100 border-2 border-slate-900 text-purple-700 shadow-pop-xs transition-all"
                               title="Edit User Role & Permissions"
                             >
-                              <Shield className="w-3.5 h-3.5" />
+                              <Shield className="w-3.5 h-3.5" strokeWidth={2.5} />
                             </button>
 
                             <button
                               onClick={() => copyPortalLink(c)}
-                              className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                              className="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 border-2 border-slate-900 text-slate-900 text-xs font-heading font-bold flex items-center gap-1.5 shadow-pop-xs transition-all"
                               title="Copy Customer Portal Link"
                             >
-                              <Copy className="w-3.5 h-3.5 text-blue-400" />
+                              <Copy className="w-3.5 h-3.5 text-blue-600" strokeWidth={2.5} />
                               <span>Copy Link</span>
                             </button>
 
@@ -635,10 +628,10 @@ export default function UsersPage() {
                               href={`/portal/${token}`}
                               target="_blank"
                               rel="noreferrer"
-                              className="p-1.5 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-400 border border-indigo-500/30 transition-colors"
+                              className="p-2 rounded-xl bg-violet-100 hover:bg-violet-200 border-2 border-slate-900 text-violet-900 shadow-pop-xs transition-all"
                               title="Open Portal in New Tab"
                             >
-                              <ExternalLink className="w-3.5 h-3.5" />
+                              <ExternalLink className="w-3.5 h-3.5" strokeWidth={2.5} />
                             </a>
                           </div>
                         </td>
@@ -649,12 +642,14 @@ export default function UsersPage() {
               </tbody>
             </table>
           </div>
-          <div className="p-4">
+          <div className="p-4 border-t-2 border-slate-900 bg-slate-50">
             <Pagination
               currentPage={customerPage}
               totalItems={customerUsers.length}
               pageSize={pageSize}
               onPageChange={setCustomerPage}
+              onPageSizeChange={setPageSize}
+              pageSizeOptions={[10, 20, 50, 100]}
             />
           </div>
         </div>
@@ -662,24 +657,25 @@ export default function UsersPage() {
 
       {/* ── ADD USER MODAL ──────────────────────────────────────────── */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-6 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="font-bold text-base text-white flex items-center gap-2">
-                <UserPlus className="w-5 h-5 text-blue-400" />
+        <Portal>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-white border-2 border-slate-900 rounded-3xl shadow-pop-xl p-6 space-y-4 text-slate-900">
+            <div className="flex items-center justify-between border-b-2 border-slate-900 pb-3">
+              <h3 className="font-heading font-black text-base text-slate-900 flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-blue-700" strokeWidth={2.5} />
                 Add New User
               </h3>
               <button
                 onClick={() => setShowAddModal(false)}
-                className="text-slate-400 hover:text-white"
+                className="p-1 rounded-xl text-slate-500 hover:text-slate-900 transition-colors"
               >
-                ✕
+                <X className="w-5 h-5" strokeWidth={2.5} />
               </button>
             </div>
 
             <form onSubmit={handleCreateUser} className="space-y-4">
               <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">
+                <label className="text-xs font-heading font-bold text-slate-800 block mb-1">
                   Full Name *
                 </label>
                 <input
@@ -690,12 +686,12 @@ export default function UsersPage() {
                     setAddForm({ ...addForm, name: e.target.value })
                   }
                   placeholder="e.g. Alex Mercer"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                  className="w-full bg-[#FFFDF5] border-2 border-slate-900 rounded-2xl px-3.5 py-2 text-xs font-heading font-bold text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 shadow-pop-xs"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">
+                <label className="text-xs font-heading font-bold text-slate-800 block mb-1">
                   Email Address *
                 </label>
                 <input
@@ -706,12 +702,12 @@ export default function UsersPage() {
                     setAddForm({ ...addForm, email: e.target.value })
                   }
                   placeholder="e.g. alex@dealflow.io"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                  className="w-full bg-[#FFFDF5] border-2 border-slate-900 rounded-2xl px-3.5 py-2 text-xs font-heading font-bold text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 shadow-pop-xs"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">
+                <label className="text-xs font-heading font-bold text-slate-800 block mb-1">
                   Password (min 8 chars) *
                 </label>
                 <input
@@ -722,12 +718,12 @@ export default function UsersPage() {
                     setAddForm({ ...addForm, password: e.target.value })
                   }
                   placeholder="••••••••••••"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                  className="w-full bg-[#FFFDF5] border-2 border-slate-900 rounded-2xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 shadow-pop-xs"
                 />
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">
+                <label className="text-xs font-heading font-bold text-slate-800 block mb-1">
                   Role Selector *
                 </label>
                 <select
@@ -735,20 +731,20 @@ export default function UsersPage() {
                   onChange={(e) =>
                     setAddForm({ ...addForm, role: e.target.value })
                   }
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-white border-2 border-slate-900 rounded-2xl px-3.5 py-2 text-xs font-heading font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 shadow-pop-xs"
                 >
-                  <option value="SALES_REP">Sales Rep (Blue)</option>
-                  <option value="SALES_MANAGER">Sales Manager (Purple)</option>
-                  <option value="FINANCE">Finance (Green)</option>
-                  <option value="ADMIN">Admin (Rose/Red)</option>
-                  <option value="CUSTOMER">Customer (Gray)</option>
+                  <option value="SALES_REP">Sales Rep</option>
+                  <option value="SALES_MANAGER">Sales Manager</option>
+                  <option value="FINANCE">Finance</option>
+                  <option value="ADMIN">Admin</option>
+                  <option value="CUSTOMER">Customer</option>
                 </select>
               </div>
 
               {addForm.role === 'CUSTOMER' && (
-                <div className="grid grid-cols-2 gap-3 bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+                <div className="grid grid-cols-2 gap-3 bg-[#FFFDF5] p-3.5 rounded-2xl border-2 border-slate-900 shadow-pop-xs">
                   <div>
-                    <label className="text-[11px] font-semibold text-slate-400 block mb-1">
+                    <label className="text-[11px] font-heading font-bold text-slate-700 block mb-1">
                       Company Name
                     </label>
                     <input
@@ -758,12 +754,12 @@ export default function UsersPage() {
                         setAddForm({ ...addForm, company_name: e.target.value })
                       }
                       placeholder="e.g. Acme Corp"
-                      className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white"
+                      className="w-full bg-white border-2 border-slate-900 rounded-xl px-2.5 py-1.5 text-xs text-slate-900"
                     />
                   </div>
 
                   <div>
-                    <label className="text-[11px] font-semibold text-slate-400 block mb-1">
+                    <label className="text-[11px] font-heading font-bold text-slate-700 block mb-1">
                       Tier
                     </label>
                     <select
@@ -771,7 +767,7 @@ export default function UsersPage() {
                       onChange={(e) =>
                         setAddForm({ ...addForm, customer_tier: e.target.value })
                       }
-                      className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white"
+                      className="w-full bg-white border-2 border-slate-900 rounded-xl px-2.5 py-1.5 text-xs text-slate-900"
                     >
                       <option value="BRONZE">Bronze (Standard)</option>
                       <option value="SILVER">Silver (Preferred)</option>
@@ -782,11 +778,11 @@ export default function UsersPage() {
               )}
 
               {/* Welcome Email Toggle */}
-              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950/40 border border-slate-800">
-                <div className="flex items-center gap-2">
-                  <Mail className="w-4 h-4 text-blue-400" />
+              <div className="flex items-center justify-between p-3.5 rounded-2xl bg-[#FFFDF5] border-2 border-slate-900 shadow-pop-xs">
+                <div className="flex items-center gap-2.5">
+                  <Mail className="w-4 h-4 text-blue-700" strokeWidth={2.5} />
                   <div>
-                    <span className="text-xs font-semibold text-slate-200 block">
+                    <span className="text-xs font-heading font-bold text-slate-900 block">
                       Send Welcome Email
                     </span>
                     <span className="text-[10px] text-slate-500">
@@ -803,28 +799,28 @@ export default function UsersPage() {
                       send_welcome_email: e.target.checked,
                     })
                   }
-                  className="w-4 h-4 rounded text-blue-600 focus:ring-0 focus:outline-none bg-slate-950 border-slate-800 cursor-pointer"
+                  className="w-4 h-4 rounded text-blue-600 focus:ring-0 focus:outline-none border-2 border-slate-900 cursor-pointer"
                 />
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t-2 border-slate-900">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white"
+                  className="px-4 py-2 rounded-xl text-xs font-heading font-bold text-slate-600 hover:text-slate-900"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submittingAdd}
-                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-blue-600/20 disabled:opacity-50"
+                  className="px-5 py-2 rounded-xl bg-pop-violet hover:bg-violet-700 text-white text-xs font-heading font-black border-2 border-slate-900 shadow-pop-xs hover:shadow-pop hover:-translate-y-0.5 transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
                 >
                   {submittingAdd ? (
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                   ) : (
-                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <CheckCircle2 className="w-3.5 h-3.5" strokeWidth={2.5} />
                   )}
                   Create User
                 </button>
@@ -832,34 +828,36 @@ export default function UsersPage() {
             </form>
           </div>
         </div>
-      )}
+      </Portal>
+    )}
 
       {/* ── RESET PASSWORD MODAL ────────────────────────────────────── */}
       {resetModalUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-6 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="font-bold text-base text-white flex items-center gap-2">
-                <KeyRound className="w-5 h-5 text-amber-400" />
+        <Portal>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="w-full max-w-sm bg-white border-2 border-slate-900 rounded-3xl shadow-pop-xl p-6 space-y-4 text-slate-900">
+            <div className="flex items-center justify-between border-b-2 border-slate-900 pb-3">
+              <h3 className="font-heading font-black text-base text-slate-900 flex items-center gap-2">
+                <KeyRound className="w-5 h-5 text-amber-700" strokeWidth={2.5} />
                 Reset Password
               </h3>
               <button
                 onClick={() => setResetModalUser(null)}
-                className="text-slate-400 hover:text-white"
+                className="p-1 rounded-xl text-slate-500 hover:text-slate-900 transition-colors"
               >
-                ✕
+                <X className="w-5 h-5" strokeWidth={2.5} />
               </button>
             </div>
 
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-600">
               Reset login credentials for{' '}
-              <span className="font-bold text-white">{resetModalUser.name}</span> (
+              <span className="font-bold text-slate-900">{resetModalUser.name}</span> (
               {resetModalUser.email}).
             </p>
 
             <form onSubmit={handleResetPassword} className="space-y-4">
               <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1">
+                <label className="text-xs font-heading font-bold text-slate-800 block mb-1">
                   New Password (Optional, leave blank for default)
                 </label>
                 <input
@@ -867,7 +865,7 @@ export default function UsersPage() {
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   placeholder="DealFlow360@Pass123"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
+                  className="w-full bg-[#FFFDF5] border-2 border-slate-900 rounded-2xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 shadow-pop-xs"
                 />
               </div>
 
@@ -875,19 +873,19 @@ export default function UsersPage() {
                 <button
                   type="button"
                   onClick={() => setResetModalUser(null)}
-                  className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-400 hover:text-white"
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-heading font-bold text-slate-600 hover:text-slate-900"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submittingReset}
-                  className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-amber-600/20 disabled:opacity-50"
+                  className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-900 text-xs font-heading font-black border-2 border-slate-900 flex items-center gap-1.5 shadow-pop-xs disabled:opacity-50"
                 >
                   {submittingReset ? (
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                   ) : (
-                    <KeyRound className="w-3.5 h-3.5" />
+                    <KeyRound className="w-3.5 h-3.5" strokeWidth={2.5} />
                   )}
                   Confirm Reset
                 </button>
@@ -895,33 +893,35 @@ export default function UsersPage() {
             </form>
           </div>
         </div>
-      )}
+      </Portal>
+    )}
 
       {/* ── EDIT ROLE & PERMISSIONS MODAL ───────────────────────────── */}
       {editRoleUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-6 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="font-bold text-base text-white flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-purple-400" />
+        <Portal>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-white border-2 border-slate-900 rounded-3xl shadow-pop-xl p-6 space-y-4 text-slate-900">
+            <div className="flex items-center justify-between border-b-2 border-slate-900 pb-3">
+              <h3 className="font-heading font-black text-base text-slate-900 flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-purple-700" strokeWidth={2.5} />
                 Change User Role & Access
               </h3>
               <button
                 onClick={() => setEditRoleUser(null)}
-                className="text-slate-400 hover:text-white"
+                className="p-1 rounded-xl text-slate-500 hover:text-slate-900 transition-colors"
               >
-                ✕
+                <X className="w-5 h-5" strokeWidth={2.5} />
               </button>
             </div>
 
-            <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl space-y-1">
-              <div className="text-xs font-bold text-white flex items-center justify-between">
+            <div className="p-3.5 bg-[#FFFDF5] border-2 border-slate-900 rounded-2xl space-y-1 shadow-pop-xs">
+              <div className="text-xs font-heading font-black text-slate-900 flex items-center justify-between">
                 <span>{editRoleUser.name}</span>
-                <span className="text-[10px] font-mono text-slate-400">{editRoleUser.email}</span>
+                <span className="text-[10px] font-mono font-bold text-slate-500">{editRoleUser.email}</span>
               </div>
-              <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
+              <div className="text-xs text-slate-600 flex items-center gap-1.5 font-medium">
                 <span>Current Role:</span>
-                <span className="font-semibold text-purple-400">
+                <span className="font-bold text-purple-800">
                   {editRoleUser.role?.replace('_', ' ')}
                 </span>
               </div>
@@ -929,7 +929,7 @@ export default function UsersPage() {
 
             <form onSubmit={handleUpdateRole} className="space-y-4">
               <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1.5">
+                <label className="text-xs font-heading font-bold text-slate-800 block mb-1.5">
                   Select New Role *
                 </label>
                 <div className="space-y-2">
@@ -964,10 +964,10 @@ export default function UsersPage() {
                     return (
                       <label
                         key={r.id}
-                        className={`flex items-start gap-3 p-2.5 rounded-xl border cursor-pointer transition-all ${
+                        className={`flex items-start gap-3 p-3 rounded-2xl border-2 border-slate-900 cursor-pointer transition-all shadow-pop-xs ${
                           isSelected
-                            ? 'bg-blue-600/10 border-blue-500 ring-1 ring-blue-500/50'
-                            : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                            ? 'bg-blue-50 ring-2 ring-slate-900'
+                            : 'bg-white hover:bg-amber-50/40'
                         }`}
                       >
                         <input
@@ -978,18 +978,18 @@ export default function UsersPage() {
                           onChange={() =>
                             setEditRoleForm((prev) => ({ ...prev, role: r.id }))
                           }
-                          className="mt-1 accent-blue-600"
+                          className="mt-1 accent-slate-900"
                         />
                         <div className="flex-1 min-w-0">
-                          <div className="text-xs font-bold text-white flex items-center justify-between">
+                          <div className="text-xs font-heading font-black text-slate-900 flex items-center justify-between">
                             <span>{r.name}</span>
                             {isSelected && (
-                              <span className="text-[10px] text-blue-400 font-mono font-bold">
+                              <span className="text-[10px] text-blue-800 font-mono font-bold">
                                 Selected
                               </span>
                             )}
                           </div>
-                          <p className="text-[11px] text-slate-400 mt-0.5">{r.desc}</p>
+                          <p className="text-[11px] text-slate-600 mt-0.5 font-medium">{r.desc}</p>
                         </div>
                       </label>
                     );
@@ -999,8 +999,8 @@ export default function UsersPage() {
 
               {/* If Customer, allow selecting Customer Tier */}
               {editRoleForm.role === 'CUSTOMER' && (
-                <div className="animate-in fade-in space-y-2 pt-1 border-t border-slate-800">
-                  <label className="text-xs font-semibold text-slate-300 block mb-1">
+                <div className="space-y-2 pt-2 border-t-2 border-slate-900">
+                  <label className="text-xs font-heading font-bold text-slate-800 block mb-1">
                     Customer Contract Tier
                   </label>
                   <select
@@ -1008,7 +1008,7 @@ export default function UsersPage() {
                     onChange={(e) =>
                       setEditRoleForm((prev) => ({ ...prev, customer_tier: e.target.value }))
                     }
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
+                    className="w-full bg-white border-2 border-slate-900 rounded-2xl px-3.5 py-2 text-xs font-heading font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 shadow-pop-xs"
                   >
                     <option value="BRONZE">Bronze Tier (Standard)</option>
                     <option value="SILVER">Silver Tier (Preferred)</option>
@@ -1017,30 +1017,31 @@ export default function UsersPage() {
                 </div>
               )}
 
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t-2 border-slate-900">
                 <button
                   type="button"
                   onClick={() => setEditRoleUser(null)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white"
+                  className="px-4 py-2 rounded-xl text-xs font-heading font-bold text-slate-600 hover:text-slate-900"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submittingRoleEdit}
-                  className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-purple-600/20 disabled:opacity-50"
+                  className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-heading font-black border-2 border-slate-900 flex items-center gap-1.5 shadow-pop-xs disabled:opacity-50"
                 >
                   {submittingRoleEdit ? (
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                   ) : (
-                    <ShieldCheck className="w-3.5 h-3.5" />
+                    <ShieldCheck className="w-3.5 h-3.5" strokeWidth={2.5} />
                   )}
                   Apply Role Update
                 </button>
               </div>
-            </form>
+              </form>
+            </div>
           </div>
-        </div>
+        </Portal>
       )}
     </div>
   );

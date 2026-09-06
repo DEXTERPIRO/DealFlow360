@@ -9,7 +9,8 @@ import {
   Building2,
   Calendar,
   CheckCircle,
-  HelpCircle
+  HelpCircle,
+  Award
 } from 'lucide-react';
 import { productsAPI } from '../../api';
 import toast from 'react-hot-toast';
@@ -57,16 +58,16 @@ export default function PriceListsPage() {
 
   const tiers = ['BRONZE', 'SILVER', 'GOLD', 'PLATINUM'];
 
-  const getTierColor = (tier) => {
+  const getTierBadgeStyle = (tier) => {
     switch (tier) {
       case 'PLATINUM':
-        return 'bg-purple-500/15 text-purple-400 border-purple-500/30';
+        return 'bg-pop-violet text-white border-2 border-slate-900 shadow-pop-sm';
       case 'GOLD':
-        return 'bg-amber-500/15 text-amber-400 border-amber-500/30';
+        return 'bg-pop-yellow text-slate-900 border-2 border-slate-900 shadow-pop-sm';
       case 'SILVER':
-        return 'bg-slate-400/15 text-slate-300 border-slate-400/30';
+        return 'bg-slate-200 text-slate-900 border-2 border-slate-900 shadow-pop-sm';
       default:
-        return 'bg-orange-500/15 text-orange-400 border-orange-500/30';
+        return 'bg-amber-100 text-amber-900 border-2 border-slate-900 shadow-pop-sm';
     }
   };
 
@@ -75,7 +76,7 @@ export default function PriceListsPage() {
 
   // Pagination
   const [page, setPage] = useState(1);
-  const pageSize = 2;
+  const [pageSize, setPageSize] = useState(5);
 
   useEffect(() => {
     setPage(1);
@@ -86,56 +87,66 @@ export default function PriceListsPage() {
   return (
     <div className="space-y-6 pb-12 antialiased">
       {/* ── HEADER ─────────────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 border border-slate-800 p-5 rounded-2xl">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border-2 border-slate-900 p-6 rounded-3xl shadow-pop">
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-              Customer Tier Price Lists
-            </h1>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              Contracted Rates
-            </span>
+          <div className="flex items-center gap-2.5">
+            <div className="w-10 h-10 rounded-2xl bg-pop-mint border-2 border-slate-900 text-slate-900 flex items-center justify-center shadow-pop-sm">
+              <Tag className="w-5 h-5 stroke-[2.5]" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-heading font-extrabold text-slate-900 tracking-tight">
+                  Customer Tier Price Lists
+                </h1>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-pop-mint/40 text-emerald-950 border-2 border-slate-900 shadow-pop-sm">
+                  Contracted Rates
+                </span>
+              </div>
+              <p className="text-xs text-slate-600 font-medium mt-0.5">
+                Standard negotiated rates per customer tier (Bronze, Silver, Gold, Platinum). Applied automatically during quotation creation.
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-slate-400 mt-1">
-            Standard negotiated rates per customer tier (Bronze, Silver, Gold, Platinum). Applied automatically during quotation creation.
-          </p>
         </div>
       </div>
 
       {/* ── TIER OVERVIEW CARDS ────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {tiers.map((t) => {
           const matchingLists = (allPriceLists.length > 0 ? allPriceLists : priceLists).filter((p) => p.tier === t);
           const itemCount = matchingLists.reduce(
             (acc, l) => acc + (l.items?.length || 0),
             0
           );
+          const isSelected = selectedTier === t;
 
           return (
             <div
               key={t}
               onClick={() => setSelectedTier(selectedTier === t ? 'ALL' : t)}
-              className={`bg-slate-900 border rounded-2xl p-4 cursor-pointer transition-all hover:border-slate-700 ${
-                selectedTier === t ? 'border-blue-500 shadow-lg shadow-blue-500/10' : 'border-slate-800'
+              className={`bg-white border-2 border-slate-900 rounded-3xl p-5 cursor-pointer transition-all hover:-translate-y-0.5 active:translate-x-0.5 active:translate-y-0.5 ${
+                isSelected
+                  ? 'shadow-pop ring-4 ring-pop-violet/30 bg-amber-50/50'
+                  : 'shadow-pop-sm hover:shadow-pop'
               }`}
             >
               <div className="flex items-center justify-between">
                 <span
-                  className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase border ${getTierColor(
+                  className={`px-2.5 py-1 rounded-xl text-[10px] font-mono font-black uppercase ${getTierBadgeStyle(
                     t
                   )}`}
                 >
                   {t} Tier
                 </span>
-                <span className="text-xs font-mono text-slate-500">
-                  {matchingLists.length} Price List(s)
+                <span className="text-xs font-mono font-bold text-slate-500">
+                  {matchingLists.length} List{matchingLists.length === 1 ? '' : 's'}
                 </span>
               </div>
               <div className="mt-3">
-                <div className="text-xl font-black text-white font-mono">
+                <div className="text-2xl font-heading font-black text-slate-900 font-mono">
                   {itemCount} SKUs
                 </div>
-                <div className="text-[11px] text-slate-400 mt-0.5">
+                <div className="text-[11px] font-medium text-slate-500 mt-0.5">
                   Pre-approved contracted items
                 </div>
               </div>
@@ -145,28 +156,28 @@ export default function PriceListsPage() {
       </div>
 
       {/* ── CONTROLS BAR ──────────────────────────────────────────────────── */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+      <div className="bg-white border-2 border-slate-900 rounded-3xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-pop">
         <div className="flex flex-wrap items-center gap-3 flex-1">
-          <div className="relative flex-1 min-w-[200px] max-w-md">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+          <div className="relative flex-1 min-w-[220px] max-w-md">
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 stroke-[2.5]" />
             <input
               type="text"
               placeholder="Search price lists by name or tier..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+              className="w-full pl-10 pr-4 py-2 bg-paper border-2 border-slate-900 rounded-2xl text-xs sm:text-sm font-semibold text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-pop-violet transition-all"
             />
           </div>
 
-          <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1 text-xs">
+          <div className="flex items-center bg-slate-100 border-2 border-slate-900 rounded-2xl p-1 text-xs">
             {['ALL', ...tiers].map((t) => (
               <button
                 key={t}
                 onClick={() => setSelectedTier(t)}
-                className={`px-3 py-1.5 rounded-lg font-medium transition-all ${
+                className={`px-3 py-1.5 rounded-xl font-bold transition-all ${
                   selectedTier === t
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 {t}
@@ -178,42 +189,44 @@ export default function PriceListsPage() {
 
       {/* ── PRICE LISTS CONTENT ───────────────────────────────────────────── */}
       {loading ? (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center">
-          <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-xs text-slate-400">Loading price lists...</p>
+        <div className="bg-white border-2 border-slate-900 rounded-3xl p-12 text-center shadow-pop">
+          <div className="w-8 h-8 border-3 border-slate-900 border-t-pop-violet rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-xs font-bold text-slate-600">Loading price lists...</p>
         </div>
       ) : filteredLists.length === 0 ? (
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center">
-          <Tag className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-          <h3 className="text-sm font-bold text-white">No Price Lists Configured</h3>
-          <p className="text-xs text-slate-400 mt-1">
+        <div className="bg-white border-2 border-slate-900 rounded-3xl p-12 text-center shadow-pop">
+          <div className="w-14 h-14 rounded-2xl bg-pop-yellow/40 border-2 border-slate-900 flex items-center justify-center mx-auto mb-3 shadow-pop-sm">
+            <Tag className="w-7 h-7 text-slate-900 stroke-[2.5]" />
+          </div>
+          <h3 className="text-base font-heading font-black text-slate-900">No Price Lists Configured</h3>
+          <p className="text-xs font-medium text-slate-600 mt-1 max-w-sm mx-auto">
             Products use their default base prices for tiers without a dedicated custom price list.
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-6">
           {pagedLists.map((pl) => (
             <div
               key={pl.id}
-              className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm"
+              className="bg-white border-2 border-slate-900 rounded-3xl overflow-hidden shadow-pop"
             >
               {/* Header */}
-              <div className="p-4 bg-slate-950/60 border-b border-slate-800 flex items-center justify-between">
+              <div className="p-5 bg-amber-50/70 border-b-2 border-slate-900 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <span
-                    className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold uppercase border ${getTierColor(
+                    className={`px-3 py-1 rounded-xl text-xs font-mono font-black uppercase ${getTierBadgeStyle(
                       pl.tier
                     )}`}
                   >
-                    {pl.tier}
+                    {pl.tier} Tier
                   </span>
                   <div>
-                    <h3 className="text-sm font-bold text-white">{pl.name}</h3>
-                    <p className="text-[11px] text-slate-400 font-mono">Currency: {pl.currency || 'INR'}</p>
+                    <h3 className="text-base font-heading font-black text-slate-900">{pl.name}</h3>
+                    <p className="text-[11px] font-mono font-bold text-slate-500">Currency: {pl.currency || 'INR'}</p>
                   </div>
                 </div>
 
-                <span className="text-xs text-slate-400 font-mono">
+                <span className="text-xs font-mono font-bold text-slate-600 bg-white px-3 py-1 rounded-xl border-2 border-slate-900 shadow-pop-sm">
                   {pl.items?.length || 0} Special Item Rates
                 </span>
               </div>
@@ -222,18 +235,18 @@ export default function PriceListsPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead>
-                    <tr className="border-b border-slate-800 bg-slate-900/60 text-[10px] uppercase font-bold text-slate-400 font-mono">
-                      <th className="py-2.5 px-4">Product Name</th>
-                      <th className="py-2.5 px-4">SKU</th>
-                      <th className="py-2.5 px-4 text-right">Standard Base Price</th>
-                      <th className="py-2.5 px-4 text-right">Contracted Tier Price</th>
-                      <th className="py-2.5 px-4 text-center">Discount Off Base</th>
+                    <tr className="border-b-2 border-slate-900 bg-slate-100/90 text-[10px] uppercase font-mono font-black text-slate-800 tracking-wider">
+                      <th className="py-3 px-4">Product Name</th>
+                      <th className="py-3 px-4">SKU</th>
+                      <th className="py-3 px-4 text-right">Standard Base Price</th>
+                      <th className="py-3 px-4 text-right">Contracted Tier Price</th>
+                      <th className="py-3 px-4 text-center">Discount Off Base</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-800/60">
+                  <tbody className="divide-y-2 divide-slate-100">
                     {pl.items?.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="py-6 text-center text-slate-500 text-xs">
+                        <td colSpan={5} className="py-8 text-center text-slate-500 font-medium text-xs">
                           No customized SKU prices in this price list
                         </td>
                       </tr>
@@ -247,21 +260,21 @@ export default function PriceListsPage() {
                             : '0.0';
 
                         return (
-                          <tr key={item.id} className="hover:bg-slate-850/50 transition-colors">
-                            <td className="py-2.5 px-4 font-semibold text-slate-200">
+                          <tr key={item.id} className="hover:bg-amber-50/40 transition-colors">
+                            <td className="py-3 px-4 font-bold text-slate-900">
                               {item.product?.name || 'Product'}
                             </td>
-                            <td className="py-2.5 px-4 font-mono text-blue-400">
+                            <td className="py-3 px-4 font-mono font-bold text-pop-violet">
                               {item.product?.sku || 'SKU'}
                             </td>
-                            <td className="py-2.5 px-4 text-right font-mono text-slate-400">
+                            <td className="py-3 px-4 text-right font-mono text-slate-500 line-through">
                               ₹{standardPrice.toLocaleString()}
                             </td>
-                            <td className="py-2.5 px-4 text-right font-mono font-bold text-emerald-400 text-sm">
+                            <td className="py-3 px-4 text-right font-mono font-black text-slate-900 text-sm">
                               ₹{contractPrice.toLocaleString()}
                             </td>
-                            <td className="py-2.5 px-4 text-center">
-                              <span className="inline-block px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                            <td className="py-3 px-4 text-center">
+                              <span className="inline-block px-2.5 py-0.5 rounded-xl text-[10px] font-mono font-black bg-pop-mint/40 text-emerald-950 border-2 border-slate-900 shadow-pop-sm">
                                 {discountPct}% off
                               </span>
                             </td>
@@ -275,12 +288,14 @@ export default function PriceListsPage() {
             </div>
           ))}
 
-          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-4">
+          <div className="bg-white border-2 border-slate-900 rounded-3xl p-4 shadow-pop">
             <Pagination
               currentPage={page}
               totalItems={filteredLists.length}
               pageSize={pageSize}
               onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+              pageSizeOptions={[5, 10, 25, 50, 100]}
             />
           </div>
         </div>
