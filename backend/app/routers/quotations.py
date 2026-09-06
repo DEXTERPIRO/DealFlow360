@@ -293,7 +293,7 @@ async def get_portal_quotation(
         return quotation
 
     # 2. Check if token maps to a Customer User account (e.g. portal-{userId}, magic_link_token, or UUID)
-    clean_token = token.replace("portal-", "").strip()
+    clean_token = token.replace("portal-token-", "").replace("portal-", "").strip()
     c_stmt = select(User).where(
         (cast(User.id, String) == clean_token) | (User.magic_link_token == token) | (User.email.ilike(f"{clean_token}%"))
     )
@@ -361,7 +361,7 @@ async def customer_request_quote(
     body: CustomerQuoteRequest,
     db: AsyncSession = Depends(get_db)
 ):
-    clean_token = body.token.replace("portal-", "").strip()
+    clean_token = body.token.replace("portal-token-", "").replace("portal-", "").strip()
     c_stmt = select(User).where(
         (cast(User.id, String) == clean_token) | (User.magic_link_token == body.token) | (User.email.ilike(f"{clean_token}%"))
     )

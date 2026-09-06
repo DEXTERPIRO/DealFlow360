@@ -217,7 +217,8 @@ async def refresh_token(request: Request, response: Response, db: AsyncSession =
 async def magic_link(body: MagicLinkBody, db: AsyncSession = Depends(get_db)):
     clean_email = body.email.strip().lower()
     result = await db.execute(select(User).where(User.email.ilike(clean_email)))
-    from app.models.models import CustomerTier, UserRole
+    user = result.scalar_one_or_none()
+    from app.models.models import CustomerTier, UserRole, Quotation
 
     if not user:
         # Dynamically provision new customer account
