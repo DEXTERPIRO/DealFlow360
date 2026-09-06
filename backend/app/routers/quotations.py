@@ -660,10 +660,9 @@ async def update_quotation(
 
     # Update quotation header
     if body.customerId:
-        try:
-            quotation.customer_id = uuid.UUID(str(body.customerId))
-        except Exception:
-            pass
+        quotation.customer_id = str(body.customerId)
+    elif body.customerId is None or body.customerId == "":
+        quotation.customer_id = None
     quotation.customer_tier = tier_enum
     quotation.blended_risk_score = risk_result["blendedScore"]
     quotation.subtotal = Decimal(str(totals["subtotal"]))
