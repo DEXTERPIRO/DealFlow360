@@ -363,14 +363,14 @@ export default function QuotationBuilder() {
         prev.map((l) =>
           l._id === pickerTargetLineId
             ? {
-                ...l,
-                product_id: product.id,
-                product,
-                unit_price: Number(product.base_price || 0),
-                cost_price: Number(product.cost_price || 0),
-                tax: Number(product.tax || 18),
-                line_type: product.is_subscription ? 'SUBSCRIPTION' : 'ONE_TIME',
-              }
+              ...l,
+              product_id: product.id,
+              product,
+              unit_price: Number(product.base_price || 0),
+              cost_price: Number(product.cost_price || 0),
+              tax: Number(product.tax || 18),
+              line_type: product.is_subscription ? 'SUBSCRIPTION' : 'ONE_TIME',
+            }
             : l
         )
       );
@@ -771,13 +771,12 @@ export default function QuotationBuilder() {
               <div className="flex items-center justify-between text-xs">
                 <span className="font-heading font-bold text-slate-500">Risk Score</span>
                 <span
-                  className={`font-mono font-bold px-2 py-0.5 rounded-md border border-slate-900 shadow-pop-sm ${
-                    riskData.blendedRiskScore < 5
+                  className={`font-mono font-bold px-2 py-0.5 rounded-md border border-slate-900 shadow-pop-sm ${riskData.blendedRiskScore < 5
                       ? 'bg-emerald-100 text-emerald-900'
                       : riskData.blendedRiskScore < 10
-                      ? 'bg-amber-100 text-amber-900'
-                      : 'bg-rose-100 text-rose-900'
-                  }`}
+                        ? 'bg-amber-100 text-amber-900'
+                        : 'bg-rose-100 text-rose-900'
+                    }`}
                 >
                   {Number(riskData.blendedRiskScore || 0).toFixed(2)} / 15
                 </span>
@@ -880,9 +879,8 @@ export default function QuotationBuilder() {
                   <div className="space-y-2 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span
-                        className={`px-2.5 py-0.5 rounded-md text-[11px] font-heading font-black border border-slate-900 ${
-                          isCustomer ? 'bg-indigo-100 text-indigo-900' : 'bg-emerald-100 text-emerald-900'
-                        }`}
+                        className={`px-2.5 py-0.5 rounded-md text-[11px] font-heading font-black border border-slate-900 ${isCustomer ? 'bg-indigo-100 text-indigo-900' : 'bg-emerald-100 text-emerald-900'
+                          }`}
                       >
                         {isCustomer ? 'Customer Request' : 'Sales Team Response'}
                       </span>
@@ -910,9 +908,9 @@ export default function QuotationBuilder() {
                         <span>
                           {neg.created_at
                             ? new Date(neg.created_at).toLocaleString('en-IN', {
-                                dateStyle: 'medium',
-                                timeStyle: 'short',
-                              })
+                              dateStyle: 'medium',
+                              timeStyle: 'short',
+                            })
                             : ''}
                         </span>
                         {neg.created_at && (
@@ -960,11 +958,10 @@ export default function QuotationBuilder() {
                     ) : (
                       <div className="flex flex-col items-end gap-2">
                         <span
-                          className={`px-3 py-1 rounded-full text-xs font-heading font-black border-2 border-slate-900 shadow-pop-xs ${
-                            isAccepted
+                          className={`px-3 py-1 rounded-full text-xs font-heading font-black border-2 border-slate-900 shadow-pop-xs ${isAccepted
                               ? 'bg-emerald-100 text-emerald-900'
                               : 'bg-rose-100 text-rose-900'
-                          }`}
+                            }`}
                         >
                           {neg.status}
                         </span>
@@ -977,7 +974,7 @@ export default function QuotationBuilder() {
                             title={`Add ${detected.product.name} to order lines`}
                           >
                             <Plus className="w-3.5 h-3.5" strokeWidth={3} />
-                            <span>+ Add {detected.product.name} to Order</span>
+                            <span> Add {detected.product.name} to Order</span>
                           </button>
                         )}
                       </div>
@@ -1058,8 +1055,8 @@ export default function QuotationBuilder() {
                   margin >= 25
                     ? 'text-emerald-700 bg-emerald-100 border-emerald-900'
                     : margin >= 15
-                    ? 'text-amber-700 bg-amber-100 border-amber-900'
-                    : 'text-rose-700 bg-rose-100 border-rose-900';
+                      ? 'text-amber-700 bg-amber-100 border-amber-900'
+                      : 'text-rose-700 bg-rose-100 border-rose-900';
                 const discExcessive = line.discount > 15;
 
                 return (
@@ -1161,9 +1158,8 @@ export default function QuotationBuilder() {
                             )
                           }
                           disabled={!canEdit}
-                          className={`w-16 bg-slate-50 border-2 rounded-lg px-2 py-1 text-xs text-slate-900 text-center focus:bg-white focus:outline-none disabled:opacity-50 font-mono font-bold ${
-                            discExcessive ? 'border-amber-600 bg-amber-50 text-amber-900' : 'border-slate-900'
-                          }`}
+                          className={`w-16 bg-slate-50 border-2 rounded-lg px-2 py-1 text-xs text-slate-900 text-center focus:bg-white focus:outline-none disabled:opacity-50 font-mono font-bold ${discExcessive ? 'border-amber-600 bg-amber-50 text-amber-900' : 'border-slate-900'
+                            }`}
                         />
                         {discExcessive && (
                           <AlertTriangle className="w-3.5 h-3.5 text-amber-600 absolute -right-4" strokeWidth={2.5} title="High discount — risk flagged" />

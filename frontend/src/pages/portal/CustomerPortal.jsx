@@ -278,6 +278,14 @@ export default function CustomerPortal() {
   // Copy link feedback state
   const [copied, setCopied] = useState(false);
 
+  // Live Real-Time Date & Clock
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   // ── 1. Fetch Quotation by Portal Token ────────────────────────────────────
 
   const loadQuotation = useCallback(async () => {
@@ -569,6 +577,28 @@ export default function CustomerPortal() {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Real-time Date and Live Clock */}
+            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full border-2 border-slate-900 bg-[#FFFDF5] shadow-pop-xs">
+              <Clock className="w-3.5 h-3.5 text-violet-700 animate-spin" style={{ animationDuration: '10s' }} />
+              <span className="text-xs font-heading font-extrabold text-slate-800 tracking-tight">
+                {currentTime.toLocaleDateString('en-IN', {
+                  weekday: 'short',
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                })}
+              </span>
+              <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
+              <span className="text-xs font-mono font-black text-violet-800 px-2 py-0.5 bg-violet-100 border border-slate-900 rounded-full shadow-pop-xs">
+                {currentTime.toLocaleTimeString('en-IN', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                  hour12: true,
+                })}
+              </span>
+            </div>
+
             <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-amber-100 text-amber-900 border-2 border-slate-900 shadow-pop-sm uppercase">
               {tierName} Tier Client
             </span>
@@ -702,6 +732,28 @@ export default function CustomerPortal() {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Real-time Date and Live Clock Widget */}
+          <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full border-2 border-slate-900 bg-[#FFFDF5] shadow-pop-xs">
+            <Clock className="w-3.5 h-3.5 text-violet-700 animate-spin" style={{ animationDuration: '10s' }} />
+            <span className="text-xs font-heading font-extrabold text-slate-800 tracking-tight">
+              {currentTime.toLocaleDateString('en-IN', {
+                weekday: 'short',
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric',
+              })}
+            </span>
+            <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span>
+            <span className="text-xs font-mono font-black text-violet-800 px-2 py-0.5 bg-violet-100 border border-slate-900 rounded-full shadow-pop-xs">
+              {currentTime.toLocaleTimeString('en-IN', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true,
+              })}
+            </span>
+          </div>
+
           {/* Quotation Number */}
           <span className="font-mono text-xs font-extrabold text-slate-900 bg-violet-50 px-3 py-1 rounded-full border-2 border-slate-900 shadow-pop-sm">
             {quotation.quotationNumber || quotation.quotation_number}
@@ -1162,12 +1214,16 @@ export default function CustomerPortal() {
                         }`}
                       >
                         <div className="space-y-1 flex-1">
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2">
                             <span className="font-heading font-bold text-slate-900">
                               {isFromCustomer ? 'Your Request' : 'Sales Rep Response'}
                             </span>
-                            <span className="text-[11px] font-mono text-slate-500">
-                              {getRelativeTime(neg.created_at)}
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-mono font-bold bg-white text-slate-700 border border-slate-900 shadow-pop-xs">
+                              <Clock className="w-3 h-3 text-violet-700" strokeWidth={2.5} />
+                              <span>{formatDate(neg.created_at)}</span>
+                              {neg.created_at && (
+                                <span className="text-violet-700 font-extrabold">• {getRelativeTime(neg.created_at)}</span>
+                              )}
                             </span>
                           </div>
                           <p className="text-slate-700 leading-relaxed font-medium">{neg.message}</p>
