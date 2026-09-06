@@ -35,7 +35,7 @@ import {
 import { useAuthStore } from '../../store/authStore';
 import { io } from 'socket.io-client';
 import toast from 'react-hot-toast';
-import { notificationsAPI, quotationsAPI } from '../../api';
+import { notificationsAPI, quotationsAPI, dashboardAPI } from '../../api';
 import api from '../../api/client';
 import NotificationDropdown from '../ui/NotificationDropdown';
 
@@ -108,12 +108,11 @@ export default function AppLayout() {
 
       if (['SALES_MANAGER', 'FINANCE', 'ADMIN'].includes(user?.role)) {
         try {
-          const quotes = await quotationsAPI.getAll();
-          if (Array.isArray(quotes)) {
-            const pending = quotes.filter((q) =>
-              ['PENDING_MANAGER', 'PENDING_FINANCE'].includes(q.status)
-            ).length;
-            setPendingApprovalsCount(pending);
+          const res = await dashboardAPI.getApprovalQueue();
+          if (res?.counts?.pending !== undefined) {
+            setPendingApprovalsCount(res.counts.pending);
+          } else if (Array.isArray(res?.queue)) {
+            setPendingApprovalsCount(res.queue.length);
           }
         } catch (err) {
           // fallback
@@ -131,6 +130,19 @@ export default function AppLayout() {
     });
     setSocket(s);
 
+    const refreshPendingCount = async () => {
+      if (['SALES_MANAGER', 'FINANCE', 'ADMIN'].includes(user?.role)) {
+        try {
+          const res = await dashboardAPI.getApprovalQueue();
+          if (res?.counts?.pending !== undefined) {
+            setPendingApprovalsCount(res.counts.pending);
+          }
+        } catch (err) {
+          // fallback
+        }
+      }
+    };
+
     s.on('connect', () => {
       s.emit('join_dashboard');
       if (user?.id) {
@@ -139,7 +151,7 @@ export default function AppLayout() {
     });
 
     s.on('approval-needed', (data) => {
-      setPendingApprovalsCount((prev) => prev + 1);
+      refreshPendingCount();
       toast.success(
         `Approval Needed: Quotation ${data.quotationNumber || data.quotationId}`
       );
@@ -155,6 +167,10 @@ export default function AppLayout() {
       ]);
     });
 
+    s.on('approval-decision', () => {
+      refreshPendingCount();
+    });
+
     s.on('quotation-created', (data) => {
       toast.success(`New quotation created: ${data.quotationNumber}`);
     });
@@ -163,8 +179,18 @@ export default function AppLayout() {
       toast(`Customer Negotiation: ${data.message || 'Counter discount requested'}`);
     });
 
+    const onApprovalsUpdated = (e) => {
+      if (e?.detail?.pending !== undefined) {
+        setPendingApprovalsCount(e.detail.pending);
+      } else {
+        refreshPendingCount();
+      }
+    };
+    window.addEventListener('approvals-updated', onApprovalsUpdated);
+
     return () => {
       s.disconnect();
+      window.removeEventListener('approvals-updated', onApprovalsUpdated);
     };
   }, [user]);
 

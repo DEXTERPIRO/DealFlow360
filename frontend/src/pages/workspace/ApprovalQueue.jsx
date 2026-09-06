@@ -89,13 +89,16 @@ export default function ApprovalQueue() {
         setAuditTrail(res.auditTrail || []);
         if (res.counts) {
           setCounts(res.counts);
+          window.dispatchEvent(new CustomEvent('approvals-updated', { detail: res.counts }));
         } else {
-          setCounts({
+          const fallbackCounts = {
             pending: (res.queue || []).length,
             returned: 0,
             approved: 0,
             total: (res.queue || []).length
-          });
+          };
+          setCounts(fallbackCounts);
+          window.dispatchEvent(new CustomEvent('approvals-updated', { detail: fallbackCounts }));
         }
       }
     } catch (err) {
@@ -478,7 +481,7 @@ export default function ApprovalQueue() {
                 : 'bg-white text-slate-700 hover:bg-slate-100'
             }`}
           >
-            All ({displayedItems.length})
+            All ({counts.total || allApprovals.length})
           </button>
         </div>
       </div>

@@ -258,9 +258,43 @@ async def get_approval_queue(
     all_res = await db.execute(all_stmt)
     all_approvals = all_res.scalars().all()
 
-    pending_count = len(pending_quotations)
-    returned_count = sum(1 for q in all_approvals if any(a.action == "RETURNED" for a in q.approvals) or any(l.action == AuditAction.RETURNED for l in q.audit_logs))
-    approved_count = sum(1 for q in all_approvals if q.status == QuotationStatus.APPROVED)
+    # Calculate exact counts directly from database
+    p_count_res = await db.execute(
+        select(func.count(Quotation.id)).where(
+            Quotation.status.in_([QuotationStatus.PENDING_MANAGER, QuotationStatus.PENDING_FINANCE])
+        )
+    )
+    pending_count = p_count_res.scalar() or 0
+
+    a_count_res = await db.execute(
+        select(func.count(Quotation.id)).where(Quotation.status == QuotationStatus.APPROVED)
+    )
+    approved_count = a_count_res.scalar() or 0
+
+    r_count_res = await db.execute(
+        select(func.count(Quotation.id)).where(
+            or_(
+                Quotation.status == QuotationStatus.REJECTED,
+                Quotation.approvals.any(Approval.action.in_(["RETURNED", "REJECTED"]))
+            )
+        )
+    )
+    returned_count = r_count_res.scalar() or 0
+
+    tot_count_res = await db.execute(
+        select(func.count(Quotation.id)).where(
+            or_(
+                Quotation.status.in_([
+                    QuotationStatus.PENDING_MANAGER,
+                    QuotationStatus.PENDING_FINANCE,
+                    QuotationStatus.APPROVED,
+                    QuotationStatus.REJECTED
+                ]),
+                Quotation.approvals.any()
+            )
+        )
+    )
+    total_count = tot_count_res.scalar() or len(all_approvals)
 
     # Also fetch recent audit trail actions for approvals
     audit_stmt = (
@@ -389,7 +423,7 @@ async def get_approval_queue(
             "pending": pending_count,
             "returned": returned_count,
             "approved": approved_count,
-            "total": len(all_approvals)
+            "total": total_count
         },
         "auditTrail": [
             {
