@@ -70,12 +70,12 @@ export default function DealHealth() {
     socket.emit('join_dashboard');
 
     socket.on('deal-nudged', (payload) => {
-      toast(`⚡ Rep nudged for quotation ${payload.quotationNumber || payload.quotationId}`);
+      toast(`Rep nudged for quotation ${payload.quotationNumber || payload.quotationId}`);
       loadDealHealth();
     });
 
     socket.on('deal-escalated', (payload) => {
-      toast.success(`🛡️ Quotation ${payload.quotationNumber || payload.quotationId} escalated to Manager!`);
+      toast.success(`Quotation ${payload.quotationNumber || payload.quotationId} escalated to Manager!`);
       loadDealHealth();
     });
 

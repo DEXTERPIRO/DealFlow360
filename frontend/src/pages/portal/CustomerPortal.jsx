@@ -25,6 +25,10 @@ import {
   LogOut,
   Mail,
   Award,
+  Keyboard,
+  Monitor,
+  Wrench,
+  Tag,
 } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { quotationsAPI, negotiationsAPI } from '../../api';
@@ -724,7 +728,10 @@ export default function CustomerPortal() {
                   className="p-3 rounded-2xl bg-white border-2 border-slate-900 hover:bg-amber-100/60 shadow-pop-xs transition-all text-left flex items-center justify-between cursor-pointer active:translate-x-0.5 active:translate-y-0.5"
                 >
                   <div>
-                    <p className="text-xs font-heading font-black text-slate-900">⌨️ Mechanical Keyboard</p>
+                    <p className="text-xs font-heading font-black text-slate-900 flex items-center gap-1.5">
+                      <Keyboard size={14} className="text-pop-violet" />
+                      Mechanical Keyboard
+                    </p>
                     <p className="text-[10px] font-mono font-bold text-slate-600">₹4,500 / unit</p>
                   </div>
                   <span className="px-2 py-1 rounded-xl bg-violet-100 text-violet-800 text-[10px] font-heading font-black border border-slate-900">
@@ -738,7 +745,10 @@ export default function CustomerPortal() {
                   className="p-3 rounded-2xl bg-white border-2 border-slate-900 hover:bg-amber-100/60 shadow-pop-xs transition-all text-left flex items-center justify-between cursor-pointer active:translate-x-0.5 active:translate-y-0.5"
                 >
                   <div>
-                    <p className="text-xs font-heading font-black text-slate-900">🖥️ 27" 4K Monitor</p>
+                    <p className="text-xs font-heading font-black text-slate-900 flex items-center gap-1.5">
+                      <Monitor size={14} className="text-pop-violet" />
+                      27" 4K Monitor
+                    </p>
                     <p className="text-[10px] font-mono font-bold text-slate-600">₹28,000 / unit</p>
                   </div>
                   <span className="px-2 py-1 rounded-xl bg-violet-100 text-violet-800 text-[10px] font-heading font-black border border-slate-900">
@@ -752,7 +762,10 @@ export default function CustomerPortal() {
                   className="p-3 rounded-2xl bg-white border-2 border-slate-900 hover:bg-amber-100/60 shadow-pop-xs transition-all text-left flex items-center justify-between cursor-pointer active:translate-x-0.5 active:translate-y-0.5"
                 >
                   <div>
-                    <p className="text-xs font-heading font-black text-slate-900">🛠️ On-site Setup</p>
+                    <p className="text-xs font-heading font-black text-slate-900 flex items-center gap-1.5">
+                      <Wrench size={14} className="text-pop-violet" />
+                      On-site Setup
+                    </p>
                     <p className="text-[10px] font-mono font-bold text-slate-600">₹15,000 deployment</p>
                   </div>
                   <span className="px-2 py-1 rounded-xl bg-violet-100 text-violet-800 text-[10px] font-heading font-black border border-slate-900">
@@ -879,23 +892,26 @@ export default function CustomerPortal() {
                   <button
                     type="button"
                     onClick={() => setMessage('Can we add 1x Mechanical Keyboard (₹4,500) to this proposal?')}
-                    className="px-2.5 py-1 rounded-xl bg-violet-100 hover:bg-violet-200 text-violet-900 border border-slate-900 text-[10px] font-heading font-black cursor-pointer shadow-pop-xs transition-transform active:scale-95"
+                    className="px-2.5 py-1 rounded-xl bg-violet-100 hover:bg-violet-200 text-violet-900 border border-slate-900 text-[10px] font-heading font-black cursor-pointer shadow-pop-xs transition-transform active:scale-95 inline-flex items-center gap-1"
                   >
-                    ⌨️ + Add Keyboard
+                    <Keyboard size={11} />
+                    <span>+ Add Keyboard</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setMessage('Can we bundle a 27" 4K Monitor with this package?')}
-                    className="px-2.5 py-1 rounded-xl bg-violet-100 hover:bg-violet-200 text-violet-900 border border-slate-900 text-[10px] font-heading font-black cursor-pointer shadow-pop-xs transition-transform active:scale-95"
+                    className="px-2.5 py-1 rounded-xl bg-violet-100 hover:bg-violet-200 text-violet-900 border border-slate-900 text-[10px] font-heading font-black cursor-pointer shadow-pop-xs transition-transform active:scale-95 inline-flex items-center gap-1"
                   >
-                    🖥️ + Add 4K Monitor
+                    <Monitor size={11} />
+                    <span>+ Add 4K Monitor</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setCounterDiscount(15)}
-                    className="px-2.5 py-1 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 border border-slate-900 text-[10px] font-heading font-black cursor-pointer shadow-pop-xs transition-transform active:scale-95"
+                    className="px-2.5 py-1 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-900 border border-slate-900 text-[10px] font-heading font-black cursor-pointer shadow-pop-xs transition-transform active:scale-95 inline-flex items-center gap-1"
                   >
-                    🏷️ Propose 15% Discount
+                    <Tag size={11} />
+                    <span>Propose 15% Discount</span>
                   </button>
                 </div>
               </div>

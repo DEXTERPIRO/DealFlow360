@@ -657,7 +657,7 @@ export default function Fulfillment() {
       setAcceptingSplit(true);
       await fulfillmentAPI.acceptSplit(activeDetailItem.id);
       toast.success(
-        `🎉 Remaining backorder consolidated! All ${activeDetailItem.quotationNumber || activeDetailItem.quotation_number} shipments unified.`
+        `Remaining backorder consolidated! All ${activeDetailItem.quotationNumber || activeDetailItem.quotation_number} shipments unified.`
       );
       loadQuotations();
       loadWarehouses();

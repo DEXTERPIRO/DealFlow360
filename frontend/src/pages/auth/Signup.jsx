@@ -13,6 +13,7 @@ import {
   Check,
   Info,
   Building2,
+  Briefcase,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { authAPI } from '../../api';
@@ -158,7 +159,10 @@ export default function Signup() {
                 : 'text-slate-700 hover:text-slate-900'
             }`}
           >
-            🏢 Customer / Client
+            <span className="inline-flex items-center gap-1.5 justify-center">
+              <Building2 className="w-4 h-4" strokeWidth={2.5} />
+              Customer / Client
+            </span>
           </button>
           <button
             type="button"
@@ -169,7 +173,10 @@ export default function Signup() {
                 : 'text-slate-700 hover:text-slate-900'
             }`}
           >
-            💼 Sales Representative
+            <span className="inline-flex items-center gap-1.5 justify-center">
+              <Briefcase className="w-4 h-4" strokeWidth={2.5} />
+              Sales Representative
+            </span>
           </button>
         </div>
 

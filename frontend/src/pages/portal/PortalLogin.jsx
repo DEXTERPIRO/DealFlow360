@@ -508,7 +508,10 @@ export default function PortalLogin() {
           {authMode === 'signup' && (
             <form onSubmit={handleCustomerSignup} className="space-y-3.5 animate-in fade-in duration-200">
               <div className="p-3 bg-emerald-50 rounded-2xl border-2 border-slate-900 text-slate-800 text-xs">
-                <p className="font-heading font-extrabold text-emerald-900">🏢 Instant Customer Portal Setup</p>
+                <p className="font-heading font-extrabold text-emerald-900 flex items-center gap-1.5">
+                  <Building2 size={15} strokeWidth={2.5} />
+                  Instant Customer Portal Setup
+                </p>
                 <p className="text-[11px] text-slate-600 mt-0.5">
                   Register with your email and password to instantly view your proposals and collaborate with sales.
                 </p>

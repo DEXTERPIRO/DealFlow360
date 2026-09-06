@@ -463,7 +463,7 @@ export default function SubscriptionPlans() {
                               : 'bg-slate-200 text-slate-600'
                           }`}
                         >
-                          {plan.prorate_on_change ? '✔ ENABLED' : '✖ DISABLED'}
+                          {plan.prorate_on_change ? 'ENABLED' : 'DISABLED'}
                         </button>
                       </td>
                       <td className="py-3 px-4 text-center hidden md:table-cell">
@@ -475,7 +475,7 @@ export default function SubscriptionPlans() {
                               : 'bg-rose-100 text-rose-800'
                           }`}
                         >
-                          {plan.partial_refund ? '✔ ENABLED' : '✖ DISABLED'}
+                          {plan.partial_refund ? 'ENABLED' : 'DISABLED'}
                         </button>
                       </td>
                       <td className="py-3 px-4 hidden sm:table-cell">
