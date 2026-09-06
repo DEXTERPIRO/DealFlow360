@@ -877,6 +877,7 @@ export default function QuotationBuilder() {
             {negotiations.map((neg, idx) => {
               const isPending = (neg.status || '').toUpperCase() === 'PENDING';
               const isAccepted = (neg.status || '').toUpperCase() === 'ACCEPTED';
+              const isRejected = (neg.status || '').toUpperCase() === 'REJECTED';
               const isCustomer = (neg.requested_by || '').toUpperCase().includes('CUSTOMER');
               const detected = detectProductInNegotiation(neg.message, products);
               const isAlreadyInLines = detected && lines.some((l) => l.product_id === detected.product.id);
@@ -902,9 +903,17 @@ export default function QuotationBuilder() {
                       )}
 
                       {detected && (
-                        <span className="px-2.5 py-0.5 rounded-md text-[11px] font-heading font-black bg-amber-100 text-amber-900 border border-slate-900 flex items-center gap-1.5 shadow-pop-xs">
-                          <ShoppingBag className="w-3 h-3 text-amber-800" strokeWidth={2.5} />
-                          <span>Add-on: {detected.quantity}x {detected.product.name} ({formatINR(detected.product.base_price)})</span>
+                        <span
+                          className={`px-2.5 py-0.5 rounded-md text-[11px] font-heading font-black border border-slate-900 flex items-center gap-1.5 shadow-pop-xs ${
+                            isRejected
+                              ? 'bg-rose-50 text-rose-800 border-rose-400 opacity-85'
+                              : 'bg-amber-100 text-amber-900'
+                          }`}
+                        >
+                          <ShoppingBag className={`w-3 h-3 ${isRejected ? 'text-rose-700' : 'text-amber-800'}`} strokeWidth={2.5} />
+                          <span>
+                            {isRejected ? 'Declined Add-on:' : 'Add-on:'} {detected.quantity}x {detected.product.name} ({formatINR(detected.product.base_price)})
+                          </span>
                           {isAlreadyInLines && (
                             <span className="text-[10px] text-emerald-800 bg-emerald-100 px-1.5 py-0.2 rounded border border-emerald-800 font-bold ml-1 flex items-center gap-0.5">
                               <CheckCircle2 size={10} strokeWidth={3} /> In Order Lines
@@ -976,7 +985,7 @@ export default function QuotationBuilder() {
                           {neg.status}
                         </span>
 
-                        {detected && !isAlreadyInLines && (
+                        {isAccepted && detected && !isAlreadyInLines && (
                           <button
                             type="button"
                             onClick={() => handleAddNegotiatedProduct(detected, neg.counter_discount, true)}
