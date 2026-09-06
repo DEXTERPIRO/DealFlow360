@@ -32,7 +32,7 @@ export default function PortalLogin() {
   useEffect(() => {
     if (currentUser) {
       if (currentUser.role === 'CUSTOMER') {
-        navigate(`/portal/${currentUser.portalToken || 'demo-portal-token-acme'}`, { replace: true });
+        navigate(`/portal/${currentUser.portalToken || `portal-token-${currentUser.id}`}`, { replace: true });
       } else {
         navigate(getRedirectPathForUser(currentUser), { replace: true });
       }
@@ -76,7 +76,7 @@ export default function PortalLogin() {
             setAuth(res.user, res.accessToken);
             setToken(res.accessToken);
             toast.success(`Welcome, ${res.user.name || 'Customer'}!`);
-            navigate(`/portal/${res.user.portalToken || 'demo-portal-token-acme'}`, { replace: true });
+            navigate(`/portal/${res.user.portalToken || `portal-token-${res.user.id}`}`, { replace: true });
           }
         })
         .catch((err) => {
@@ -100,7 +100,7 @@ export default function PortalLogin() {
       setMagicLoading(true);
       const res = await authAPI.magicLink(magicEmail.trim());
       setMagicSent(true);
-      const portalToken = res?.portalToken || 'demo-portal-token-acme';
+      const portalToken = res?.portalToken || (res?.userId ? `portal-token-${res.userId}` : '');
       setDemoToken(portalToken);
       setRawMagicToken(res?.token || '');
       if (res?.companyName) setCustomerCompany(res.companyName);
@@ -158,7 +158,7 @@ export default function PortalLogin() {
         if (res.user.portalToken) {
           navigate(`/portal/${res.user.portalToken}`);
         } else if (res.user.role === 'CUSTOMER') {
-          navigate('/portal/demo-portal-token-acme');
+          navigate(`/portal/portal-token-${res.user.id}`);
         } else {
           navigate(getRedirectPathForUser(res.user));
         }
@@ -197,7 +197,7 @@ export default function PortalLogin() {
         setAuth(res.user, res.accessToken);
         setToken(res.accessToken);
         toast.success(`Account created! Welcome, ${res.user.name}`);
-        const portalToken = res.user.portalToken || res.portalToken || 'demo-portal-token-acme';
+        const portalToken = res.user.portalToken || res.portalToken || `portal-token-${res.user.id}`;
         navigate(`/portal/${portalToken}`, { replace: true });
       } else {
         toast.success('Account created! Please sign in with your email & password.');

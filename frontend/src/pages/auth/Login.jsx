@@ -175,14 +175,17 @@ export default function Login() {
           setAuth(verifyRes.user, verifyRes.accessToken);
           setToken(verifyRes.accessToken);
           toast.success(`Welcome, ${verifyRes.user.name || 'Customer'}!`);
-          navigate(`/portal/${verifyRes.user.portalToken || magicResult.portalToken || 'demo-portal-token-acme'}`);
+          const targetToken = verifyRes.user.portalToken || magicResult.portalToken || `portal-token-${verifyRes.user.id}`;
+          navigate(`/portal/${targetToken}`);
           return;
         }
       }
-      navigate(`/portal/${magicResult.portalToken || 'demo-portal-token-acme'}`);
+      const fallbackToken = magicResult.portalToken || (magicResult.userId ? `portal-token-${magicResult.userId}` : '');
+      navigate(`/portal/${fallbackToken}`);
     } catch (err) {
       console.error(err);
-      navigate(`/portal/${magicResult.portalToken || 'demo-portal-token-acme'}`);
+      const fallbackToken = magicResult.portalToken || (magicResult.userId ? `portal-token-${magicResult.userId}` : '');
+      navigate(`/portal/${fallbackToken}`);
     } finally {
       setMagicLoading(false);
     }
@@ -191,7 +194,7 @@ export default function Login() {
   const handleCopyMagicToken = () => {
     const textToCopy = magicResult?.token
       ? `${window.location.origin}/login?token=${magicResult.token}`
-      : `${window.location.origin}/portal/${magicResult?.portalToken || 'demo-portal-token-acme'}`;
+      : `${window.location.origin}/portal/${magicResult?.portalToken || (magicResult?.userId ? `portal-token-${magicResult.userId}` : '')}`;
     if (!textToCopy) return;
     navigator.clipboard.writeText(textToCopy);
     setCopiedToken(true);
@@ -455,7 +458,7 @@ export default function Login() {
                     <div className="pt-1 flex items-center justify-between text-[11px] text-slate-600 font-medium border-t border-slate-200">
                       <span>Target Portal:</span>
                       <span className="font-mono font-bold text-slate-900 bg-amber-100 px-1.5 py-0.5 rounded border border-slate-300">
-                        /portal/{magicResult.portalToken || 'demo-portal-token-acme'}
+                        /portal/{magicResult.portalToken || (magicResult.userId ? `portal-token-${magicResult.userId}` : 'pending')}
                       </span>
                     </div>
 
