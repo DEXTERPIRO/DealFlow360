@@ -74,10 +74,6 @@ export default function PriceListsPage() {
   // Database-queried price lists
   const filteredLists = priceLists;
 
-  // Pagination for outer price list cards
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
-
   // Pagination for items inside each price list
   const [itemPages, setItemPages] = useState({});
   const [itemPageSizes, setItemPageSizes] = useState({});
@@ -86,11 +82,10 @@ export default function PriceListsPage() {
   const getItemPageSize = (id) => itemPageSizes[id] || 5;
 
   useEffect(() => {
-    setPage(1);
     setItemPages({});
   }, [selectedTier, search]);
 
-  const pagedLists = filteredLists.slice((page - 1) * pageSize, page * pageSize);
+  const pagedLists = filteredLists;
 
   return (
     <div className="space-y-6 pb-12 antialiased">
@@ -326,19 +321,6 @@ export default function PriceListsPage() {
               )}
             </div>
           ))}
-
-          {filteredLists.length > 0 && (
-            <div className="bg-white border-2 border-slate-900 rounded-3xl p-4 shadow-pop">
-              <Pagination
-                currentPage={page}
-                totalItems={filteredLists.length}
-                pageSize={pageSize}
-                onPageChange={setPage}
-                onPageSizeChange={setPageSize}
-                pageSizeOptions={[1, 2, 4, 5, 10]}
-              />
-            </div>
-          )}
         </div>
       )}
     </div>
