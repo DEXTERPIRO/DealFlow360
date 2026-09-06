@@ -27,7 +27,7 @@ import {
   ArrowRight,
   ShieldAlert,
 } from 'lucide-react';
-import { productsAPI, quotationsAPI } from '../../api';
+import { productsAPI, quotationsAPI, usersAPI } from '../../api';
 import { useAuthStore } from '../../store/authStore';
 import toast from 'react-hot-toast';
 import LiveMarginBar from '../../components/ui/LiveMarginBar';
@@ -149,6 +149,8 @@ export default function QuotationBuilder() {
 
   // Form state
   const [lines, setLines] = useState([defaultLine()]);
+  const [customers, setCustomers] = useState([]);
+  const [customerId, setCustomerId] = useState('');
   const [customerTier, setCustomerTier] = useState('BRONZE');
   const [expiryDate, setExpiryDate] = useState('');
   const [repNotes, setRepNotes] = useState('');
@@ -166,7 +168,7 @@ export default function QuotationBuilder() {
   // Sidebar collapsed state (from AppLayout)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-  // ── Load Products ──────────────────────────────────────────────────────────
+  // ── Load Products & Customers ──────────────────────────────────────────────
   useEffect(() => {
     productsAPI.getAll({ active: true }).then((res) => {
       const arr = Array.isArray(res) ? res : [];
@@ -174,6 +176,13 @@ export default function QuotationBuilder() {
     }).catch(() => {
       toast.error('Could not load product catalog');
     }).finally(() => setLoadingProducts(false));
+
+    usersAPI.getAll({ role: 'CUSTOMER' }).then((res) => {
+      const arr = Array.isArray(res) ? res : [];
+      setCustomers(arr);
+    }).catch((err) => {
+      console.error('Could not load customers', err);
+    });
   }, []);
 
   // ── Load Existing Quotation ────────────────────────────────────────────────
@@ -185,6 +194,7 @@ export default function QuotationBuilder() {
       try {
         const q = await quotationsAPI.getOne(id);
         setQuotation(q);
+        setCustomerId(q.customer_id || q.customerId || q.customer?.id || '');
         setCustomerTier(q.customer_tier || q.customerTier || 'BRONZE');
         setRepNotes(q.rep_notes || q.repNotes || '');
         setExpiryDate(
@@ -295,6 +305,7 @@ export default function QuotationBuilder() {
   // ── Save / Submit ──────────────────────────────────────────────────────────
 
   const buildPayload = () => ({
+    customerId: customerId || null,
     customerTier,
     expiryDate: expiryDate || null,
     repNotes: repNotes.trim() || null,
@@ -474,10 +485,40 @@ export default function QuotationBuilder() {
       </div>
 
       {/* ── QUOTATION META ───────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Customer Account */}
+        <div className="bg-white border-2 border-slate-900 shadow-pop rounded-2xl p-4">
+          <label className="text-xs font-heading font-extrabold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 mb-2">
+            <span className="w-6 h-6 rounded-lg bg-violet-100 border border-slate-900 flex items-center justify-center text-violet-800">
+              <Building className="w-3.5 h-3.5" strokeWidth={2.5} />
+            </span>
+            Target Customer
+          </label>
+          <select
+            value={customerId}
+            onChange={(e) => {
+              const selectedId = e.target.value;
+              setCustomerId(selectedId);
+              const found = customers.find((c) => c.id === selectedId);
+              if (found?.customer_tier) {
+                setCustomerTier(found.customer_tier);
+              }
+            }}
+            disabled={!canEdit}
+            className="w-full bg-slate-50 border-2 border-slate-900 rounded-xl px-2.5 py-2 text-xs font-heading font-bold text-slate-900 focus:outline-none focus:bg-white focus:shadow-pop-sm disabled:opacity-50 transition-all truncate"
+          >
+            <option value="">-- Direct Customer Account --</option>
+            {customers.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.company_name || c.name} ({c.name})
+              </option>
+            ))}
+          </select>
+        </div>
+
         {/* Customer Tier */}
-        <div className="bg-white border-2 border-slate-900 shadow-pop rounded-2xl p-5">
-          <label className="text-xs font-heading font-extrabold uppercase tracking-wider text-slate-700 flex items-center gap-2 mb-2">
+        <div className="bg-white border-2 border-slate-900 shadow-pop rounded-2xl p-4">
+          <label className="text-xs font-heading font-extrabold uppercase tracking-wider text-slate-700 flex items-center gap-1.5 mb-2">
             <span className="w-6 h-6 rounded-lg bg-amber-100 border border-slate-900 flex items-center justify-center text-amber-800">
               <User className="w-3.5 h-3.5" strokeWidth={2.5} />
             </span>
@@ -487,7 +528,7 @@ export default function QuotationBuilder() {
             value={customerTier}
             onChange={(e) => setCustomerTier(e.target.value)}
             disabled={!canEdit}
-            className="w-full bg-slate-50 border-2 border-slate-900 rounded-xl px-3 py-2 text-xs font-heading font-bold text-slate-900 focus:outline-none focus:bg-white focus:shadow-pop-sm disabled:opacity-50 transition-all"
+            className="w-full bg-slate-50 border-2 border-slate-900 rounded-xl px-2.5 py-2 text-xs font-heading font-bold text-slate-900 focus:outline-none focus:bg-white focus:shadow-pop-sm disabled:opacity-50 transition-all"
           >
             <option value="BRONZE">Bronze — Standard Pricing</option>
             <option value="SILVER">Silver — Preferred Rates</option>

@@ -242,8 +242,17 @@ export default function CustomerPortal() {
 
   // Quotation state
   const [quotation, setQuotation] = useState(null);
+  const [portalCustomer, setPortalCustomer] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Quote Request Form State (for customers with no proposal yet)
+  const [requestForm, setRequestForm] = useState({
+    category: 'Hardware & Workstations',
+    budget: '',
+    requirements: '',
+  });
+  const [requestingQuote, setRequestingQuote] = useState(false);
 
   // Expiry countdown state (live seconds)
   const [timeLeft, setTimeLeft] = useState({
@@ -275,10 +284,17 @@ export default function CustomerPortal() {
     if (!token) return;
     try {
       setLoading(true);
+      setError(null);
       const res = await quotationsAPI.getPortal(token);
+      if (res?.hasQuotation === false || (res?.quotation === null && !res?.id)) {
+        setQuotation(null);
+        setPortalCustomer(res?.customer || null);
+        return;
+      }
       const q = res?.quotation || res;
       setQuotation(q);
       setNegotiations(q.negotiations || []);
+      setPortalCustomer(q.customer || null);
 
       // Calculate initial average discount
       const lines = q.lines || [];
@@ -295,6 +311,30 @@ export default function CustomerPortal() {
       setLoading(false);
     }
   }, [token]);
+
+  const handleCustomerRequestQuote = async (e) => {
+    e.preventDefault();
+    if (!requestForm.requirements.trim()) {
+      toast.error('Please enter your requirements or requested scope');
+      return;
+    }
+    try {
+      setRequestingQuote(true);
+      const res = await quotationsAPI.requestPortalQuote({
+        token,
+        requirements: requestForm.requirements.trim(),
+        category: requestForm.category,
+        budget: requestForm.budget.trim() || undefined,
+      });
+      toast.success(res.message || 'Quotation request submitted to Sales!');
+      loadQuotation();
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.detail || 'Failed to submit quotation request');
+    } finally {
+      setRequestingQuote(false);
+    }
+  };
 
   useEffect(() => {
     loadQuotation();
@@ -483,16 +523,155 @@ export default function CustomerPortal() {
     );
   }
 
-  if (error || !quotation) {
+  if (error) {
     return (
       <div className="min-h-screen bg-[#FFFDF5] flex flex-col items-center justify-center p-6 text-slate-900">
         <div className="p-4 rounded-2xl bg-rose-100 border-2 border-slate-900 text-rose-700 mb-4 shadow-pop">
           <AlertTriangle size={36} strokeWidth={2.5} />
         </div>
-        <h2 className="text-2xl font-extrabold text-slate-900 font-heading">Quotation Not Found</h2>
+        <h2 className="text-2xl font-extrabold text-slate-900 font-heading">Portal Link Unavailable</h2>
         <p className="text-xs font-medium text-slate-600 max-w-sm text-center mt-2 leading-relaxed">
-          {error || 'This portal link is invalid, has expired, or has been revoked. Please contact your sales representative.'}
+          {error}
         </p>
+        <button
+          onClick={handleLogout}
+          className="mt-6 px-4 py-2 rounded-xl bg-white border-2 border-slate-900 text-slate-800 text-xs font-heading font-bold shadow-pop-sm hover:bg-slate-50 cursor-pointer"
+        >
+          Return to Login
+        </button>
+      </div>
+    );
+  }
+
+  // ── Render Welcome State for Customer with No Published Quotation Yet ────
+  if (!quotation) {
+    const custName = portalCustomer?.name || user?.name || 'Customer Partner';
+    const compName = portalCustomer?.companyName || portalCustomer?.company_name || user?.companyName || 'Your Organization';
+    const tierName = portalCustomer?.customerTier || user?.customerTier || 'Gold';
+
+    return (
+      <div className="min-h-screen bg-[#FFFDF5] text-slate-900 flex flex-col font-sans antialiased">
+        {/* Isolated Customer Header */}
+        <header className="sticky top-0 z-40 bg-white border-b-2 border-slate-900 px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-pop-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-violet-600 border-2 border-slate-900 flex items-center justify-center text-white font-extrabold text-base shadow-pop-sm font-heading">
+                D
+              </div>
+              <span className="font-extrabold text-slate-900 text-base tracking-tight hidden sm:inline font-heading">
+                DealFlow<span className="text-violet-600">360</span>
+              </span>
+            </div>
+            <div className="h-5 w-[2px] bg-slate-200 hidden sm:block" />
+            <span className="px-3 py-0.5 rounded-full bg-slate-100 border-2 border-slate-900 text-xs font-heading font-bold text-slate-800 shadow-pop-sm">
+              Customer Portal
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-amber-100 text-amber-900 border-2 border-slate-900 shadow-pop-sm uppercase">
+              {tierName} Tier Client
+            </span>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 border-2 border-slate-900 text-xs font-heading font-bold transition-all shadow-pop-sm cursor-pointer ml-1"
+            >
+              <LogOut size={13} strokeWidth={2.5} />
+              <span>Exit</span>
+            </button>
+          </div>
+        </header>
+
+        {/* Content */}
+        <main className="flex-1 max-w-4xl mx-auto w-full p-4 sm:p-8 space-y-6">
+          <div className="rounded-3xl border-2 border-slate-900 bg-white p-6 sm:p-8 shadow-pop space-y-4">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-violet-100 text-violet-800 border-2 border-slate-900 text-xs font-heading font-extrabold shadow-pop-xs">
+              <Building size={14} strokeWidth={2.5} />
+              <span>{compName}</span>
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-heading font-black text-slate-900 tracking-tight">
+              Welcome, {custName}
+            </h1>
+            <p className="text-xs sm:text-sm font-medium text-slate-600 leading-relaxed max-w-2xl">
+              You currently do not have any active commercial proposals published by your sales team.
+              When your dedicated DealFlow360 sales representative creates and publishes a quotation for your company,
+              it will appear here with itemized product pricing, live discount negotiation, and one-click order confirmation.
+            </p>
+          </div>
+
+          {/* Request Proposal Form */}
+          <div className="rounded-3xl border-2 border-slate-900 bg-white p-6 sm:p-8 shadow-pop space-y-5">
+            <div className="flex items-center gap-3 pb-3 border-b-2 border-slate-100">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-100 border-2 border-slate-900 flex items-center justify-center text-emerald-800 shadow-pop-xs">
+                <FileText size={20} strokeWidth={2.5} />
+              </div>
+              <div>
+                <h2 className="text-base sm:text-lg font-heading font-black text-slate-900">
+                  Request a New Commercial Proposal
+                </h2>
+                <p className="text-xs font-medium text-slate-600">
+                  Notify our sales team with your scope and product requirements
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleCustomerRequestQuote} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-heading font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Category of Interest
+                  </label>
+                  <select
+                    value={requestForm.category}
+                    onChange={(e) => setRequestForm({ ...requestForm, category: e.target.value })}
+                    className="w-full bg-slate-50 border-2 border-slate-900 rounded-xl px-3 py-2.5 text-xs font-heading font-bold text-slate-900 focus:bg-white focus:outline-none focus:shadow-pop-sm"
+                  >
+                    <option value="Hardware & Workstations">Hardware & Workstations</option>
+                    <option value="Deployment & Professional Services">Deployment & Professional Services</option>
+                    <option value="Software & Cloud Subscriptions">Software & Cloud Subscriptions</option>
+                    <option value="Comprehensive Enterprise Bundle">Comprehensive Enterprise Bundle</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-heading font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    Estimated Budget / Target (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={requestForm.budget}
+                    onChange={(e) => setRequestForm({ ...requestForm, budget: e.target.value })}
+                    placeholder="e.g. ₹2,00,000 or $5,000"
+                    className="w-full bg-slate-50 border-2 border-slate-900 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:outline-none focus:shadow-pop-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-heading font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Scope & Requirements *
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  value={requestForm.requirements}
+                  onChange={(e) => setRequestForm({ ...requestForm, requirements: e.target.value })}
+                  placeholder="e.g. We require 5 units of high-performance laptops with extended 3-year warranty and on-site setup..."
+                  className="w-full bg-slate-50 border-2 border-slate-900 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-medium placeholder:text-slate-400 focus:bg-white focus:outline-none focus:shadow-pop-sm resize-none"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={requestingQuote}
+                className="btn-candy px-6 py-3 rounded-xl bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white text-xs font-heading font-black shadow-pop border-2 border-slate-900 transition-all flex items-center gap-2 cursor-pointer active:translate-x-0.5 active:translate-y-0.5"
+              >
+                <Send size={14} strokeWidth={2.5} />
+                <span>{requestingQuote ? 'Submitting Request...' : 'Send Request to Sales Representative'}</span>
+              </button>
+            </form>
+          </div>
+        </main>
       </div>
     );
   }

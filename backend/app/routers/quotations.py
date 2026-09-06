@@ -5,7 +5,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func, or_, cast, String
 from sqlalchemy.orm import selectinload, aliased
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,7 +14,7 @@ from app.config import settings
 from app.middleware.auth import verify_token, require_roles
 from app.models.models import (
     Quotation, QuotationLine, Approval, Negotiation, QuotationStatus,
-    Product, AuditLog, AuditAction, User, CustomerTier, LineType
+    Product, AuditLog, AuditAction, User, CustomerTier, LineType, UserRole
 )
 from app.utils.blended_risk_engine import compute_blended_risk_score, compute_order_totals
 from app.sockets.server import sio
@@ -100,6 +100,13 @@ class DecisionBody(BaseModel):
 class ComputeRiskBody(BaseModel):
     lines: List[LineItemIn]
     customerTier: Optional[str] = "BRONZE"
+
+
+class CustomerQuoteRequest(BaseModel):
+    token: str
+    requirements: str
+    category: Optional[str] = "Hardware & Services"
+    budget: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -268,6 +275,7 @@ async def get_portal_quotation(
     token: str,
     db: AsyncSession = Depends(get_db)
 ):
+    # 1. Check direct match by quotation portal_token
     stmt = (
         select(Quotation)
         .where(Quotation.portal_token == token)
@@ -281,9 +289,142 @@ async def get_portal_quotation(
     )
     result = await db.execute(stmt)
     quotation = result.scalar_one_or_none()
-    if not quotation:
-        raise HTTPException(status_code=404, detail="Quotation not found")
-    return quotation
+    if quotation:
+        return quotation
+
+    # 2. Check if token maps to a Customer User account (e.g. portal-{userId}, magic_link_token, or UUID)
+    clean_token = token.replace("portal-", "").strip()
+    c_stmt = select(User).where(
+        (cast(User.id, String) == clean_token) | (User.magic_link_token == token) | (User.email.ilike(f"{clean_token}%"))
+    )
+    c_res = await db.execute(c_stmt)
+    customer = c_res.scalar_one_or_none()
+
+    if customer:
+        # Check if any sales rep has prepared an active quotation for this customer
+        cust_q_stmt = (
+            select(Quotation)
+            .where(Quotation.customer_id == customer.id)
+            .options(
+                selectinload(Quotation.rep),
+                selectinload(Quotation.customer),
+                selectinload(Quotation.lines).selectinload(QuotationLine.product).selectinload(Product.category),
+                selectinload(Quotation.negotiations),
+                selectinload(Quotation.audit_logs).selectinload(AuditLog.user)
+            )
+            .order_by(Quotation.created_at.desc())
+        )
+        cq_res = await db.execute(cust_q_stmt)
+        active_q = cq_res.scalars().first()
+        if active_q:
+            return active_q
+
+        # Customer account exists, but no sales rep has created a proposal for them yet
+        return {
+            "hasQuotation": False,
+            "quotation": None,
+            "customer": {
+                "id": str(customer.id),
+                "name": customer.name,
+                "email": customer.email,
+                "companyName": customer.company_name or customer.name,
+                "customerTier": customer.customer_tier.value if customer.customer_tier else "GOLD"
+            },
+            "message": "No active commercial proposals published yet."
+        }
+
+    # 3. Fallback for demo-portal-token-acme
+    if "demo" in token.lower() or "acme" in token.lower():
+        acme_stmt = (
+            select(Quotation)
+            .join(Quotation.customer)
+            .where(User.company_name.ilike("%Acme%"))
+            .options(
+                selectinload(Quotation.rep),
+                selectinload(Quotation.customer),
+                selectinload(Quotation.lines).selectinload(QuotationLine.product).selectinload(Product.category),
+                selectinload(Quotation.negotiations),
+                selectinload(Quotation.audit_logs).selectinload(AuditLog.user)
+            )
+            .order_by(Quotation.created_at.desc())
+        )
+        acme_res = await db.execute(acme_stmt)
+        acme_q = acme_res.scalars().first()
+        if acme_q:
+            return acme_q
+
+    raise HTTPException(status_code=404, detail="Quotation not found or link has expired")
+
+
+@router.post("/portal/request-quote")
+async def customer_request_quote(
+    body: CustomerQuoteRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    clean_token = body.token.replace("portal-", "").strip()
+    c_stmt = select(User).where(
+        (cast(User.id, String) == clean_token) | (User.magic_link_token == body.token) | (User.email.ilike(f"{clean_token}%"))
+    )
+    c_res = await db.execute(c_stmt)
+    customer = c_res.scalar_one_or_none()
+
+    if not customer:
+        raise HTTPException(404, "Customer account not found")
+
+    # Pick an active sales rep to assign this request to
+    rep_res = await db.execute(select(User).where(User.role == UserRole.SALES_REP).limit(1))
+    rep = rep_res.scalar_one_or_none()
+
+    count_res = await db.execute(select(func.count(Quotation.id)))
+    count = count_res.scalar() or 0
+    current_year = datetime.utcnow().year
+    q_num = f"QT-{current_year}-{(count + 1):03d}"
+
+    notes = f"Customer Requested Scope: {body.requirements}"
+    if body.budget:
+        notes += f" | Target Budget: {body.budget}"
+    if body.category:
+        notes += f" | Category: {body.category}"
+
+    new_q = Quotation(
+        quotation_number=q_num,
+        rep_id=rep.id if rep else customer.id,
+        customer_id=customer.id,
+        customer_tier=customer.customer_tier or CustomerTier.GOLD,
+        status=QuotationStatus.DRAFT,
+        blended_risk_score=0.0,
+        subtotal=Decimal("0.00"),
+        tax_amount=Decimal("0.00"),
+        discount_amount=Decimal("0.00"),
+        total=Decimal("0.00"),
+        margin=0.0,
+        portal_token=f"portal-{customer.id}",
+        rep_notes=notes,
+        expiry_date=datetime.utcnow() + timedelta(days=14)
+    )
+    db.add(new_q)
+    await db.commit()
+    await db.refresh(new_q)
+
+    # Emit notification to workspace
+    try:
+        await sio.emit("quotation-created", {
+            "id": str(new_q.id),
+            "quotationNumber": new_q.quotation_number,
+            "customerName": customer.name,
+            "companyName": customer.company_name,
+            "status": "DRAFT",
+            "message": f"New customer quotation request from {customer.company_name or customer.name}!"
+        })
+    except Exception:
+        pass
+
+    return {
+        "success": True,
+        "message": "Quotation request successfully submitted! Your sales representative will prepare your proposal.",
+        "quotationId": str(new_q.id),
+        "quotationNumber": new_q.quotation_number
+    }
 
 
 @router.get("/{id}")

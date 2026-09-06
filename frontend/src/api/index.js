@@ -41,6 +41,7 @@ export const quotationsAPI = {
   send: (id) => api.put(`/quotations/${id}/send`),
   computeRisk: (d) => api.post('/quotations/compute-risk', d),
   getPortal: (token) => api.get(`/quotations/portal/${token}`),
+  requestPortalQuote: (d) => api.post('/quotations/portal/request-quote', d),
   updateStatus: (id, d) => api.put(`/quotations/${id}/status`, d),
   batchDecision: (d) => api.post('/quotations/batch-decision', d),
 };

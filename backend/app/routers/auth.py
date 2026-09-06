@@ -156,52 +156,14 @@ async def signup(body: SignupBody, response: Response, db: AsyncSession = Depend
 
     portal_token = None
     if is_customer:
-        # Create an initial personalized proposal for the new customer
-        rep_res = await db.execute(select(User).where(User.role == UserRole.SALES_REP).limit(1))
-        rep = rep_res.scalar_one_or_none()
-        rep_id = rep.id if rep else user.id
-
-        prod_res = await db.execute(select(Product).limit(1))
-        sample_prod = prod_res.scalar_one_or_none()
-
-        portal_token = f"portal-token-{clean_email.split('@')[0].lower()[:12]}-{secrets.token_hex(3)}"
-        new_q = Quotation(
-            quotation_number=f"QT-2024-{secrets.token_hex(2).upper()}",
-            rep_id=rep_id,
-            customer_id=user.id,
-            customer_tier=CustomerTier.GOLD,
-            status=QuotationStatus.SENT_TO_CUSTOMER,
-            blended_risk_score=6.5,
-            subtotal=Decimal("170000.00"),
-            tax_amount=Decimal("30600.00"),
-            discount_amount=Decimal("17000.00"),
-            total=Decimal("183600.00"),
-            margin=28.0,
-            portal_token=portal_token,
-            expiry_date=datetime.utcnow() + timedelta(days=14),
-            last_activity_at=datetime.utcnow()
-        )
-        db.add(new_q)
-        await db.commit()
-        await db.refresh(new_q)
-
-        if sample_prod:
-            unit_price = getattr(sample_prod, 'base_price', None) or getattr(sample_prod, 'unit_price', None) or Decimal("85000.00")
-            cost_price = getattr(sample_prod, 'cost_price', None) or Decimal("60000.00")
-            ql = QuotationLine(
-                quotation_id=new_q.id,
-                product_id=sample_prod.id,
-                line_type=LineType.ONE_TIME,
-                quantity=2,
-                unit_price=unit_price,
-                cost_price=cost_price,
-                discount=10.0,
-                tax=Decimal("18.00"),
-                line_total=Decimal("183600.00"),
-                margin=25.0
-            )
-            db.add(ql)
-            await db.commit()
+        # Check if customer already has a quotation assigned by a sales rep
+        existing_q = (await db.execute(
+            select(Quotation).where(Quotation.customer_id == user.id).order_by(Quotation.created_at.desc())
+        )).scalars().first()
+        if existing_q and existing_q.portal_token:
+            portal_token = existing_q.portal_token
+        else:
+            portal_token = f"portal-{user.id}"
 
     access, refresh = generate_tokens(user)
     set_refresh_cookie(response, refresh)
