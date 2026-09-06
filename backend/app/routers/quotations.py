@@ -804,7 +804,7 @@ async def submit_quotation(
 async def decide_quotation(
     id: str,
     body: DecisionBody,
-    user: dict = Depends(require_roles("SALES_MANAGER", "FINANCE", "ADMIN")),
+    user: dict = Depends(require_roles("SALES_REP", "SALES_MANAGER", "FINANCE", "ADMIN")),
     db: AsyncSession = Depends(get_db)
 ):
     action_map = {
@@ -1001,7 +1001,7 @@ class BatchDecisionBody(BaseModel):
 @router.post("/batch-decision")
 async def batch_decision(
     body: BatchDecisionBody,
-    user: dict = Depends(require_roles("SALES_MANAGER", "FINANCE", "ADMIN")),
+    user: dict = Depends(require_roles("SALES_REP", "SALES_MANAGER", "FINANCE", "ADMIN")),
     db: AsyncSession = Depends(get_db)
 ):
     action_map = {"APPROVE": "APPROVED", "APPROVED": "APPROVED", "REJECT": "REJECTED", "REJECTED": "REJECTED"}
