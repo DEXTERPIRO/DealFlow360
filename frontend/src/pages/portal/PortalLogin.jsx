@@ -12,7 +12,9 @@ import {
   Copy,
   Check,
   Zap,
-  Rocket
+  Rocket,
+  User,
+  Building2,
 } from 'lucide-react';
 import { authAPI } from '../../api';
 import { setToken } from '../../api/client';
@@ -37,8 +39,8 @@ export default function PortalLogin() {
     }
   }, [currentUser, navigate]);
 
-  // Mode: 'magic' | 'password'
-  const [authMode, setAuthMode] = useState('magic');
+  // Mode: 'password' | 'signup' | 'magic'
+  const [authMode, setAuthMode] = useState('password');
 
   // Magic Link state
   const [magicEmail, setMagicEmail] = useState('');
@@ -54,6 +56,15 @@ export default function PortalLogin() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordLoading, setPasswordLoading] = useState(false);
+
+  // Signup state
+  const [signupForm, setSignupForm] = useState({
+    name: '',
+    companyName: '',
+    email: '',
+    password: '',
+  });
+  const [signupLoading, setSignupLoading] = useState(false);
 
   // ── Auto-verify if token is in URL ───────────────────────────────────────
   useEffect(() => {
@@ -160,6 +171,48 @@ export default function PortalLogin() {
     }
   };
 
+  // ── Handle Customer Sign Up ──────────────────────────────────────────────
+  const handleCustomerSignup = async (e) => {
+    e.preventDefault();
+    if (!signupForm.name.trim() || !signupForm.email.trim() || !signupForm.password) {
+      toast.error('Please enter name, email, and password');
+      return;
+    }
+    if (signupForm.password.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+
+    try {
+      setSignupLoading(true);
+      const res = await authAPI.signup({
+        name: signupForm.name.trim(),
+        email: signupForm.email.trim(),
+        password: signupForm.password,
+        role: 'CUSTOMER',
+        company_name: signupForm.companyName.trim() || undefined,
+      });
+
+      if (res?.user && res?.accessToken) {
+        setAuth(res.user, res.accessToken);
+        setToken(res.accessToken);
+        toast.success(`Account created! Welcome, ${res.user.name}`);
+        const portalToken = res.user.portalToken || res.portalToken || 'demo-portal-token-acme';
+        navigate(`/portal/${portalToken}`, { replace: true });
+      } else {
+        toast.success('Account created! Please sign in with your email & password.');
+        setAuthMode('password');
+        setEmail(signupForm.email);
+        setPassword(signupForm.password);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.detail || err.response?.data?.error || 'Customer registration failed');
+    } finally {
+      setSignupLoading(false);
+    }
+  };
+
   const demoClients = [
     { name: 'Acme Corporation', email: 'buyer@acme.com', tier: 'Gold' },
     { name: 'Beta Industries', email: 'contact@beta.com', tier: 'Silver' },
@@ -171,6 +224,12 @@ export default function PortalLogin() {
     setEmail(clientEmail);
     setPassword('Customer@123');
     toast.success(`Selected ${clientEmail}`);
+  };
+
+  const handlePrefillDemo = () => {
+    setEmail('buyer@acme.com');
+    setPassword('Customer@123');
+    toast.success('Filled demo credentials (buyer@acme.com / Customer@123)');
   };
 
   const handleCopyToken = () => {
@@ -193,41 +252,52 @@ export default function PortalLogin() {
             D
           </div>
           <h1 className="text-2xl sm:text-3xl font-heading font-extrabold text-slate-900 tracking-tight">
-            Customer Portal Sign In
+            Customer Portal Access
           </h1>
           <p className="text-xs font-medium text-slate-600 max-w-xs mx-auto">
-            Access, negotiate, and digitally confirm your enterprise proposals
+            Review, negotiate, and approve your enterprise quotations & orders
           </p>
         </div>
 
         {/* Card Container */}
         <div className="rounded-3xl border-2 border-slate-900 bg-white p-6 sm:p-8 shadow-pop-lg space-y-6">
           {/* Method Tabs */}
-          <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-slate-100 border-2 border-slate-900">
+          <div className="grid grid-cols-3 gap-1 p-1 rounded-2xl bg-slate-100 border-2 border-slate-900">
+            <button
+              type="button"
+              onClick={() => setAuthMode('password')}
+              className={`py-2 px-1 rounded-xl text-[11px] font-heading font-extrabold transition-all cursor-pointer truncate ${
+                authMode === 'password'
+                  ? 'bg-pop-violet text-white shadow-pop-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Sign In (Pass)
+            </button>
+            <button
+              type="button"
+              onClick={() => setAuthMode('signup')}
+              className={`py-2 px-1 rounded-xl text-[11px] font-heading font-extrabold transition-all cursor-pointer truncate ${
+                authMode === 'signup'
+                  ? 'bg-pop-emerald text-slate-900 shadow-pop-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              New Customer
+            </button>
             <button
               type="button"
               onClick={() => {
                 setAuthMode('magic');
                 setMagicSent(false);
               }}
-              className={`py-2 rounded-xl text-xs font-heading font-extrabold transition-all cursor-pointer ${
+              className={`py-2 px-1 rounded-xl text-[11px] font-heading font-extrabold transition-all cursor-pointer truncate ${
                 authMode === 'magic'
                   ? 'bg-pop-violet text-white shadow-pop-sm'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               Magic Link
-            </button>
-            <button
-              type="button"
-              onClick={() => setAuthMode('password')}
-              className={`py-2 rounded-xl text-xs font-heading font-extrabold transition-all cursor-pointer ${
-                authMode === 'password'
-                  ? 'bg-pop-violet text-white shadow-pop-sm'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Email & Password
             </button>
           </div>
 
@@ -418,8 +488,133 @@ export default function PortalLogin() {
                   <span className="font-heading font-bold text-slate-900">Demo Customer Credentials:</span>
                   <span className="text-[10px] text-pop-violet font-bold underline">Click to fill</span>
                 </div>
-                <p className="mt-1 font-mono font-bold text-slate-900">customer@acme.com / Customer@123</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">(also accepts customer123)</p>
+                <p className="mt-1 font-mono font-bold text-slate-900">buyer@acme.com / Customer@123</p>
+                <p className="text-[10px] text-slate-500 mt-0.5">(also supports contact@beta.com or purchase@gamma.com)</p>
+              </div>
+
+              <div className="text-center pt-1">
+                <button
+                  type="button"
+                  onClick={() => setAuthMode('signup')}
+                  className="text-xs font-bold text-pop-violet hover:underline cursor-pointer"
+                >
+                  New customer? Register a free portal account &rarr;
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* ════ OPTION 3: NEW CUSTOMER SIGN UP ═══════════════════════════ */}
+          {authMode === 'signup' && (
+            <form onSubmit={handleCustomerSignup} className="space-y-3.5 animate-in fade-in duration-200">
+              <div className="p-3 bg-emerald-50 rounded-2xl border-2 border-slate-900 text-slate-800 text-xs">
+                <p className="font-heading font-extrabold text-emerald-900">🏢 Instant Customer Portal Setup</p>
+                <p className="text-[11px] text-slate-600 mt-0.5">
+                  Register with your email and password to instantly view your proposals and collaborate with sales.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-heading font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Full Name *
+                </label>
+                <div className="relative">
+                  <User
+                    size={16}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"
+                    strokeWidth={2.5}
+                  />
+                  <input
+                    type="text"
+                    required
+                    value={signupForm.name}
+                    onChange={(e) => setSignupForm({ ...signupForm, name: e.target.value })}
+                    placeholder="e.g. Alex Morgan"
+                    className="w-full bg-slate-50 border-2 border-slate-900 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 font-medium placeholder:text-slate-400 focus:outline-none focus:bg-white focus:shadow-pop-sm transition-all"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-heading font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Company / Organization Name
+                </label>
+                <div className="relative">
+                  <Building2
+                    size={16}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"
+                    strokeWidth={2.5}
+                  />
+                  <input
+                    type="text"
+                    value={signupForm.companyName}
+                    onChange={(e) => setSignupForm({ ...signupForm, companyName: e.target.value })}
+                    placeholder="e.g. Vertex Industries Ltd"
+                    className="w-full bg-slate-50 border-2 border-slate-900 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 font-medium placeholder:text-slate-400 focus:outline-none focus:bg-white focus:shadow-pop-sm transition-all"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-heading font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Customer Email ID *
+                </label>
+                <div className="relative">
+                  <Mail
+                    size={16}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"
+                    strokeWidth={2.5}
+                  />
+                  <input
+                    type="email"
+                    required
+                    value={signupForm.email}
+                    onChange={(e) => setSignupForm({ ...signupForm, email: e.target.value })}
+                    placeholder="buyer@vertex.com"
+                    className="w-full bg-slate-50 border-2 border-slate-900 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 font-medium placeholder:text-slate-400 focus:outline-none focus:bg-white focus:shadow-pop-sm transition-all"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-heading font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Create Password *
+                </label>
+                <div className="relative">
+                  <Lock
+                    size={16}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"
+                    strokeWidth={2.5}
+                  />
+                  <input
+                    type="password"
+                    required
+                    value={signupForm.password}
+                    onChange={(e) => setSignupForm({ ...signupForm, password: e.target.value })}
+                    placeholder="Minimum 6 characters"
+                    className="w-full bg-slate-50 border-2 border-slate-900 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 font-medium placeholder:text-slate-400 focus:outline-none focus:bg-white focus:shadow-pop-sm transition-all"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={signupLoading}
+                className="btn-candy w-full py-3 px-4 rounded-xl bg-pop-emerald hover:bg-emerald-500 disabled:opacity-50 text-slate-900 font-heading font-extrabold text-xs shadow-pop border-2 border-slate-900 transition-all flex items-center justify-center gap-2 cursor-pointer active:translate-x-0.5 active:translate-y-0.5"
+              >
+                <Rocket size={14} strokeWidth={2.5} />
+                {signupLoading ? 'Registering...' : 'Create Account & Enter Portal'}
+                <ArrowRight size={14} strokeWidth={2.5} />
+              </button>
+
+              <div className="text-center pt-1">
+                <button
+                  type="button"
+                  onClick={() => setAuthMode('password')}
+                  className="text-xs font-bold text-slate-600 hover:text-slate-900 underline cursor-pointer"
+                >
+                  Already have an account? Sign In with Password
+                </button>
               </div>
             </form>
           )}

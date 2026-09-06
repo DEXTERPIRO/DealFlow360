@@ -11,7 +11,8 @@ import {
   ShieldCheck,
   CheckCircle2,
   Check,
-  Info
+  Info,
+  Building2,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { authAPI } from '../../api';
@@ -32,9 +33,10 @@ export default function Signup() {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    companyName: '',
     password: '',
     confirmPassword: '',
-    role: 'SALES_REP',
+    role: 'CUSTOMER',
   });
 
   const [showPassword, setShowPassword] = useState(false);
@@ -107,14 +109,19 @@ export default function Signup() {
         name: formData.name.trim(),
         email: formData.email.trim(),
         password: formData.password,
-        role: formData.role
+        role: formData.role,
+        company_name: formData.companyName.trim() || undefined,
       });
 
       const user = res.user;
       const accessToken = res.accessToken;
       setAuth(user, accessToken);
       setToken(accessToken);
-      toast.success('Account created successfully!');
+      toast.success(
+        user.role === 'CUSTOMER'
+          ? 'Customer account created! Welcome to your Portal.'
+          : 'Account created successfully!'
+      );
 
       // Redirect based on role
       navigate(getRedirectPathForUser(user));
@@ -134,10 +141,36 @@ export default function Signup() {
           <div className="inline-flex w-12 h-12 rounded-2xl bg-pop-violet items-center justify-center border-2 border-slate-900 shadow-pop-sm text-white">
             <Layers className="w-6 h-6" strokeWidth={2.5} />
           </div>
-          <h2 className="text-2xl font-heading font-extrabold text-slate-900 tracking-tight">Create Corporate Account</h2>
+          <h2 className="text-2xl font-heading font-extrabold text-slate-900 tracking-tight">Create Account</h2>
           <p className="text-xs font-medium text-slate-600">
-            Set up your credentials for the DealFlow360 platform
+            Sign up as a client to review & sign proposals, or as a sales representative
           </p>
+        </div>
+
+        {/* Account Type Selector */}
+        <div className="grid grid-cols-2 gap-2 p-1.5 rounded-2xl bg-slate-100 border-2 border-slate-900">
+          <button
+            type="button"
+            onClick={() => setFormData((prev) => ({ ...prev, role: 'CUSTOMER' }))}
+            className={`py-2 px-3 rounded-xl text-xs font-heading font-black transition-all cursor-pointer ${
+              formData.role === 'CUSTOMER'
+                ? 'bg-pop-violet text-white shadow-pop-sm border-2 border-slate-900'
+                : 'text-slate-700 hover:text-slate-900'
+            }`}
+          >
+            🏢 Customer / Client
+          </button>
+          <button
+            type="button"
+            onClick={() => setFormData((prev) => ({ ...prev, role: 'SALES_REP' }))}
+            className={`py-2 px-3 rounded-xl text-xs font-heading font-black transition-all cursor-pointer ${
+              formData.role === 'SALES_REP'
+                ? 'bg-pop-violet text-white shadow-pop-sm border-2 border-slate-900'
+                : 'text-slate-700 hover:text-slate-900'
+            }`}
+          >
+            💼 Sales Representative
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
@@ -164,10 +197,32 @@ export default function Signup() {
             {errors.name && <p className="text-[11px] text-rose-600 mt-1 pl-1 font-bold">{errors.name}</p>}
           </div>
 
+          {/* Company Name (for Customer) */}
+          {formData.role === 'CUSTOMER' && (
+            <div className="animate-in fade-in duration-150">
+              <label className="block text-xs font-heading font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Company / Organization Name
+              </label>
+              <div className="relative">
+                <Building2 className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" strokeWidth={2.5} />
+                <input
+                  type="text"
+                  name="companyName"
+                  value={formData.companyName}
+                  onChange={handleChange}
+                  placeholder="Acme Corporation"
+                  autoComplete="off"
+                  spellCheck="false"
+                  className="w-full bg-slate-50 border-2 border-slate-900 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 font-medium focus:outline-none focus:bg-white focus:shadow-pop-sm transition-all"
+                />
+              </div>
+            </div>
+          )}
+
           {/* Email */}
           <div>
             <label className="block text-xs font-heading font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              Work Email
+              {formData.role === 'CUSTOMER' ? 'Customer Email (Sign In ID)' : 'Work Email'}
             </label>
             <div className="relative">
               <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" strokeWidth={2.5} />
@@ -176,7 +231,7 @@ export default function Signup() {
                 name="email"
                 value={formData.email}
                 onChange={handleChange}
-                placeholder="elena@company.com"
+                placeholder={formData.role === 'CUSTOMER' ? 'buyer@company.com' : 'elena@company.com'}
                 autoComplete="off"
                 spellCheck="false"
                 className={`w-full bg-slate-50 border-2 border-slate-900 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-900 placeholder-slate-400 font-medium focus:outline-none focus:bg-white focus:shadow-pop-sm transition-all ${
@@ -185,31 +240,6 @@ export default function Signup() {
               />
             </div>
             {errors.email && <p className="text-[11px] text-rose-600 mt-1 pl-1 font-bold">{errors.email}</p>}
-          </div>
-
-          {/* Assigned Role (Managed by Administrator) */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <label className="block text-xs font-heading font-bold text-slate-700 uppercase tracking-wider">
-                Assigned Role
-              </label>
-              <span className="text-[10px] text-slate-600 font-mono font-bold flex items-center gap-1">
-                <ShieldCheck className="w-3.5 h-3.5 text-pop-violet" strokeWidth={2.5} />
-                Managed by Admin
-              </span>
-            </div>
-            <div className="flex items-center justify-between px-3.5 py-2.5 bg-slate-50 border-2 border-slate-900 rounded-xl text-xs text-slate-900">
-              <div className="flex items-center gap-2.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 border border-slate-900 shadow-sm" />
-                <span className="font-heading font-bold text-slate-900">Sales Representative</span>
-              </div>
-              <span className="text-[10px] font-mono font-bold text-slate-700 bg-slate-200 px-2.5 py-0.5 rounded-md border border-slate-400">
-                Default Member
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-500 font-medium pl-0.5">
-              Role permissions are centrally assigned and upgraded by system administrators.
-            </p>
           </div>
 
           {/* Password */}
