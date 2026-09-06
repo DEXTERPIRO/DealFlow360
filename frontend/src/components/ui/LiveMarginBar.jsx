@@ -90,8 +90,7 @@ export default function LiveMarginBar({ lines = [], sidebarCollapsed = false }) 
   return (
     <aside
       aria-label="Live quotation margin and risk metrics"
-      style={{ left: effectiveLeft }}
-      className="fixed bottom-0 right-0 z-40 bg-white border-t-2 border-slate-900 px-3 sm:px-6 py-2 sm:py-2.5 flex items-center gap-3 sm:gap-6 shadow-[0_-4px_16px_rgba(30,41,59,0.08)] transition-[left] duration-300 min-h-[56px] sm:min-h-[64px] overflow-x-auto scrollbar-thin"
+      className="bg-white border-2 border-slate-900 shadow-pop rounded-2xl p-4 sm:p-5 flex flex-wrap lg:flex-nowrap items-center justify-between gap-4 sm:gap-6 overflow-x-auto"
     >
       {/* ── TOTAL ─────────────────────────────────── */}
       <div className="shrink-0">

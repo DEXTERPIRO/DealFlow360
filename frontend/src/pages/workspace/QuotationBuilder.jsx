@@ -425,7 +425,7 @@ export default function QuotationBuilder() {
   }
 
   return (
-    <div className="pb-28 space-y-6">
+    <div className="space-y-6 pb-12">
       {/* ── TOP HEADER BAR ───────────────────────────────────────────────── */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-5 rounded-2xl border-2 border-slate-900 shadow-pop">
         <div>
@@ -823,6 +823,9 @@ export default function QuotationBuilder() {
         </div>
       </div>
 
+      {/* ── LIVE MARGIN & DEAL METRICS PANEL (DOCKED) ───────────────────── */}
+      <LiveMarginBar lines={lines} />
+
       {/* ── REP NOTES ─────────────────────────────────────────────────────── */}
       <div className="bg-white border-2 border-slate-900 shadow-pop rounded-2xl p-5">
         <label className="text-xs font-heading font-extrabold uppercase tracking-wider text-slate-700 flex items-center gap-2 mb-2">
@@ -849,9 +852,6 @@ export default function QuotationBuilder() {
           onClose={() => { setShowPicker(false); setPickerTargetLineId(null); }}
         />
       )}
-
-      {/* ── LIVE MARGIN BAR (STICKY BOTTOM) ─────────────────────────────── */}
-      <LiveMarginBar lines={lines} sidebarCollapsed={sidebarCollapsed} />
     </div>
   );
 }
